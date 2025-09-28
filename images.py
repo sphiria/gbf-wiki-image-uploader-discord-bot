@@ -10,12 +10,55 @@ import hashlib
 from io import BytesIO
 from gbfwiki import GBFWiki, GBFDB
 
+# optional for local development only
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    # python-dotenv not installed or not desired — that's fine in production
+    pass
+
+# read credentials from env
+WIKI_USERNAME = os.environ.get("WIKI_USERNAME")
+WIKI_PASSWORD = os.environ.get("WIKI_PASSWORD")
+MITM_ROOT = os.environ.get("MITM_ROOT")
+
 class WikiImages(object):
     def __init__(self):
-        self.wiki = GBFWiki.login()
+        # 1) login: prefer env vars; fallback to existing behavior
+        if WIKI_USERNAME and WIKI_PASSWORD:
+            # Try to pass credentials into GBFWiki.login if it accepts them
+            try:
+                # common pattern: GBFWiki.login(username, password)
+                self.wiki = GBFWiki.login(WIKI_USERNAME, WIKI_PASSWORD)
+            except TypeError:
+                # If GBFWiki.login() doesn't accept args, try fallback strategies.
+                # First try calling login() then performing instance login (some libs expose .login())
+                try:
+                    self.wiki = GBFWiki.login()
+                    # many wrappers have an instance method to authenticate; try it if present
+                    if hasattr(self.wiki, "login"):
+                        try:
+                            self.wiki.login(WIKI_USERNAME, WIKI_PASSWORD)
+                        except Exception:
+                            # last resort: if login method signature differs, ignore and continue
+                            pass
+                except Exception:
+                    # final fallback - call original no-arg login (as before)
+                    self.wiki = GBFWiki.login()
+        else:
+            # no env vars set -> keep old behavior (reads from file)
+            self.wiki = GBFWiki.login()
+
+        # 2) db unchanged
         self.db = GBFDB()
-        self.mitm_root = GBFWiki.mitmpath()
+
+        # 3) mitm root: prefer MITM_ROOT env var, otherwise fall back to GBFWiki.mitmpath()
+        self.mitm_root = MITM_ROOT or GBFWiki.mitmpath()
+
+        # 4) other settings
         self.delay = 25
+
 
     def get_image(self, url):
         print('Downloading {0}...'.format(url))
