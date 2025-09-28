@@ -1,4 +1,7 @@
+discord.py>=2.3.0
+requests>=2.20.0
 mwparserfromhell>=0.5
 mwclient>=0.8.6
 google-api-python-client>=1.6.4
 python-dateutil>=2.6.1
+python-dotenv>=0.21.0   # only needed for local dev
