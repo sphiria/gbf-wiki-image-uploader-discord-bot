@@ -55,17 +55,6 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         )
         return
 
-    if not (
-        ALLOWED_ROLE_NAME in [role.name for role in member.roles]
-        or "Wiki Admin" in [role.name for role in member.roles]
-        or member.guild.owner_id == interaction.user.id
-    ):
-        await interaction.response.send_message(
-            f"❌ You must have the `{ALLOWED_ROLE_NAME}` or `Wiki Admin` role to use this command.",
-            ephemeral=True
-        )
-        return
-
     # Prevent concurrent uploads
     if upload_lock.locked():
         await interaction.response.send_message(
