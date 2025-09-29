@@ -68,11 +68,27 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         )
 
         if result.returncode == 0:
-            await interaction.followup.send(
-                f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
-            )
+            if len(result.stdout) > 1900:
+                # Send output as a text file
+                file = discord.File(io.StringIO(result.stdout), filename="upload_log.txt")
+                await interaction.followup.send(
+                    f"✅ Upload successful for `{page_name}` ({page_type.value})! (see log attached)",
+                    file=file
+                )
+            else:
+                await interaction.followup.send(
+                    f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
+                )
         else:
-            await interaction.followup.send(f"❌ Upload failed:\n```{result.stderr}```")
+            if len(result.stderr) > 1900:
+                # Send error output as a text file
+                file = discord.File(io.StringIO(result.stderr), filename="upload_error.txt")
+                await interaction.followup.send(
+                    f"❌ Upload failed for `{page_name}` ({page_type.value}) (see error log attached)",
+                    file=file
+                )
+            else:
+                await interaction.followup.send(f"❌ Upload failed:\n```{result.stderr}```")
 
     except Exception as e:
         await interaction.followup.send(f"⚠️ Error while running script:\n```{e}```")
