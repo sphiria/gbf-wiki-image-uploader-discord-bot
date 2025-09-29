@@ -2,6 +2,7 @@ import os
 import subprocess
 import discord
 from discord import app_commands
+import io
 
 # --- CONFIG ---
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
