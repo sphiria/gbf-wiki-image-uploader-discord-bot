@@ -45,8 +45,14 @@ bot = WikiBot()
 async def upload(interaction: discord.Interaction, page_type: app_commands.Choice[str], page_name: str):
     # Check user role
     member = interaction.guild.get_member(interaction.user.id)
-    if member is None:
-        await interaction.response.send_message("⚠️ Could not find you in the server.", ephemeral=True)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"❌ You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True
+        )
         return
 
     if not (
@@ -70,8 +76,8 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
 
     # Lock section
     async with upload_lock:
-        # First tell everyone an upload has started
-        await interaction.response.send_message(
+        # Send initial "started" message
+        msg = await interaction.response.send_message(
             f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
         )
 
@@ -84,29 +90,30 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
                 capture_output=True
             )
 
+            # Build the final result message
             if result.returncode == 0:
                 if len(result.stdout) > 1900:
                     file = discord.File(io.StringIO(result.stdout), filename="upload_log.txt")
-                    await interaction.followup.send(
-                        f"✅ Upload successful for `{page_name}` ({page_type.value})! (see log attached)",
-                        file=file
+                    await msg.edit(
+                        content=f"✅ Upload successful for `{page_name}` ({page_type.value})! (see log attached)",
+                        attachments=[file]
                     )
                 else:
-                    await interaction.followup.send(
-                        f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
+                    await msg.edit(
+                        content=f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
                     )
             else:
                 if len(result.stderr) > 1900:
                     file = discord.File(io.StringIO(result.stderr), filename="upload_error.txt")
-                    await interaction.followup.send(
-                        f"❌ Upload failed for `{page_name}` ({page_type.value}) (see error log attached)",
-                        file=file
+                    await msg.edit(
+                        content=f"❌ Upload failed for `{page_name}` ({page_type.value}) (see error log attached)",
+                        attachments=[file]
                     )
                 else:
-                    await interaction.followup.send(f"❌ Upload failed:\n```{result.stderr}```")
+                    await msg.edit(content=f"❌ Upload failed:\n```{result.stderr}```")
 
         except Exception as e:
-            await interaction.followup.send(f"⚠️ Error while running script:\n```{e}```")
+            await msg.edit(content=f"⚠️ Error while running script:\n```{e}```")
 
 # --- START BOT ---
 bot.run(DISCORD_TOKEN)
