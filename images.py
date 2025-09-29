@@ -972,8 +972,4 @@ def main():
     elif mode == 'rucksack':
         wi.check_rucksack(wi.wiki.pages[sys.argv[2]])
 
-<<<<<<< HEAD
 main()
-=======
-main()
->>>>>>> bd0c5376bbe1c32881ad2e63a941a298d807730c
