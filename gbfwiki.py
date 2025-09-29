@@ -8,41 +8,33 @@ import sqlite3
 class GBFWiki:
     @staticmethod
     def login():
-        # First try environment variables
+        # 1. Try env vars first
         username = os.environ.get("WIKI_USERNAME")
         password = os.environ.get("WIKI_PASSWORD")
 
-        if not username or not password:
-            # Fallback: try reading login and pass.txt
-            conf = configparser.ConfigParser()
-            conf.read("login and pass.txt")
+        if username and password:
+            site = mwclient.Site("gbf.wiki", path="/")
+            site.login(username, password)
+            return site
 
-            if not conf.has_section("GBFWikiLogin"):
-                raise RuntimeError(
-                    "No wiki login found. Set WIKI_USERNAME/WIKI_PASSWORD "
-                    "as env vars or configure login and pass.txt"
-                )
-
+        # 2. Fallback: try config file
+        conf = configparser.ConfigParser()
+        conf.read("login and pass.txt")
+        if conf.has_section("GBFWikiLogin"):
             username = conf.get("GBFWikiLogin", "username", fallback=None)
             password = conf.get("GBFWikiLogin", "password", fallback=None)
 
-        if not username or not password:
-            raise RuntimeError("Wiki credentials missing or incomplete.")
+        if username and password:
+            site = mwclient.Site("gbf.wiki", path="/")
+            site.login(username, password)
+            return site
 
-        site = mwclient.Site("gbf.wiki", path="/")
-        site.login(username, password)
-        return site
+        # 3. If still nothing, raise error
+        raise RuntimeError("No wiki login credentials found in env or config file.")
 
     @staticmethod
     def mitmpath():
-        # Use env var if available, else fallback to config file
-        mitm_root = os.environ.get("MITM_ROOT")
-        if mitm_root:
-            return mitm_root
-
-        conf = configparser.ConfigParser()
-        conf.read("login and pass.txt")
-        return conf.get("mitm", "root", fallback="")
+        return os.environ.get("MITM_ROOT", "")
 
     @staticmethod
     def mitm_game_path():
