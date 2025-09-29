@@ -3,6 +3,9 @@ import subprocess
 import discord
 from discord import app_commands
 import io
+import asyncio
+
+upload_lock = asyncio.Lock()
 
 # --- CONFIG ---
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
@@ -40,60 +43,70 @@ bot = WikiBot()
 )
 @app_commands.choices(page_type=[app_commands.Choice(name=pt, value=pt) for pt in PAGE_TYPES])
 async def upload(interaction: discord.Interaction, page_type: app_commands.Choice[str], page_name: str):
+    # Check user role
     member = interaction.guild.get_member(interaction.user.id)
     if member is None:
         await interaction.response.send_message("⚠️ Could not find you in the server.", ephemeral=True)
         return
 
-    # ✅ Allow if server owner OR has one of the allowed roles
-    if (
-        interaction.user.id != interaction.guild.owner_id
-        and not any(role.name in ALLOWED_ROLES for role in member.roles)
+    if not (
+        ALLOWED_ROLE_NAME in [role.name for role in member.roles]
+        or "Wiki Admin" in [role.name for role in member.roles]
+        or member.guild.owner_id == interaction.user.id
     ):
         await interaction.response.send_message(
-            f"❌ You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}, "
-            f"or be the server owner.",
+            f"❌ You must have the `{ALLOWED_ROLE_NAME}` or `Wiki Admin` role to use this command.",
             ephemeral=True
         )
         return
 
-    await interaction.response.defer(thinking=True)
+    # Prevent concurrent uploads
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "⚠️ Another upload is already in progress. Please wait until it finishes.",
+            ephemeral=True
+        )
+        return
 
-    try:
-        quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
-
-        result = subprocess.run(
-            ["python", "images.py", page_type.value, quoted_page_name],
-            text=True,
-            capture_output=True
+    # Lock section
+    async with upload_lock:
+        # First tell everyone an upload has started
+        await interaction.response.send_message(
+            f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
         )
 
-        if result.returncode == 0:
-            if len(result.stdout) > 1900:
-                # Send output as a text file
-                file = discord.File(io.StringIO(result.stdout), filename="upload_log.txt")
-                await interaction.followup.send(
-                    f"✅ Upload successful for `{page_name}` ({page_type.value})! (see log attached)",
-                    file=file
-                )
-            else:
-                await interaction.followup.send(
-                    f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
-                )
-        else:
-            if len(result.stderr) > 1900:
-                # Send error output as a text file
-                file = discord.File(io.StringIO(result.stderr), filename="upload_error.txt")
-                await interaction.followup.send(
-                    f"❌ Upload failed for `{page_name}` ({page_type.value}) (see error log attached)",
-                    file=file
-                )
-            else:
-                await interaction.followup.send(f"❌ Upload failed:\n```{result.stderr}```")
+        try:
+            quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
 
-    except Exception as e:
-        await interaction.followup.send(f"⚠️ Error while running script:\n```{e}```")
+            result = subprocess.run(
+                ["python", "images.py", page_type.value, quoted_page_name],
+                text=True,
+                capture_output=True
+            )
 
+            if result.returncode == 0:
+                if len(result.stdout) > 1900:
+                    file = discord.File(io.StringIO(result.stdout), filename="upload_log.txt")
+                    await interaction.followup.send(
+                        f"✅ Upload successful for `{page_name}` ({page_type.value})! (see log attached)",
+                        file=file
+                    )
+                else:
+                    await interaction.followup.send(
+                        f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
+                    )
+            else:
+                if len(result.stderr) > 1900:
+                    file = discord.File(io.StringIO(result.stderr), filename="upload_error.txt")
+                    await interaction.followup.send(
+                        f"❌ Upload failed for `{page_name}` ({page_type.value}) (see error log attached)",
+                        file=file
+                    )
+                else:
+                    await interaction.followup.send(f"❌ Upload failed:\n```{result.stderr}```")
+
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ Error while running script:\n```{e}```")
 
 # --- START BOT ---
 bot.run(DISCORD_TOKEN)
