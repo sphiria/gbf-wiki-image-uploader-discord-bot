@@ -66,9 +66,12 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
     # Lock section
     async with upload_lock:
         # Send initial "started" message
-        msg = await interaction.response.send_message(
+        await interaction.response.send_message(
             f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
         )
+
+        # Get the actual Message object we can edit later
+        msg = await interaction.original_response()
 
         try:
             quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
