@@ -1,7 +1,8 @@
 import os
 import mwclient
-
+import sys
 print("🔎 Testing connection to gbf.wiki...")
+sys.stdout.flush()
 
 try:
     site = mwclient.Site(
