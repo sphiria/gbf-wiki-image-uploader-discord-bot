@@ -5,23 +5,44 @@ import configparser
 import codecs
 import sqlite3
 
-class GBFWiki():
+class GBFWiki:
     @staticmethod
     def login():
-        conf = configparser.ConfigParser()
-        conf.read("config.ini")
-        username = conf.get('GBFWikiLogin', 'username')
-        password = conf.get('GBFWikiLogin', 'password')
+        # First try environment variables
+        username = os.environ.get("WIKI_USERNAME")
+        password = os.environ.get("WIKI_PASSWORD")
 
-        wiki = mwclient.Site(('https', 'gbf.wiki'), path='/')
-        wiki.login(username, password)
-        return wiki
+        if not username or not password:
+            # Fallback: try reading login and pass.txt
+            conf = configparser.ConfigParser()
+            conf.read("login and pass.txt")
+
+            if not conf.has_section("GBFWikiLogin"):
+                raise RuntimeError(
+                    "No wiki login found. Set WIKI_USERNAME/WIKI_PASSWORD "
+                    "as env vars or configure login and pass.txt"
+                )
+
+            username = conf.get("GBFWikiLogin", "username", fallback=None)
+            password = conf.get("GBFWikiLogin", "password", fallback=None)
+
+        if not username or not password:
+            raise RuntimeError("Wiki credentials missing or incomplete.")
+
+        site = mwclient.Site("gbf.wiki", path="/")
+        site.login(username, password)
+        return site
 
     @staticmethod
     def mitmpath():
+        # Use env var if available, else fallback to config file
+        mitm_root = os.environ.get("MITM_ROOT")
+        if mitm_root:
+            return mitm_root
+
         conf = configparser.ConfigParser()
-        conf.read("config.ini")
-        return conf.get('mitm', 'root')
+        conf.read("login and pass.txt")
+        return conf.get("mitm", "root", fallback="")
 
     @staticmethod
     def mitm_game_path():
