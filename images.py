@@ -15,50 +15,35 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
-    # python-dotenv not installed or not desired — that's fine in production
+    # python-dotenv not installed
     pass
 
-# read credentials from env
+# read credentials from env (gbfwiki.login() will use these if present)
 WIKI_USERNAME = os.environ.get("WIKI_USERNAME")
 WIKI_PASSWORD = os.environ.get("WIKI_PASSWORD")
 MITM_ROOT = os.environ.get("MITM_ROOT")
 
 class WikiImages(object):
     def __init__(self):
-        # 1) login: prefer env vars; fallback to existing behavior
-        if WIKI_USERNAME and WIKI_PASSWORD:
-            # Try to pass credentials into GBFWiki.login if it accepts them
-            try:
-                # common pattern: GBFWiki.login(username, password)
-                self.wiki = GBFWiki.login(WIKI_USERNAME, WIKI_PASSWORD)
-            except TypeError:
-                # If GBFWiki.login() doesn't accept args, try fallback strategies.
-                # First try calling login() then performing instance login (some libs expose .login())
-                try:
-                    self.wiki = GBFWiki.login()
-                    # many wrappers have an instance method to authenticate; try it if present
-                    if hasattr(self.wiki, "login"):
-                        try:
-                            self.wiki.login(WIKI_USERNAME, WIKI_PASSWORD)
-                        except Exception:
-                            # last resort: if login method signature differs, ignore and continue
-                            pass
-                except Exception:
-                    # final fallback - call original no-arg login (as before)
-                    self.wiki = GBFWiki.login()
-        else:
-            # no env vars set -> keep old behavior (reads from file)
+        """
+        Initialize wiki connection and DB.
+        GBFWiki.login() is responsible for reading environment variables
+        or falling back to the local config file when necessary.
+        """
+        try:
             self.wiki = GBFWiki.login()
+        except Exception as exc:
+            # If login fails, re-raise with more context so logs are clearer.
+            raise RuntimeError(f"Failed to initialize GBFWiki login: {exc}") from exc
 
-        # 2) db unchanged
+        # DB object unchanged
         self.db = GBFDB()
 
-        # 3) mitm root: prefer MITM_ROOT env var, otherwise fall back to GBFWiki.mitmpath()
+        # MITM root: prefer MITM_ROOT env var, otherwise fall back to GBFWiki.mitmpath()
         self.mitm_root = MITM_ROOT or GBFWiki.mitmpath()
 
-        # 4) other settings
+        # Other settings
         self.delay = 25
-
 
     def get_image(self, url):
         print('Downloading {0}...'.format(url))
