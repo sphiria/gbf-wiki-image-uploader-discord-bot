@@ -115,35 +115,55 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         )
         msg = await interaction.original_response()
 
-        try:
-            quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
-            start_time = time.time()
+try:
+    quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
+    start_time = time.time()
 
-            process = await asyncio.create_subprocess_exec(
-                "python3", "images.py", page_type.value, quoted_page_name,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+    process = await asyncio.create_subprocess_exec(
+        "python3", "images.py", page_type.value, quoted_page_name,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
+    # define updater function here
+    async def progress_updater():
+        while True:
+            await asyncio.sleep(30)
+            if process.returncode is not None:
+                break
+            elapsed = int(time.time() - start_time)
+            await msg.edit(
+                content=f"⏳ Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
             )
 
-            updater_task = asyncio.create_task(progress_updater())  # <-- define here
-            stdout, stderr = await process.communicate()
-            updater_task.cancel()
-            elapsed = int(time.time() - start_time)
+    # start the updater task
+    updater_task = asyncio.create_task(progress_updater())
 
-            # Save logs to txt
-            log_content = f"=== STDOUT ===\n{stdout.decode()}\n\n=== STDERR ===\n{stderr.decode()}"
-            log_file = discord.File(io.BytesIO(log_content.encode()), filename=f"upload_{page_name}.txt")
+    stdout, stderr = await process.communicate()
+    updater_task.cancel()
+    elapsed = int(time.time() - start_time)
 
-            if process.returncode == 0:
-                await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s!")
-                await interaction.followup.send(f"📌 Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s.", file=log_file)
-            else:
-                await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.")
-                await interaction.followup.send(f"📌 Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.", file=log_file)
+    # Save logs to txt
+    log_content = f"=== STDOUT ===\n{stdout.decode()}\n\n=== STDERR ===\n{stderr.decode()}"
+    log_file = discord.File(io.BytesIO(log_content.encode()), filename=f"upload_{page_name}.txt")
 
-        except Exception as e:
-            elapsed = int(time.time() - start_time)
-            await msg.edit(content=f"⚠️ Error while running script after {elapsed}s:\n```{e}```")
+    if process.returncode == 0:
+        await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s!")
+        await interaction.followup.send(
+            f"📌 Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s.",
+            file=log_file
+        )
+    else:
+        await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.")
+        await interaction.followup.send(
+            f"📌 Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.",
+            file=log_file
+        )
+
+except Exception as e:
+    elapsed = int(time.time() - start_time)
+    await msg.edit(content=f"⚠️ Error while running script after {elapsed}s:\n```{e}```")
+
 
 # --- START BOT ---
 bot.run(DISCORD_TOKEN)
