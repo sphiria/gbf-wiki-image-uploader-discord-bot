@@ -8,29 +8,31 @@ import sqlite3
 class GBFWiki:
     @staticmethod
     def login():
-        # 1. Try env vars first
+        # 1. Try env vars
         username = os.environ.get("WIKI_USERNAME")
         password = os.environ.get("WIKI_PASSWORD")
 
-        if username and password:
-            site = mwclient.Site("gbf.wiki", path="/")
-            site.login(username, password)
-            return site
-
         # 2. Fallback: try config file
-        conf = configparser.ConfigParser()
-        conf.read("login and pass.txt")
-        if conf.has_section("GBFWikiLogin"):
-            username = conf.get("GBFWikiLogin", "username", fallback=None)
-            password = conf.get("GBFWikiLogin", "password", fallback=None)
+        if not username or not password:
+            conf = configparser.ConfigParser()
+            conf.read("login and pass.txt")
+            if conf.has_section("GBFWikiLogin"):
+                username = conf.get("GBFWikiLogin", "username", fallback=None)
+                password = conf.get("GBFWikiLogin", "password", fallback=None)
 
-        if username and password:
-            site = mwclient.Site("gbf.wiki", path="/")
-            site.login(username, password)
-            return site
+        if not username or not password:
+            raise RuntimeError("Wiki credentials missing.")
 
-        # 3. If still nothing, raise error
-        raise RuntimeError("No wiki login credentials found in env or config file.")
+        # 3. Connect to the wiki with a custom User-Agent
+        site = mwclient.Site(
+            ("https", "gbf.wiki"),
+            path="/",
+            clients_useragent="DiscordImageUploaderAdlaiBot/1.0"
+        )
+
+        # 4. Perform login
+        site.login(username, password)
+        return site
 
     @staticmethod
     def mitmpath():
