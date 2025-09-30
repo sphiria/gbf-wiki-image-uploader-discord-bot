@@ -5,10 +5,15 @@ from discord import app_commands
 import io
 import asyncio
 import time
+import re
 
-upload_lock = asyncio.Lock()
+upload_lock = asyncio.Lock() # Global lock so only one upload runs at a time
+last_used = {}  # maps user_id -> timestamp of last command
 
 # --- CONFIG ---
+COOLDOWN_SECONDS = 5
+MAX_PAGE_NAME_LEN = 100
+VALID_PAGE_NAME_REGEX = re.compile(r"^[\w\s\-\(\)\'\"\.]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 GUILD_ID = 377751105334935553  # your server ID
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
@@ -16,6 +21,23 @@ ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor").sp
 
 # Valid page types
 PAGE_TYPES = ["character", "weapon", "summon", "class", "skin"]
+
+def validate_page_name(page_name: str) -> tuple[bool, str]:
+    """
+    Validate a wiki page name string.
+    Returns (is_valid, error_message). If valid, error_message is "".
+    """
+    page_name = page_name.strip()
+
+    # Length check
+    if len(page_name) == 0 or len(page_name) > MAX_PAGE_NAME_LEN:
+        return False, f"❌ Invalid page name. Must be between 1 and {MAX_PAGE_NAME_LEN} characters."
+
+    # Character check
+    if not VALID_PAGE_NAME_REGEX.match(page_name):
+        return False, "❌ Invalid page name. Only letters, numbers, spaces, -, (), ', \", and . are allowed."
+
+    return True, page_name
 
 # --- BOT SETUP ---
 class WikiBot(discord.Client):
@@ -37,8 +59,7 @@ bot = WikiBot()
 
 
 # --- SLASH COMMAND ---
-# Global lock so only one upload runs at a time
-upload_lock = asyncio.Lock()
+
 
 @bot.tree.command(name="upload", description="Upload an image to the wiki")
 @app_commands.describe(
@@ -57,10 +78,31 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
             ephemeral=True
         )
         return
+    
+    is_valid, result = validate_page_name(page_name)
+    if not is_valid:
+        await interaction.response.send_message(result, ephemeral=True)
+        return
+    page_name = result  # validated + stripped
+
+    # Check cooldown
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"⚠️ You must wait {remaining}s before using `/upload` again.",
+            ephemeral=True
+        )
+        return
+    last_used[interaction.user.id] = now
 
     # Ensure only one upload runs at a time
     if upload_lock.locked():
-        await interaction.response.send_message("⚠️ Another upload is already running. Please wait until it finishes.", ephemeral=True)
+        await interaction.response.send_message(
+            "⚠️ Another upload is already running. Please wait until it finishes.",
+            ephemeral=True
+        )
         return
 
     async with upload_lock:
@@ -73,14 +115,12 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
             quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
             start_time = time.time()
 
-            # Start images.py asynchronously
             process = await asyncio.create_subprocess_exec(
                 "python3", "images.py", page_type.value, quoted_page_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
 
-            # Public progress updates every 30s
             async def progress_updater():
                 while True:
                     await asyncio.sleep(30)
@@ -92,13 +132,11 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
                     )
 
             updater_task = asyncio.create_task(progress_updater())
-
-            # Wait for script to finish
             stdout, stderr = await process.communicate()
             updater_task.cancel()
             elapsed = int(time.time() - start_time)
 
-            # Collect logs into a txt file
+            # Save logs to txt
             log_content = f"=== STDOUT ===\n{stdout.decode()}\n\n=== STDERR ===\n{stderr.decode()}"
             log_file = discord.File(io.BytesIO(log_content.encode()), filename=f"upload_{page_name}.txt")
 
@@ -107,7 +145,6 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
             else:
                 await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) after {elapsed}s.")
 
-            # Always send logs publicly
             await interaction.followup.send(file=log_file)
 
         except Exception as e:
