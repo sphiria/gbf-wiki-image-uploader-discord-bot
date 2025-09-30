@@ -135,6 +135,9 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
                         content=f"⏳ Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
                     )
 
+            # start the updater in the background
+            updater_task = asyncio.create_task(progress_updater())
+
             stdout, stderr = await process.communicate()
             updater_task.cancel()
             elapsed = int(time.time() - start_time)
