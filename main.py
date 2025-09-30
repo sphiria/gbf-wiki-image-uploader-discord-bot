@@ -59,9 +59,14 @@ bot = WikiBot()
 
 
 # --- SLASH COMMAND ---
+from discord import app_commands
 
-
-@bot.tree.command(name="upload", description="Upload an image to the wiki")
+@bot.tree.command(
+    name="upload",
+    description="Upload an image to the wiki",
+    default_permissions=False  # disable for everyone by default
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)  # only allow your roles
 @app_commands.describe(
     page_type="Type of page",
     page_name="Wiki page name"
