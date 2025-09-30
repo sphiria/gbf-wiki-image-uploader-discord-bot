@@ -62,8 +62,8 @@ bot = WikiBot()
 from discord import app_commands
 
 @bot.tree.command(
-    name="upload",
-    description="Upload an image to the wiki",
+    name="imgupload",
+    description="Upload a page's images to the wiki",
     default_permissions=False  # disable for everyone by default
 )
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)  # only allow your roles
