@@ -15,12 +15,12 @@ COOLDOWN_SECONDS = 5
 MAX_PAGE_NAME_LEN = 100
 VALID_PAGE_NAME_REGEX = re.compile(r"^[\w\s\-\(\)\'\"\.]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-GUILD_ID = 377751105334935553  # your server ID
+GUILD_ID = 226779286189768705  # your server ID
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
 ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor").split(",")]
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "class", "skin"]
+PAGE_TYPES = ["character", "weapon", "summon", "skin", "npc", "artifact"]
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
