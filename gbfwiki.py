@@ -28,7 +28,11 @@ class GBFWiki:
             "gbf.wiki",
             path="/",
             scheme="https",
-            clients_useragent="DiscordImageUploaderAdlaiBot/1.0"
+            clients_useragent="DiscordImageUploaderAdlaiBot/1.0",
+            headers={
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache"
+            }
         )
 
         # 4. Perform login
