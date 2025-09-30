@@ -3,7 +3,8 @@ import subprocess
 import discord
 from discord import app_commands
 import io
-import asyncio, time
+import asyncio
+import time
 
 upload_lock = asyncio.Lock()
 
@@ -36,6 +37,9 @@ bot = WikiBot()
 
 
 # --- SLASH COMMAND ---
+# Global lock so only one upload runs at a time
+upload_lock = asyncio.Lock()
+
 @bot.tree.command(name="upload", description="Upload an image to the wiki")
 @app_commands.describe(
     page_type="Type of page",
@@ -43,7 +47,6 @@ bot = WikiBot()
 )
 @app_commands.choices(page_type=[app_commands.Choice(name=pt, value=pt) for pt in PAGE_TYPES])
 async def upload(interaction: discord.Interaction, page_type: app_commands.Choice[str], page_name: str):
-    # Check user role
     member = interaction.guild.get_member(interaction.user.id)
     if not member or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
@@ -55,56 +58,61 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         )
         return
 
-    # Initial message (public so everyone sees it)
-    await interaction.response.send_message(
-        f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
-    )
-    msg = await interaction.original_response()
+    # Ensure only one upload runs at a time
+    if upload_lock.locked():
+        await interaction.response.send_message("⚠️ Another upload is already running. Please wait until it finishes.", ephemeral=True)
+        return
 
-    try:
-        quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
-        start_time = time.time()
-
-        # Run images.py asynchronously
-        process = await asyncio.create_subprocess_exec(
-            "python3", "images.py", page_type.value, quoted_page_name,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+    async with upload_lock:
+        await interaction.response.send_message(
+            f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
         )
+        msg = await interaction.original_response()
 
-        # Background task: post public progress updates every 30s
-        async def progress_updater():
-            while True:
-                await asyncio.sleep(30)
-                if process.returncode is not None:
-                    break
-                elapsed = int(time.time() - start_time)
-                await interaction.followup.send(
-                    f"⏳ Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
-                )
+        try:
+            quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
+            start_time = time.time()
 
-        updater_task = asyncio.create_task(progress_updater())
+            # Start images.py asynchronously
+            process = await asyncio.create_subprocess_exec(
+                "python3", "images.py", page_type.value, quoted_page_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
 
-        # Wait for completion
-        stdout, stderr = await process.communicate()
-        updater_task.cancel()
+            # Public progress updates every 30s
+            async def progress_updater():
+                while True:
+                    await asyncio.sleep(30)
+                    if process.returncode is not None:
+                        break
+                    elapsed = int(time.time() - start_time)
+                    await interaction.followup.send(
+                        f"⏳ Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
+                    )
 
-        elapsed = int(time.time() - start_time)
+            updater_task = asyncio.create_task(progress_updater())
 
-        if process.returncode == 0:
-            output = stdout.decode().strip()
-            if len(output) > 1500:
-                output = output[:1500] + "\n... (output truncated)"
-            await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s!\n```{output}```")
-        else:
-            error_output = stderr.decode().strip()
-            if len(error_output) > 1500:
-                error_output = error_output[:1500] + "\n... (output truncated)"
-            await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) after {elapsed}s:\n```{error_output}```")
+            # Wait for script to finish
+            stdout, stderr = await process.communicate()
+            updater_task.cancel()
+            elapsed = int(time.time() - start_time)
 
-    except Exception as e:
-        elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"⚠️ Error while running script after {elapsed}s:\n```{e}```")
+            # Collect logs into a txt file
+            log_content = f"=== STDOUT ===\n{stdout.decode()}\n\n=== STDERR ===\n{stderr.decode()}"
+            log_file = discord.File(io.BytesIO(log_content.encode()), filename=f"upload_{page_name}.txt")
+
+            if process.returncode == 0:
+                await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s!")
+            else:
+                await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) after {elapsed}s.")
+
+            # Always send logs publicly
+            await interaction.followup.send(file=log_file)
+
+        except Exception as e:
+            elapsed = int(time.time() - start_time)
+            await msg.edit(content=f"⚠️ Error while running script after {elapsed}s:\n```{e}```")
 
 # --- START BOT ---
 bot.run(DISCORD_TOKEN)
