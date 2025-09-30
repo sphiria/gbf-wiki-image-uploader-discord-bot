@@ -25,8 +25,9 @@ class GBFWiki:
 
         # 3. Connect to the wiki with a custom User-Agent
         site = mwclient.Site(
-            ("https", "gbf.wiki"),
+            "gbf.wiki",
             path="/",
+            scheme="https",
             clients_useragent="DiscordImageUploaderAdlaiBot/1.0"
         )
 
