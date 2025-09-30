@@ -125,19 +125,7 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
                 stderr=asyncio.subprocess.PIPE
             )
 
-            async def progress_updater():
-                while True:
-                    await asyncio.sleep(30)
-                    if process.returncode is not None:
-                        break
-                    elapsed = int(time.time() - start_time)
-                    await msg.edit(
-                        content=f"⏳ Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
-                    )
-
-            # start the updater in the background
-            updater_task = asyncio.create_task(progress_updater())
-
+            updater_task = asyncio.create_task(progress_updater())  # <-- define here
             stdout, stderr = await process.communicate()
             updater_task.cancel()
             elapsed = int(time.time() - start_time)
@@ -148,17 +136,10 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
 
             if process.returncode == 0:
                 await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s!")
-                await interaction.followup.send(
-                    f"📌 Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s.",
-                    file=log_file
-                )
+                await interaction.followup.send(f"📌 Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s.", file=log_file)
             else:
                 await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.")
-                await interaction.followup.send(
-                    f"📌 Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.",
-                    file=log_file
-                )
-
+                await interaction.followup.send(f"📌 Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s.", file=log_file)
 
         except Exception as e:
             elapsed = int(time.time() - start_time)
