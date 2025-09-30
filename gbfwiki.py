@@ -31,16 +31,9 @@ class GBFWiki:
             clients_useragent="DiscordImageUploaderAdlaiBot/1.0"
         )
 
-        # Add cache-busting headers
-        site.connection.headers.update({
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache"
-        })
-
         # 4. Perform login
         site.login(username, password)
         return site
-
 
     @staticmethod
     def mitmpath():
