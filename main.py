@@ -55,57 +55,40 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         )
         return
 
-    # Prevent concurrent uploads
-    if upload_lock.locked():
-        await interaction.response.send_message(
-            "⚠️ Another upload is already in progress. Please wait until it finishes.",
-            ephemeral=True
+    # Initial response
+    await interaction.response.send_message(
+        f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
+    )
+    msg = await interaction.original_response()
+
+    try:
+        quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
+
+        # Run images.py asynchronously
+        process = await asyncio.create_subprocess_exec(
+            "python3", "images.py", page_type.value, quoted_page_name,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        return
 
-    # Lock section
-    async with upload_lock:
-        # Send initial "started" message
-        await interaction.response.send_message(
-            f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
-        )
+        stdout, stderr = await process.communicate()
 
-        # Get the actual Message object we can edit later
-        msg = await interaction.original_response()
+        if process.returncode == 0:
+            # Success
+            output = stdout.decode().strip()
+            # Limit to 1500 chars to avoid hitting Discord's 2000 char limit
+            if len(output) > 1500:
+                output = output[:1500] + "\n... (output truncated)"
+            await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{output}```")
+        else:
+            # Error from script
+            error_output = stderr.decode().strip()
+            if len(error_output) > 1500:
+                error_output = error_output[:1500] + "\n... (output truncated)"
+            await msg.edit(content=f"❌ Upload failed for `{page_name}`:\n```{error_output}```")
 
-        try:
-            quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
-
-            result = subprocess.run(
-                ["python", "images.py", page_type.value, quoted_page_name],
-                text=True,
-                capture_output=True
-            )
-
-            # Build the final result message
-            if result.returncode == 0:
-                if len(result.stdout) > 1900:
-                    file = discord.File(io.StringIO(result.stdout), filename="upload_log.txt")
-                    await msg.edit(
-                        content=f"✅ Upload successful for `{page_name}` ({page_type.value})! (see log attached)",
-                        attachments=[file]
-                    )
-                else:
-                    await msg.edit(
-                        content=f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{result.stdout}```"
-                    )
-            else:
-                if len(result.stderr) > 1900:
-                    file = discord.File(io.StringIO(result.stderr), filename="upload_error.txt")
-                    await msg.edit(
-                        content=f"❌ Upload failed for `{page_name}` ({page_type.value}) (see error log attached)",
-                        attachments=[file]
-                    )
-                else:
-                    await msg.edit(content=f"❌ Upload failed:\n```{result.stderr}```")
-
-        except Exception as e:
-            await msg.edit(content=f"⚠️ Error while running script:\n```{e}```")
+    except Exception as e:
+        await msg.edit(content=f"⚠️ Error while running script:\n```{e}```")
 
 # --- START BOT ---
 bot.run(DISCORD_TOKEN)
