@@ -32,7 +32,7 @@ class GBFWiki:
         )
 
         # Add cache-busting headers
-        site.connection.default_headers.update({
+        site.connection.headers.update({
             "Cache-Control": "no-cache",
             "Pragma": "no-cache"
         })
