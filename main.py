@@ -3,7 +3,7 @@ import subprocess
 import discord
 from discord import app_commands
 import io
-import asyncio
+import asyncio, time
 
 upload_lock = asyncio.Lock()
 
@@ -55,7 +55,7 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         )
         return
 
-    # Initial response
+    # Initial message (public so everyone sees it)
     await interaction.response.send_message(
         f"⏳ Upload started for `{page_name}` ({page_type.value}). This may take a while..."
     )
@@ -63,6 +63,7 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
 
     try:
         quoted_page_name = f'"{page_name}"' if " " in page_name else page_name
+        start_time = time.time()
 
         # Run images.py asynchronously
         process = await asyncio.create_subprocess_exec(
@@ -71,24 +72,39 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
             stderr=asyncio.subprocess.PIPE
         )
 
+        # Background task: post public progress updates every 30s
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(30)
+                if process.returncode is not None:
+                    break
+                elapsed = int(time.time() - start_time)
+                await interaction.followup.send(
+                    f"⏳ Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
+                )
+
+        updater_task = asyncio.create_task(progress_updater())
+
+        # Wait for completion
         stdout, stderr = await process.communicate()
+        updater_task.cancel()
+
+        elapsed = int(time.time() - start_time)
 
         if process.returncode == 0:
-            # Success
             output = stdout.decode().strip()
-            # Limit to 1500 chars to avoid hitting Discord's 2000 char limit
             if len(output) > 1500:
                 output = output[:1500] + "\n... (output truncated)"
-            await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value})!\n```{output}```")
+            await msg.edit(content=f"✅ Upload successful for `{page_name}` ({page_type.value}) in {elapsed}s!\n```{output}```")
         else:
-            # Error from script
             error_output = stderr.decode().strip()
             if len(error_output) > 1500:
                 error_output = error_output[:1500] + "\n... (output truncated)"
-            await msg.edit(content=f"❌ Upload failed for `{page_name}`:\n```{error_output}```")
+            await msg.edit(content=f"❌ Upload failed for `{page_name}` ({page_type.value}) after {elapsed}s:\n```{error_output}```")
 
     except Exception as e:
-        await msg.edit(content=f"⚠️ Error while running script:\n```{e}```")
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"⚠️ Error while running script after {elapsed}s:\n```{e}```")
 
 # --- START BOT ---
 bot.run(DISCORD_TOKEN)
