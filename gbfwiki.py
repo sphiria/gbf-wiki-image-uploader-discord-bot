@@ -28,7 +28,7 @@ class GBFWiki:
             "gbf.wiki",
             path="/",
             scheme="https",
-            clients_useragent="DiscordImageUploaderAdlaiBot/1.0"
+            clients_useragent=os.environ.get("USER_AGENT")  
         )
 
         # 4. Perform login
