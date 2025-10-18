@@ -151,7 +151,6 @@ async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -
         with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
             return_code = await asyncio.to_thread(upload_task)
         
-        print(f"✅ Upload task completed with return code: {return_code}")
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
     except Exception as e:
         error_msg = f"❌ Upload task failed: {e}"
@@ -277,7 +276,7 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
             uploaded = status.get("uploaded", 0)
             duplicates = status.get("duplicates", 0)
             failed = status.get("failed", 0)
-            total_checked = status.get("total", 0)
+            total_checked = status.get("total_urls", 0)
             
             summary = f"{dry_run_prefix}Upload completed for `{page_name}` ({page_type.value}) in {elapsed}s!\n"
             summary += f"**Summary:**\n"

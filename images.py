@@ -616,6 +616,7 @@ class WikiImages(object):
         
         # Collect all URLs to download first
         download_tasks = []
+        total_urls_generated = 0
         
         for template in templates:
             template_name = template.name.strip()
@@ -707,6 +708,7 @@ class WikiImages(object):
                             'other_names': other_names,
                             'categories': params[4]
                         })
+                        total_urls_generated += 1
         
         # Download all images concurrently
         if download_tasks:
@@ -806,10 +808,10 @@ class WikiImages(object):
             print(f"  Images found as duplicates: {images_duplicate}")
             print(f"  Images failed processing: {images_failed}")
             print(f"  Download failures: {failed}")
-            print(f"  Total URLs checked: {len(download_results)}")
+            print(f"  Total URLs checked: {total_urls_generated}")
             
             if hasattr(self, '_status_callback'):
-                self._status_callback("completed", processed=images_processed, uploaded=images_uploaded, duplicates=images_duplicate)
+                self._status_callback("completed", processed=images_processed, uploaded=images_uploaded, duplicates=images_duplicate, total_urls=total_urls_generated)
 
 
     def check_sp_rucksack_asset(self, page, asset_type, asset_template, paths, check_inherit=False):
