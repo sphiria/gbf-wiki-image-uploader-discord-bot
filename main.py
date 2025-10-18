@@ -15,7 +15,7 @@ COOLDOWN_SECONDS = 5
 MAX_PAGE_NAME_LEN = 100
 VALID_PAGE_NAME_REGEX = re.compile(r"^[\w\s\-\(\)\'\"\.]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-GUILD_ID = os.environ["GUILD_ID"]
+GUILD_ID = int(os.environ["GUILD_ID"])
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
 ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor,Wiki Admin,Wiki Discord Moderator,Verified Editor").split(",")]
 

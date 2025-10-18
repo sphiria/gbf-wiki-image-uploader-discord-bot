@@ -24,11 +24,15 @@ class GBFWiki:
             raise RuntimeError("Wiki credentials missing.")
 
         # 3. Connect to the wiki with a custom User-Agent
+        user_agent = os.environ.get("USER_AGENT")
+        if not user_agent:
+            raise RuntimeError("USER_AGENT environment variable is required.")
+        
         site = mwclient.Site(
             "gbf.wiki",
             path="/",
             scheme="https",
-            clients_useragent=os.environ.get("USER_AGENT")  
+            clients_useragent=user_agent
         )
 
         # 4. Perform login
