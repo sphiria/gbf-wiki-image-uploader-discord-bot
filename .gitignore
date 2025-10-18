@@ -1,2 +1,5 @@
 .env
 login and pass.txt
+uv.lock
+wiki.db
+__pycache__/
