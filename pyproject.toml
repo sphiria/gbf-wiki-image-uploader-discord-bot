@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gbf-wiki-image-uploader-discord-bot"
+version = "1.0.0"
+description = "Discord bot for uploading images to gbf.wiki"
+requires-python = ">=3.8"
+dependencies = [
+    "discord.py>=2.3.0",
+    "requests>=2.20.0",
+    "mwparserfromhell>=0.5",
+    "mwclient>=0.8.6",
+    "google-api-python-client>=1.6.4",
+    "python-dateutil>=2.6.1",
+    "python-dotenv>=0.21.0",
+]
+
+[project.scripts]
+gbf-wiki-bot = "main:main"
+
+[tool.uv]
+dev-dependencies = []
