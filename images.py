@@ -7,6 +7,8 @@ import urllib.request
 import re
 import time
 import hashlib
+import asyncio
+import aiohttp
 from io import BytesIO
 from gbfwiki import GBFWiki, GBFDB
 
@@ -47,7 +49,14 @@ class WikiImages(object):
 
     def get_image(self, url):
         print('Downloading {0}...'.format(url))
-        req = requests.get(url, stream=True) # was originally stream=True
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+        }
+        proxy_url = os.environ.get("PROXY_URL")
+        proxies = {}
+        if proxy_url:
+            proxies = {"http": proxy_url, "https": proxy_url}
+        req = requests.get(url, headers=headers, proxies=proxies, stream=True)
         if req.status_code != 200:
             print('Download failed for: {0}'.format(url))
             return False, "", 0, False
@@ -68,10 +77,59 @@ class WikiImages(object):
 
         return True, sha1, size, io
 
+    async def get_images_concurrent(self, urls):
+        """Download multiple images concurrently from GBF CDN using proxy"""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+        }
+        
+        proxy_url = os.environ.get("PROXY_URL")
+        
+        async def download_single(session, url):
+            try:
+                print(f'Downloading {url}...')
+                kwargs = {'headers': headers}
+                if proxy_url:
+                    kwargs['proxy'] = proxy_url
+                
+                async with session.get(url, **kwargs) as response:
+                    if response.status != 200:
+                        print(f'Download failed ({response.status}): {url}')
+                        return url, False, "", 0, False
+                    
+                    content = await response.read()
+                    io_obj = BytesIO(content)
+                    io_obj.seek(0)
+                    
+                    sha1 = hashlib.sha1()
+                    sha1.update(content)
+                    sha1_hex = sha1.hexdigest()
+                    size = len(content)
+                    
+                    io_obj.seek(0)
+                    return url, True, sha1_hex, size, io_obj
+            except Exception as e:
+                print(f'Download error for {url}: [proxy error]')
+                return url, False, "", 0, False
+        
+        timeout = aiohttp.ClientTimeout(total=30)
+        connector = aiohttp.TCPConnector()
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            tasks = [download_single(session, url) for url in urls]
+            return await asyncio.gather(*tasks)
+
     def check_image(self, name, sha1, size, io, other_names):
+        print(f"[WIKI] Starting check_image for: {name}")
         true_name = name.capitalize()
         file_name = 'File:' + true_name
-        wiki_duplicates = list(self.wiki.allimages(minsize=size, maxsize=size, sha1=sha1))
+        
+        print(f"[WIKI] Checking for duplicates: {true_name}")
+        try:
+            wiki_duplicates = list(self.wiki.allimages(minsize=size, maxsize=size, sha1=sha1))
+            print(f"Found {len(wiki_duplicates)} potential duplicates")
+        except Exception as e:
+            print(f"Wiki API call failed: {e}")
+            wiki_duplicates = []
 
         # filter out archived images...
         duplicates = []
@@ -134,8 +192,12 @@ class WikiImages(object):
             # upload image
             print('Uploading "{0}"...'.format(file_name))
             io.seek(0)
-            response = self.wiki.upload(io, filename=true_name, ignore=True)
-            print(response['result'] + ': ' + name)
+            try:
+                response = self.wiki.upload(io, filename=true_name, ignore=True)
+                print(response['result'] + ': ' + name)
+            except Exception as e:
+                print(f'Upload failed for {file_name}: {e}')
+                return False
             if response['result'] == 'Warning':
                 return False
             return true_name
@@ -494,6 +556,10 @@ class WikiImages(object):
         pagetext = page.text()
         wikicode = mwparserfromhell.parse(pagetext)
         templates = wikicode.filter_templates()
+        
+        # Collect all URLs to download first
+        download_tasks = []
+        
         for template in templates:
             template_name = template.name.strip()
 
@@ -509,7 +575,6 @@ class WikiImages(object):
                 param_name = param.name.strip()
                 if param_name == 'id':
                     asset_id = param.value.strip()
-                    #asset_id = asset_id.replace('_note', '')
                     asset_match = re.match(r'^{{{id\|([A-Za-z0-9_]+)}}}', asset_id)
                     if asset_match != None:
                         asset_id = asset_match.group(1)
@@ -518,8 +583,7 @@ class WikiImages(object):
             for asset_id in asset_ids:
                 for section, params in paths.items():
                     versions = len(params[2])
-                    version = 0
-                    while version < versions:
+                    for version in range(versions):
                         if section == 'wsp':
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -529,8 +593,6 @@ class WikiImages(object):
                                 params[2][version],
                                 params[0]
                             )
-                            section = 'sp'
-                            
                         elif section == 'f_skin':
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -542,8 +604,6 @@ class WikiImages(object):
                                 params[2][version],
                                 params[0]
                             )
-                            section = 'f_skin'
-                            
                         else:
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -556,57 +616,144 @@ class WikiImages(object):
                                 params[0]
                             )
 
-                        success, sha1, size, io = self.get_image(url)
-                        if success:
-                            true_name = "{0} {1} {2}{3}.{4}".format(
-                                asset_type.capitalize(),
-                                section,
-                                asset_id,
-                                params[2][version],
-                                params[0]
+                        true_name = "{0} {1} {2}{3}.{4}".format(
+                            asset_type.capitalize(),
+                            section,
+                            asset_id,
+                            params[2][version],
+                            params[0]
+                        )
+                        
+                        other_names = []
+                        if (versions < 2) or (params[3][version] == 'A'):
+                            other_names.append(
+                                '{0}{1}.{2}'.format(
+                                    asset_name,
+                                    params[1],
+                                    params[0]
+                                )
                             )
-                            other_names = []
 
-                            if (versions < 2) or (params[3][version] == 'A'):
-                                other_names.append(
-                                    '{0}{1}.{2}'.format(
-                                        asset_name,
-                                        params[1],
-                                        params[0]
-                                    )
+                        if (versions > 1):
+                            other_names.append(
+                                '{0}{1}{2}.{3}'.format(
+                                    asset_name,
+                                    params[1],
+                                    (' ' if (params[1] == '' and params[3][version] != '') else '') + params[3][version],
+                                    params[0]
                                 )
+                            )
+                        
+                        download_tasks.append({
+                            'url': url,
+                            'true_name': true_name,
+                            'other_names': other_names,
+                            'categories': params[4]
+                        })
+        
+        # Download all images concurrently
+        if download_tasks:
+            urls = [task['url'] for task in download_tasks]
+            print(f"Starting concurrent download of {len(urls)} images...")
+            print(f"Sample URLs: {urls[:2]}...")
+            
+            try:
+                # Run async function in current thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Add timeout to prevent hanging
+                    download_task = self.get_images_concurrent(urls)
+                    download_results = loop.run_until_complete(asyncio.wait_for(download_task, timeout=300))  # 5 minute timeout
+                finally:
+                    loop.close()
+                
+                print(f"Download results received: {len(download_results)} results")
+                
+                successful = sum(1 for _, success, _, _, _ in download_results if success)
+                failed = len(download_results) - successful
+                print(f"Download Status Report:")
+                print(f"  Successful (200): {successful}")
+                print(f"  Failed (404/errors): {failed}")
+                print(f"  Total attempted: {len(download_results)}")
+                
+                if hasattr(self, '_status_callback'):
+                    self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
+            except Exception as e:
+                print(f"Concurrent download failed: {e}")
+                print("Falling back to sequential downloads...")
+                
+                # Fallback to original sequential method
+                for task in download_tasks:
+                    success, sha1, size, io_obj = self.get_image(task['url'])
+                    if success:
+                        check_image_result = self.check_image(task['true_name'], sha1, size, io_obj, task['other_names'])
+                        if check_image_result == True:
+                            pass
+                        elif check_image_result == False:
+                            print('Checking image {0} failed! Skipping...'.format(task['true_name']))
+                            continue
+                        else:
+                            task['true_name'] = check_image_result
+                        
+                        self.check_image_categories(task['true_name'], task['categories'])
+                        
+                        for other_name in task['other_names']:
+                            self.check_file_redirect(task['true_name'], other_name)
+                        
+                        time.sleep(self.delay)  # Keep wiki delay
+                        
+                        self.check_file_double_redirect(task['true_name'])
+                return
+            
+            # Process results with wiki operations (keep delays for wiki politeness)
+            images_processed = 0
+            images_uploaded = 0
+            images_duplicate = 0
+            images_failed = 0
+            
+            for i, (url, success, sha1, size, io_obj) in enumerate(download_results):
+                if success:
+                    images_processed += 1
+                    task = download_tasks[i]
+                    print(f"Processing image {images_processed}/{successful}: {task['true_name']}")
+                    
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback("processing", processed=images_processed, total=successful, current_image=task['true_name'])
+                    
+                    check_image_result = self.check_image(task['true_name'], sha1, size, io_obj, task['other_names'])
+                    
+                    if check_image_result == True:
+                        images_uploaded += 1
+                    elif check_image_result == False:
+                        images_failed += 1
+                        print('Checking image {0} failed! Skipping...'.format(task['true_name']))
+                        continue
+                    else:
+                        # Result is a string - means duplicate was found and renamed
+                        images_duplicate += 1
+                        task['true_name'] = check_image_result
+                    
+                    self.check_image_categories(task['true_name'], task['categories'])
 
-                            if (versions > 1):
-                                other_names.append(
-                                    '{0}{1}{2}.{3}'.format(
-                                        asset_name,
-                                        params[1],
-                                        (' ' if (params[1] == '' and params[3][version] != '') else '') + params[3][version],
-                                        params[0]
-                                    )
-                                )
+                    for other_name in task['other_names']:
+                        self.check_file_redirect(task['true_name'], other_name)
 
-                            # true_name may be changed by
-                            check_image_result = self.check_image(true_name, sha1, size, io, other_names)
-                            if check_image_result == True:
-                                pass
-                            elif check_image_result == False:
-                                print('Checking image {0} failed! Skipping...'.format(true_name))
-                                version += 1
-                                continue
-                            else:
-                                true_name = check_image_result
-                            self.check_image_categories(true_name, params[4])
+                    time.sleep(self.delay)
 
-                            for other_name in other_names:
-                                self.check_file_redirect(true_name, other_name)
+                    self.check_file_double_redirect(task['true_name'])
+            
+            print(f"Processing Summary:")
+            print(f"  Images downloaded: {successful}")
+            print(f"  Images uploaded: {images_uploaded}")
+            print(f"  Images found as duplicates: {images_duplicate}")
+            print(f"  Images failed processing: {images_failed}")
+            print(f"  Download failures: {failed}")
+            print(f"  Total URLs checked: {len(download_results)}")
+            
+            if hasattr(self, '_status_callback'):
+                self._status_callback("completed", processed=images_processed, uploaded=images_uploaded, duplicates=images_duplicate)
 
-                            time.sleep(self.delay)
-
-                            self.check_file_double_redirect(true_name)
-
-
-                        version += 1
 
     def check_sp_rucksack_asset(self, page, asset_type, asset_template, paths, check_inherit=False):
         print('Checking page {0}...'.format(page.name))
