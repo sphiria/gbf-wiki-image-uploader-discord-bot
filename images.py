@@ -47,7 +47,7 @@ class WikiImages(object):
         # Other settings
         self.delay = 25
 
-    def get_image(self, url):
+    def get_image(self, url, max_retries=3):
         print('Downloading {0}...'.format(url))
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
@@ -56,26 +56,55 @@ class WikiImages(object):
         proxies = {}
         if proxy_url:
             proxies = {"http": proxy_url, "https": proxy_url}
-        req = requests.get(url, headers=headers, proxies=proxies, stream=True)
-        if req.status_code != 200:
-            print('Download failed for: {0}'.format(url))
-            return False, "", 0, False
+            
+        for attempt in range(max_retries + 1):
+            try:
+                req = requests.get(url, headers=headers, proxies=proxies, stream=True, timeout=30)
+                
+                if req.status_code == 200:
+                    io = BytesIO(req.content)
+                    io.seek(0)
 
-        io = BytesIO(req.content)
-        io.seek(0)
+                    sha1 = hashlib.sha1()
+                    while True:
+                        data = io.read(1024)
+                        if not data:
+                            break
+                        sha1.update(data)
+                    sha1 = sha1.hexdigest()
+                    size = len(req.content)
 
-        sha1 = hashlib.sha1()
-        while True:
-            data = io.read(1024)
-            if not data:
-                break
-            sha1.update(data)
-        sha1 = sha1.hexdigest()
-        size = len(req.content)
-
-        io.seek(0)
-
-        return True, sha1, size, io
+                    io.seek(0)
+                    return True, sha1, size, io
+                    
+                elif req.status_code == 404:
+                    print(f'Download failed (404 Not Found): {url}')
+                    return False, "", 0, False
+                    
+                elif req.status_code in [407, 429, 500, 502, 503, 504]:
+                    if attempt < max_retries:
+                        wait_time = (2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                        print(f'Download failed ({req.status_code}), retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})')
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f'Download failed ({req.status_code}) after {max_retries} retries: {url}')
+                        return False, "", 0, False
+                else:
+                    print(f'Download failed ({req.status_code}): {url}')
+                    return False, "", 0, False
+                    
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries:
+                    wait_time = (2 ** attempt)
+                    print(f'Download error, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries}): [network error]')
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f'Download failed after {max_retries} retries: [network error]')
+                    return False, "", 0, False
+                    
+        return False, "", 0, False
 
     async def get_images_concurrent(self, urls):
         """Download multiple images concurrently from GBF CDN using proxy"""
@@ -85,32 +114,60 @@ class WikiImages(object):
         
         proxy_url = os.environ.get("PROXY_URL")
         
-        async def download_single(session, url):
-            try:
-                print(f'Downloading {url}...')
-                kwargs = {'headers': headers}
-                if proxy_url:
-                    kwargs['proxy'] = proxy_url
-                
-                async with session.get(url, **kwargs) as response:
-                    if response.status != 200:
-                        print(f'Download failed ({response.status}): {url}')
+        async def download_single(session, url, max_retries=3):
+            for attempt in range(max_retries + 1):
+                try:
+                    print(f'Downloading {url}...' + (f' (retry {attempt})' if attempt > 0 else ''))
+                    kwargs = {'headers': headers}
+                    if proxy_url:
+                        kwargs['proxy'] = proxy_url
+                    
+                    async with session.get(url, **kwargs) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            io_obj = BytesIO(content)
+                            io_obj.seek(0)
+                            
+                            sha1 = hashlib.sha1()
+                            sha1.update(content)
+                            sha1_hex = sha1.hexdigest()
+                            size = len(content)
+                            
+                            io_obj.seek(0)
+                            return url, True, sha1_hex, size, io_obj
+                            
+                        elif response.status == 404:
+                            # Don't retry 404s - file genuinely doesn't exist
+                            print(f'Download failed (404 Not Found): {url}')
+                            return url, False, "", 0, False
+                            
+                        elif response.status in [407, 429, 500, 502, 503, 504]:
+                            # Retry these errors: proxy auth, rate limit, server errors
+                            if attempt < max_retries:
+                                wait_time = (2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                                print(f'Download failed ({response.status}), retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})')
+                                await asyncio.sleep(wait_time)
+                                continue
+                            else:
+                                print(f'Download failed ({response.status}) after {max_retries} retries: {url}')
+                                return url, False, "", 0, False
+                        else:
+                            # Other HTTP errors - don't retry
+                            print(f'Download failed ({response.status}): {url}')
+                            return url, False, "", 0, False
+                            
+                except Exception as e:
+                    # Network/timeout errors - retry
+                    if attempt < max_retries:
+                        wait_time = (2 ** attempt)
+                        print(f'Download error, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries}): [network error]')
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        print(f'Download failed after {max_retries} retries: [network error]')
                         return url, False, "", 0, False
-                    
-                    content = await response.read()
-                    io_obj = BytesIO(content)
-                    io_obj.seek(0)
-                    
-                    sha1 = hashlib.sha1()
-                    sha1.update(content)
-                    sha1_hex = sha1.hexdigest()
-                    size = len(content)
-                    
-                    io_obj.seek(0)
-                    return url, True, sha1_hex, size, io_obj
-            except Exception as e:
-                print(f'Download error for {url}: [proxy error]')
-                return url, False, "", 0, False
+                        
+            return url, False, "", 0, False
         
         timeout = aiohttp.ClientTimeout(total=30)
         connector = aiohttp.TCPConnector()
