@@ -1970,7 +1970,7 @@ class WikiImages(object):
                 lambda variant, gender: f'leader_t_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
                 lambda variant, gender, alias: [
                     f'leader_t_{variant["id_num"]}_{gender}_01.png',
-                    *([f'{class_data["name"]}_{alias}_tower_lvl50.png'] if variant['is_lvl50'] else []),
+                    *([f'{class_data["name"]}_{alias}_babyl_lvl50.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
             )
@@ -1993,26 +1993,25 @@ class WikiImages(object):
                 include_lvl50=supports_lvl50_assets,
                 lvl50_label='square (Lv50) image',
             )
-            square_images_handled = process_gendered_assets(
-                square_variants,
-                lambda variant, gender: (
-                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/s/{variant["id"]}_{gender}_01.jpg'
-                ),
-                lambda variant, gender: f'leader_s_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg',
-                lambda variant, gender, alias: [
-                    f'leader_s_{variant["id_num"]}_{gender}_01.jpg',
-                    f'{class_data["name"]}_{alias}_square.jpg',
-                    *([f'{class_data["name"]} square.jpg'] if gender == 0 else []),
-                    *([f'{class_data["name"]}_{alias}_square_lvl50.jpg'] if variant['is_lvl50'] else []),
-                ],
-                adjust_attempts_for_failures=True,
-                    extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
-            )
+        process_gendered_assets(
+            square_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/s/{variant["id"]}_{gender}_01.jpg'
+            ),
+            lambda variant, gender: f'leader_s_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg',
+            lambda variant, gender, alias: [
+                f'leader_s_{variant["id_num"]}_{gender}_01.jpg',
+                f'{class_data["name"]}_{alias}_square.jpg',
+                *([f'{class_data["name"]}_{alias}_square_lvl50.jpg'] if variant['is_lvl50'] else []),
+            ],
+            adjust_attempts_for_failures=True,
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
 
-        if not square_images_handled and has_class_fields('id_num', 'name'):
+        if has_class_fields('id_num', 'name'):
             process_single_asset(
-                'leader square (legacy)',
+                'leader square (both)',
                 url=(
                     'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
                     f'img/sp/assets/leader/s/{class_data["id_num"]}_01.jpg'
