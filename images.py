@@ -1784,8 +1784,59 @@ class WikiImages(object):
             ],
             extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
         )
-
         if has_class_fields('id', 'id_num', 'abbr', 'name'):
+            result_variants = build_variants('result image', include_lvl50=True, lvl50_label='result (Lv50) image')
+            process_gendered_assets(
+                result_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/result/{variant["id"]}_{variant["abbr"]}_{gender}_01.jpg'
+                ),
+                lambda variant, gender: (
+                    f'leader_result_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
+                ),
+                lambda variant, gender, alias: [
+                    f'leader_result_{variant["id_num"]}_{gender}_01.jpg',
+                    f'{class_data["name"]}_{alias}_result.jpg',
+                    *([f'{class_data["name"]}_{alias}_result_lvl50.jpg'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            profile_variants = build_variants('profile image', include_lvl50=True, lvl50_label='profile (Lv50) image')
+            process_gendered_assets(
+                profile_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/pm/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: (
+                    f'leader_pm_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+                ),
+                lambda variant, gender, alias: [
+                    f'leader_pm_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_profile.png',
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            raid_log_variants = build_variants('raid log image', include_lvl50=True, lvl50_label='raid log (Lv50) image')
+            process_gendered_assets(
+                raid_log_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/raid_log/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: (
+                    f'leader_raid_log_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+                ),
+                lambda variant, gender, alias: [
+                    f'leader_raid_log_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_raid_log.png',
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
             quest_variants = build_variants(
                 'quest image',
                 include_lvl50=supports_lvl50_assets,
@@ -2008,6 +2059,31 @@ class WikiImages(object):
                 canonical_name=f'job_name_tree_l_{class_data["id_num"]}.png',
                 other_names=[],
             )
+            if has_class_fields('name'):
+                process_single_asset(
+                    'job name image',
+                    url=(
+                        'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                        f'img/sp/ui/job_name/job_change/{class_data["id_num"]}.png'
+                    ),
+                    canonical_name=f'job_name_{class_data["id_num"]}.png',
+                    other_names=[
+                        f'{class_data["name"]}_name.png',
+                        f'job_name_job_change_{class_data["id_num"]}.png',
+                    ],
+                )
+                process_single_asset(
+                    'job list image',
+                    url=(
+                        'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                        f'img/sp/ui/job_name/job_list/{class_data["id_num"]}.png'
+                    ),
+                    canonical_name=f'job_list_{class_data["id_num"]}.png',
+                    other_names=[
+                        f'{class_data["name"]}_job_list.png',
+                        f'Job_name_job_list_{class_data["id_num"]}.png',
+                    ],
+                )
 
         emit_status(
             "completed",
