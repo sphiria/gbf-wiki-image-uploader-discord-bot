@@ -67,7 +67,7 @@ ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor,Wiki
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "skin", "npc", "artifact"]
+PAGE_TYPES = ["character", "weapon", "summon", "skin", "npc", "status", "artifact"]
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """

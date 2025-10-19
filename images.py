@@ -332,6 +332,103 @@ class WikiImages(object):
                         print('Updating double redirect "{0}" to point directly to "{1}"...'.format(depth.name, page.name))
                         depth.save(new_text, summary='Resolving double redirects.')
 
+    def upload_status_icons(self, status_identifier, max_index=None):
+        """
+        Upload status icons from the GBF CDN to the wiki.
+
+        Args:
+            status_identifier (str): Base identifier for the status icon.
+                Examples: "1438", "status_1438", "1438_#", "1438#".
+            max_index (int|None): Optional maximum index for ranged uploads.
+                Defaults to 10 when status_identifier ends with "#".
+        """
+        if not status_identifier:
+            print('Status identifier is required.')
+            return
+
+        def ensure_status_prefix(raw_value):
+            return raw_value if raw_value.startswith('status_') else f'status_{raw_value}'
+
+        url_template = (
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+            'img/sp/ui/icon/status/x64/{0}.png'
+        )
+
+        ranged = False
+        base_identifier = status_identifier
+
+        if status_identifier.endswith('#'):
+            ranged = True
+            base_identifier = status_identifier[:-1]
+            if base_identifier.endswith('_'):
+                base_identifier = base_identifier[:-1]
+
+        base_identifier = ensure_status_prefix(base_identifier)
+
+        if ranged:
+            if max_index is None:
+                max_index = 10
+
+            try:
+                max_index = int(max_index)
+            except (TypeError, ValueError):
+                print(f'Invalid maximum index "{max_index}" provided.')
+                return
+
+            if max_index < 1:
+                print('Maximum index must be at least 1.')
+                return
+
+            indices = range(1, max_index + 1)
+        else:
+            if max_index is not None:
+                print('Ignoring extra max index argument for single status upload.')
+            indices = [None]
+
+        def status_download_and_upload(identifier, report_missing=True):
+            url = url_template.format(identifier)
+            success, sha1, size, io = self.get_image(url)
+            if not success:
+                if report_missing:
+                    print(f'Skipping {identifier}.png (download failed).')
+                return False
+
+            true_name = f'{identifier}.png'
+            other_names = []
+            check_image_result = self.check_image(true_name, sha1, size, io, other_names)
+
+            if check_image_result is False:
+                print(f'Checking image {true_name} failed! Skipping...')
+                return False
+            elif check_image_result is not True:
+                true_name = check_image_result
+
+            for other_name in other_names:
+                self.check_file_redirect(true_name, other_name)
+
+            time.sleep(self.delay)
+            self.check_file_double_redirect(true_name)
+            return True
+
+        for index in indices:
+            if index is None:
+                identifier = base_identifier
+                status_download_and_upload(identifier)
+                continue
+
+            primary_identifier = f'{base_identifier}_{index}'
+            if status_download_and_upload(primary_identifier, report_missing=False):
+                continue
+
+            secondary_identifier = f'{base_identifier}{index}'
+            if status_download_and_upload(secondary_identifier, report_missing=False):
+                continue
+
+            print(
+                f'No status icon found for index {index} '
+                f'({primary_identifier}.png or {secondary_identifier}.png).'
+            )
+
     def check_character(self, page):
         paths = {
             'zoom':          ['png', '', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04', 
@@ -1354,6 +1451,13 @@ def main():
     elif mode == 'classes':
         #wi.class_images()
         pass
+    elif mode == 'status':
+        if len(sys.argv) < 3:
+            print('Please supply a status identifier.')
+            return
+        status_identifier = sys.argv[2]
+        max_index = sys.argv[3] if len(sys.argv) > 3 else None
+        wi.upload_status_icons(status_identifier, max_index)
     elif mode == 'summon':
         wi.check_summon(wi.wiki.pages[sys.argv[2]])
     elif mode == 'summons':
