@@ -2,6 +2,7 @@ import os
 import sys
 import requests
 import mwclient
+from mwclient.errors import APIError
 import mwparserfromhell
 import urllib.request
 import re
@@ -46,6 +47,27 @@ class WikiImages(object):
 
         # Other settings
         self.delay = 25
+
+    def _perform_wiki_action_with_retry(self, action, *args, max_attempts=5, **kwargs):
+        """
+        Execute a wiki action with basic retry handling for rate limits.
+
+        Args:
+            action (callable): Bound mwclient method to execute.
+            max_attempts (int): Maximum number of attempts before giving up.
+        """
+        attempt = 0
+        while True:
+            try:
+                return action(*args, **kwargs)
+            except APIError as api_error:
+                if api_error.code in ("ratelimited", "maxlag") and attempt < max_attempts:
+                    attempt += 1
+                    wait_time = max(5, min(60, self.delay * attempt))
+                    print(f'API limit "{api_error.code}" encountered. Retrying in {wait_time}s (attempt {attempt}/{max_attempts})...')
+                    time.sleep(wait_time)
+                    continue
+                raise
 
     def get_image(self, url, max_retries=3):
         print('Downloading {0}...'.format(url))
@@ -231,7 +253,7 @@ class WikiImages(object):
             # move if single duplicate
             backlinks = dupe.backlinks(filterredir='redirects')
             print('Moving page "{0}" to "{1}" with redirect...'.format(dupe.name, file_name))
-            dupe.move(file_name, reason='Batch upload file name')
+            self._perform_wiki_action_with_retry(dupe.move, file_name, reason='Batch upload file name')
             self.investigate_backlinks(backlinks, dupe.name, file_name)
             return file_name[5:]
         else:
@@ -242,7 +264,7 @@ class WikiImages(object):
                     if page.exists and not page.redirect:
                         backlinks = page.backlinks(filterredir='redirects')
                         print('Moving page "{0}" to "{1}" with redirect before upload...'.format(page.name, file_name))
-                        page.move(file_name, 'Batch upload file name (sha1 not found)')
+                        self._perform_wiki_action_with_retry(page.move, file_name, 'Batch upload file name (sha1 not found)')
 
                         self.investigate_backlinks(backlinks, page.name, file_name)
 
@@ -427,6 +449,140 @@ class WikiImages(object):
             print(
                 f'No status icon found for index {index} '
                 f'({primary_identifier}.png or {secondary_identifier}.png).'
+            )
+
+    def upload_item_article_images(self, page):
+        """
+        Upload item article images for each {{Item}} template found on a page.
+
+        Args:
+            page (mwclient.page.Page): Wiki page containing {{Item}} templates.
+        """
+        print(f'Processing item templates on page "{page.name}"...')
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+
+        items = []
+        seen_ids = set()
+
+        for template in templates:
+            template_name = template.name.strip()
+            if template_name.lower() != 'item':
+                continue
+
+            item_id = None
+            item_name = None
+
+            for param in template.params:
+                param_name = param.name.strip()
+                value = str(param.value).strip()
+
+                if param_name == 'id' and value:
+                    match = re.match(r'^{{{id\|([^}]+)}}}$', value)
+                    if match:
+                        value = match.group(1)
+                    item_id = value
+                elif param_name == 'name' and value:
+                    item_name = mwparserfromhell.parse(value).strip_code().strip()
+
+            if not item_id:
+                print('Skipping template without id parameter.')
+                continue
+
+            if item_id in seen_ids:
+                print(f'Skipping duplicate item id "{item_id}".')
+                continue
+
+            if not item_name:
+                print(f'Skipping item id "{item_id}" without name parameter.')
+                continue
+
+            seen_ids.add(item_id)
+            items.append({'id': item_id, 'name': item_name})
+
+        if not items:
+            print('No valid {{Item}} templates found.')
+            return
+
+        total_variants = len(items) * 2  # s and m variants
+        processed_variants = 0
+        successful_uploads = 0
+        duplicate_matches = 0
+
+        for item in items:
+            item_id = item['id']
+            item_name = item['name']
+
+            for variant, redirect_suffix in [('s', 'square'), ('m', 'icon')]:
+                url = (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/item/article/{variant}/{item_id}.jpg'
+                )
+                true_name = f'item_article_{variant}_{item_id}.jpg'
+                other_names = [f'{item_name} {redirect_suffix}.jpg']
+
+                print(f'Downloading {url} for item "{item_name}" (ID: {item_id})...')
+                success, sha1, size, io_obj = self.get_image(url)
+                if not success:
+                    print(f'Failed to download item image for ID {item_id} variant {variant}.')
+                    processed_variants += 1
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback(
+                            "processing",
+                            processed=processed_variants,
+                            total=total_variants,
+                            current_image=true_name,
+                        )
+                    continue
+
+                check_image_result = self.check_image(true_name, sha1, size, io_obj, other_names)
+                if check_image_result is False:
+                    print(f'Upload validation failed for {true_name}.')
+                    processed_variants += 1
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback(
+                            "processing",
+                            processed=processed_variants,
+                            total=total_variants,
+                            current_image=true_name,
+                        )
+                    continue
+
+                if check_image_result is True:
+                    final_name = true_name
+                else:
+                    final_name = check_image_result
+
+                if final_name.lower() == true_name.lower():
+                    successful_uploads += 1
+                else:
+                    duplicate_matches += 1
+
+                true_name = final_name
+
+                for other_name in other_names:
+                    self.check_file_redirect(true_name, other_name)
+
+                time.sleep(self.delay)
+                self.check_file_double_redirect(true_name)
+
+                processed_variants += 1
+                if hasattr(self, '_status_callback'):
+                    self._status_callback(
+                        "processing",
+                        processed=processed_variants,
+                        total=total_variants,
+                        current_image=true_name,
+                    )
+
+        if hasattr(self, '_status_callback'):
+            self._status_callback(
+                "completed",
+                processed=processed_variants,
+                uploaded=successful_uploads,
+                duplicates=duplicate_matches,
+                total_urls=total_variants,
             )
 
     def check_character(self, page):
@@ -1458,6 +1614,12 @@ def main():
         status_identifier = sys.argv[2]
         max_index = sys.argv[3] if len(sys.argv) > 3 else None
         wi.upload_status_icons(status_identifier, max_index)
+    elif mode == 'item':
+        if len(sys.argv) < 3:
+            print('Please supply a page name containing {{Item}} templates.')
+            return
+        page_name = sys.argv[2]
+        wi.upload_item_article_images(wi.wiki.pages[page_name])
     elif mode == 'summon':
         wi.check_summon(wi.wiki.pages[sys.argv[2]])
     elif mode == 'summons':
