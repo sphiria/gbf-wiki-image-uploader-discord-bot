@@ -1790,7 +1790,7 @@ class WikiImages(object):
                 result_variants,
                 lambda variant, gender: (
                     'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/result/{variant["id"]}_{variant["abbr"]}_{gender}_01.jpg'
+                    f'img/sp/assets/leader/result/{variant["id"]}_{gender}_01.jpg'
                 ),
                 lambda variant, gender: (
                     f'leader_result_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
@@ -1808,7 +1808,7 @@ class WikiImages(object):
                 profile_variants,
                 lambda variant, gender: (
                     'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/pm/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                    f'img/sp/assets/leader/pm/{variant["id"]}_{gender}_01.png'
                 ),
                 lambda variant, gender: (
                     f'leader_pm_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
@@ -1825,7 +1825,7 @@ class WikiImages(object):
                 raid_log_variants,
                 lambda variant, gender: (
                     'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/raid_log/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                    f'img/sp/assets/leader/raid_log/{variant["id"]}_{gender}_01.png'
                 ),
                 lambda variant, gender: (
                     f'leader_raid_log_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
@@ -2023,7 +2023,7 @@ class WikiImages(object):
 
         if has_class_fields('id_num', 'family', 'name'):
             row_suffix = get_row_suffix()
-            name_cased = class_data["name"].title()
+            name_cased = class_data["name"].strip()
             process_single_asset(
                 'job icon',
                 url=(
