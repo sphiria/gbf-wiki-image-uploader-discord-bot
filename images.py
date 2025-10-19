@@ -1388,161 +1388,636 @@ class WikiImages(object):
                 self.check_class(page)
 
     def check_class(self, page):
-        class_id = ''
-        class_name = ''
+        """
+        New class image pipeline using the revised naming schema.
+
+        Adding a new asset type:
+        1. Decide whether the asset is gendered.
+           - Gendered assets (Gran/Djeeta variants) should use
+             `process_gendered_assets`, which automatically assigns the base
+             class image category and a gender-specific category.
+           - Non-gendered assets can use `process_single_asset`.
+        2. Build the variant list.
+           - If Lv50 artwork exists, call
+             `build_variants('label', include_lvl50=supports_lvl50_assets,
+             lvl50_label='asset (Lv50) image')`, replacing the label text with
+             something appropriate (for example `quest (Lv50) image`) so the
+             helper creates both the base and Lv50 entries when template data is
+             available.
+           - If the asset has a single form, skip `build_variants` and call
+             `process_single_asset` directly.
+        3. Prepare helper callbacks.
+           - `url_builder`: create the remote URL from `variant` fields (id,
+             id_num, abbr) plus `gender` when needed.
+           - `canonical_builder`: define the wiki filename, following the
+             existing leader_* naming convention.
+           - `other_names_builder`: supply redirect titles; helpers create and
+             validate the redirects.
+           - Optional `extra_categories_builder`: provide extra categories if
+             you need more than the defaults.
+           - Optional `label_builder`: customize the progress text, if useful.
+        4. Hook the asset into the flow.
+           - Gendered assets call `process_gendered_assets(...)`.
+           - Single-form assets call
+             `process_single_asset(label, url, canonical_name, other_names, ...)`.
+        5. Validate.
+           - Run `python -m compileall images.py` to check syntax.
+           - Test against a representative class page to confirm URLs, uploads,
+             and redirects look correct.
+
+        Args:
+            page (mwclient.page.Page): Class page to process.
+
+        Returns:
+            dict | None: Parsed template metadata for future processing steps.
+        """
+        print(f'Preparing new class workflow for "{page.name}"...')
 
         pagetext = page.text()
         wikicode = mwparserfromhell.parse(pagetext)
         templates = wikicode.filter_templates()
+
+        class_data = None
+
         for template in templates:
             template_name = template.name.strip()
-            if template_name != 'Class':
+            if template_name.lower() != 'class':
                 continue
 
-            for param in template.params:
-                param_name = param.name.strip()
-                if param_name == 'id':
-                    class_id = param.value.strip()
-                    class_id_num = class_id.split('_')[0]
-                elif param_name == 'class':
-                    class_name = param.value.strip()
-                elif param_name == 'family':
-                    class_family = param.value.strip()
-                    if class_family == 'swordmaster':
-                        class_family = 'Sword Master'
-                    elif class_family == 'drummaster':
-                        class_family = 'Drum Master'
-                    elif class_id == '140401':
-                        class_family = 'Street King'
-                    else:
-                        class_family = 'Street King' #class_family.capitalize()
-
-                elif param_name == 'row':
-                    family_evo = int(param.value.strip()) % 10
-
-        if (class_id != '') and (class_name != ''):
-            paths = {
-                # 'a': ['png', '_square'],
-                
-                's': ['jpg', '_square'],
-                'sd': ['png', '_sprite'],
-                'raid_normal': ['jpg', '_profile'],
-                'jobm': ['jpg', '_icon'],
-                'job_change': ['png', ''],
-                'my': ['png', '_homescreen'],
+            class_data = {
+                'id': '',
+                'id_num': '',
+                'abbr': '',
+                'id_lvl50': '',
+                'id_lvl50_num': '',
+                'id_lvl50_abbr': '',
+                'name': '',
+                'family': '',
+                'row': None,
             }
 
-            url = (
-                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                'img/sp/ui/icon/job/{0}.png'
-                # 'img/sp/assets/leader/sd/{0}.png'
-            ).format(
-                class_id_num
+            for param in template.params:
+                param_name = param.name.strip().lower()
+                raw_value = str(param.value).strip()
+                clean_value = mwparserfromhell.parse(raw_value).strip_code().strip()
+
+                if param_name == 'id' and clean_value:
+                    class_data['id'] = clean_value
+                    if '_' in clean_value:
+                        id_num, abbr = clean_value.split('_', 1)
+                        class_data['id_num'] = id_num
+                        class_data['abbr'] = abbr
+                    else:
+                        class_data['id_num'] = clean_value
+                elif param_name == 'class' and clean_value:
+                    class_data['name'] = clean_value
+                elif param_name == 'family' and clean_value:
+                    class_data['family'] = clean_value
+                elif param_name == 'id_lvl50' and clean_value:
+                    class_data['id_lvl50'] = clean_value
+                    if '_' in clean_value:
+                        id_lvl50_num, id_lvl50_abbr = clean_value.split('_', 1)
+                        class_data['id_lvl50_num'] = id_lvl50_num
+                        class_data['id_lvl50_abbr'] = id_lvl50_abbr
+                    else:
+                        class_data['id_lvl50_num'] = clean_value
+                elif param_name == 'row' and clean_value:
+                    try:
+                        class_data['row'] = int(clean_value)
+                    except ValueError:
+                        class_data['row'] = clean_value
+
+            break
+
+        if class_data is None:
+            print('No {{Class}} template found; skipping.')
+            return None
+
+        required_keys = ['id', 'id_num', 'abbr', 'name', 'family', 'row']
+        missing = [key for key in required_keys if not class_data.get(key) and class_data.get(key) != 0]
+        if missing:
+            print(f'Class metadata incomplete ({", ".join(missing)} missing); no uploads attempted yet.')
+
+        uploads_attempted = 0
+        uploads_success = 0
+        uploads_duplicates = 0
+        class_categories = ['Class Images']
+
+        GENDER_LABELS = {0: 'gran', 1: 'djeeta'}
+        genders = (0, 1)
+
+        supports_lvl50_assets = (
+            class_data.get('row') == 0
+            and class_data.get('id_lvl50')
+            and class_data.get('id_lvl50_num')
+            and class_data.get('id_lvl50_abbr')
+        )
+
+        def has_class_fields(*fields):
+            """
+            Ensure required class template fields are present.
+
+            Row is allowed to be integer 0, so only None counts as missing.
+            """
+            for field in fields:
+                value = class_data.get(field)
+                if field == 'row':
+                    if value is None:
+                        return False
+                elif not value:
+                    return False
+            return True
+
+        def get_row_suffix():
+            roman_rows = ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']
+            row_value = class_data.get('row')
+            if isinstance(row_value, int) and 0 <= row_value < len(roman_rows):
+                return roman_rows[row_value]
+            return str(row_value)
+
+        def get_gender_categories(gender_alias):
+            if gender_alias == 'gran':
+                return ['Gran Class Images']
+            if gender_alias == 'djeeta':
+                return ['Djeeta Class Images']
+            return []
+
+        def build_variants(label, include_lvl50=False, lvl50_label=None):
+            variants = [{
+                'id': class_data['id'],
+                'id_num': class_data['id_num'],
+                'abbr': class_data['abbr'],
+                'label': label,
+                'is_lvl50': False,
+            }]
+
+            if include_lvl50 and class_data.get('id_lvl50'):
+                lvl50_id = class_data['id_lvl50']
+                split = lvl50_id.split('_', 1)
+                lvl50_num = class_data.get('id_lvl50_num') or split[0]
+                lvl50_abbr = class_data.get('id_lvl50_abbr') or (split[1] if len(split) > 1 else class_data['abbr'])
+                variants.append({
+                    'id': lvl50_id,
+                    'id_num': lvl50_num,
+                    'abbr': lvl50_abbr,
+                    'label': lvl50_label or f'{label} (Lv50)',
+                    'is_lvl50': True,
+                })
+
+            return variants
+
+        def process_asset(label_text, url, canonical_name, other_names, extra_categories=None):
+            nonlocal uploads_success, uploads_duplicates
+
+            print(f'Downloading {label_text}: {url}')
+            success, sha1, size, io_obj = self.get_image(url)
+            if not success:
+                print(f'Failed to download {label_text}.')
+                return False
+
+            check_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
+            if check_result is False:
+                print(f'Upload validation failed for {canonical_name}.')
+                return False
+
+            final_name = canonical_name if check_result is True else check_result
+            if check_result is True:
+                uploads_success += 1
+            else:
+                uploads_duplicates += 1
+
+            categories = class_categories if not extra_categories else class_categories + list(extra_categories)
+            self.check_image_categories(final_name, categories)
+            for other_name in other_names:
+                self.check_file_redirect(final_name, other_name)
+
+            time.sleep(self.delay)
+            self.check_file_double_redirect(final_name)
+
+            emit_status(
+                "processing",
+                processed=uploads_success + uploads_duplicates,
+                total=uploads_attempted,
+                current_image=final_name,
             )
-            success, sha1, size, io = self.get_image(url)
-            if success:
-                true_name = 'Class {0} icon.png'.format(class_id)
-                roman = ['0','I','II','III','IV','V']
-                other_names = [
-                    'Icon_{0}.png'.format(class_name),
-                    'Icon_{0}_{1}.png'.format(class_family, family_evo),
-                    'Icon_{0}_{1}.png'.format(class_family, roman[family_evo])
-                ]
+            return True
 
-                check_image_result = self.check_image(true_name, sha1, size, io, other_names)
-                if check_image_result == True:
-                    pass
-                elif check_image_result == False:
-                    print('Checking image {0} failed! Skipping...'.format(true_name))
-                else:
-                    true_name = check_image_result
+        def process_gendered_assets(
+            variants,
+            url_builder,
+            canonical_builder,
+            other_names_builder,
+            label_builder=None,
+            adjust_attempts_for_failures=False,
+            extra_categories_builder=None,
+        ):
+            nonlocal uploads_attempted
+            any_success = False
 
-                for other_name in other_names:
-                    self.check_file_redirect(true_name, other_name)
-
-            #/assets_en/img/sp/assets/leader/s/300301_01.jpg
-            url = (
-                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                'img/sp/assets/leader/s/{0}_01.jpg'
-            ).format(
-                class_id_num
-            )
-            success, sha1, size, io = self.get_image(url)
-            if success:
-                true_name = 'Class {0} square.jpg'.format(class_id)
-                roman = ['0','I','II','III','IV','V']
-                other_names = [
-                    '{0}_square.jpg'.format(class_name),
-                    '{0}_{1}_square.jpg'.format(class_family, family_evo),
-                    '{0}_{1}_square.jpg'.format(class_family, roman[family_evo])
-                ]
-
-                check_image_result = self.check_image(true_name, sha1, size, io, other_names)
-                if check_image_result == True:
-                    pass
-                elif check_image_result == False:
-                    print('Checking image {0} failed! Skipping...'.format(true_name))
-                else:
-                    true_name = check_image_result
-
-                for other_name in other_names:
-                    self.check_file_redirect(true_name, other_name)
-                    
-                    
-            #/assets_en/img/sp/assets/leader/jobtree/300301.png
-            url = (
-                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                'img/sp/assets/leader/jobtree/{0}.png'
-            ).format(
-                class_id_num
-            )
-            success, sha1, size, io = self.get_image(url)
-            if success:
-                true_name = 'Class {0} jobtree.png'.format(class_id)
-                roman = ['0','I','II','III','IV','V']
-                other_names = [
-                    '{0}_jobtree.png'.format(class_name),
-                    '{0}_{1}_jobtree.png'.format(class_family, family_evo),
-                    '{0}_{1}_jobtree.png'.format(class_family, roman[family_evo])
-                ]
-
-                check_image_result = self.check_image(true_name, sha1, size, io, other_names)
-                if check_image_result == True:
-                    pass
-                elif check_image_result == False:
-                    print('Checking image {0} failed! Skipping...'.format(true_name))
-                else:
-                    true_name = check_image_result
-
-                for other_name in other_names:
-                    self.check_file_redirect(true_name, other_name)
-
-            #/assets/img/sp/ui/icon/job/300201.png
-            for section, params in paths.items():
-                for step in range(0, 2):
-                    time.sleep(self.delay)
-                    url = (
-                        'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                        'img/sp/assets/leader/{0}/{1}_{2}_01.{3}'
-                    ).format(
-                        section, class_id, step, params[0]
+            for variant in variants:
+                variant_success = False
+                for gender in genders:
+                    uploads_attempted += 1
+                    gender_alias = GENDER_LABELS.get(gender, str(gender))
+                    label_text = (
+                        label_builder(variant, gender, gender_alias)
+                        if label_builder
+                        else f'{variant["label"]} ({gender_alias})'
                     )
+                    url = url_builder(variant, gender)
+                    canonical_name = canonical_builder(variant, gender)
+                    other_names = other_names_builder(variant, gender, gender_alias)
+                    extra_categories = (
+                        extra_categories_builder(variant, gender, gender_alias)
+                        if extra_categories_builder
+                        else None
+                    )
+                    if process_asset(label_text, url, canonical_name, other_names, extra_categories):
+                        variant_success = True
+                        any_success = True
+                if adjust_attempts_for_failures and not variant_success:
+                    uploads_attempted -= len(genders)
 
-                    success, sha1, size, io = self.get_image(url)
-                    if success:
-                        true_name = '{0}_{1}{2}.{3}'.format(
-                            class_name,
-                            'gran' if step == 0 else "djeeta",
-                            params[1],
-                            params[0]
-                        )
-                        other_names = []
+            return any_success
 
-                        check_image_result = self.check_image(true_name, sha1, size, io, other_names)
-                        if check_image_result == True:
-                            pass
-                        elif check_image_result == False:
-                            print('Checking image {0} failed! Skipping...'.format(true_name))
+        def process_single_asset(label_text, url, canonical_name, other_names, extra_categories=None):
+            nonlocal uploads_attempted
+            uploads_attempted += 1
+            return process_asset(label_text, url, canonical_name, other_names, extra_categories)
+
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        if has_class_fields('id', 'id_num', 'abbr'):
+            sprite_variants = build_variants('class sprite')
+            process_gendered_assets(
+                sprite_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/sd/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: (
+                    f'leader_sd_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+                ),
+                lambda variant, gender, alias: [
+                    f'leader_sd_{variant["id_num"]}_{gender}_01.png',
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+        if has_class_fields('id_num', 'name', 'row', 'family'):
+            row_suffix = get_row_suffix()
+            process_single_asset(
+                'shared SD image',
+                url=f'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/leader/sd/m/{class_data["id_num"]}_01.jpg',
+                canonical_name=f'leader_sd_m_{class_data["id_num"]}_01.jpg',
+                other_names=[
+                    f'{class_data["name"]}_sdm.jpg',
+                    f'{class_data["family"]}_{row_suffix}_sdm.jpg',
+                ],
+            )
+        job_change_redirects = {
+            0: f'{class_data["name"]}_gran.png',
+            1: f'{class_data["name"]}_djeeta.png',
+        }
+        job_change_variants = build_variants('job change image')
+        process_gendered_assets(
+            job_change_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/job_change/{variant["id"]}_{gender}_01.png'
+            ),
+            lambda variant, gender: (
+                f'leader_job_change_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+            ),
+            lambda variant, gender, alias: [
+                job_change_redirects.get(gender, f'{class_data["name"]}_{alias}.png'),
+            ],
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
+
+        jobm_variants = build_variants('jobm image')
+        process_gendered_assets(
+            jobm_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/jobm/{variant["id"]}_{gender}_01.jpg'
+            ),
+            lambda variant, gender: (
+                f'leader_jobm_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
+            ),
+            lambda variant, gender, alias: [
+                f'{class_data["name"]}_{alias}_jobm.png',
+                f'leader_jobm_{variant["id_num"]}_{gender}_01.jpg',
+            ],
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
+
+        party_variants = build_variants('party image', include_lvl50=True)
+        process_gendered_assets(
+            party_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/p/{variant["id"]}_{gender}_01.png'
+            ),
+            lambda variant, gender: (
+                f'leader_p_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+            ),
+            lambda variant, gender, alias: [
+                f'leader_p_{variant["id_num"]}_{gender}_01.png',
+                f'{class_data["name"]}_{alias}_party.png',
+                *([f'{class_data["name"]}_{alias}_party_lvl50.png'] if variant['is_lvl50'] else []),
+            ],
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
+
+        jobonz_variants = build_variants('jobon_z image', include_lvl50=True, lvl50_label='jobon_z (Lv50) image')
+        process_gendered_assets(
+            jobonz_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/jobon_z/{variant["id"]}_{gender}_01.png'
+            ),
+            lambda variant, gender: (
+                f'leader_jobon_z_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+            ),
+            lambda variant, gender, alias: [
+                f'leader_jobon_z_{variant["id_num"]}_{gender}_01.png',
+                f'{class_data["name"]}_{alias}_jobon_z.png',
+                *([f'{class_data["name"]}_{alias}_jobon_z_lvl50.png'] if variant['is_lvl50'] else []),
+            ],
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
+
+        jlon_variants = build_variants('jlon image', include_lvl50=True, lvl50_label='jlon (Lv50) image')
+        process_gendered_assets(
+            jlon_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/jlon/{variant["id"]}_{gender}_01.png'
+            ),
+            lambda variant, gender: (
+                f'leader_jlon_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
+            ),
+            lambda variant, gender, alias: [
+                f'{class_data["name"]}_{alias}_jlon.png',
+                f'leader_jlon_{variant["id_num"]}_{gender}_01.png',
+            ],
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
+
+        result_ml_variants = build_variants('result_ml image', include_lvl50=True, lvl50_label='result_ml (Lv50) image')
+        process_gendered_assets(
+            result_ml_variants,
+            lambda variant, gender: (
+                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/result_ml/{variant["id"]}_{gender}_01.jpg'
+            ),
+            lambda variant, gender: (
+                f'leader_result_ml_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
+            ),
+            lambda variant, gender, alias: [
+                f'leader_result_ml_{variant["id_num"]}_{gender}_01.jpg',
+                f'{class_data["name"]}_{alias}_result_ml.jpg',
+                *([f'{class_data["name"]}_{alias}_result_ml_lvl50.jpg'] if variant['is_lvl50'] else []),
+            ],
+            extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+        )
+
+        if has_class_fields('id', 'id_num', 'abbr', 'name'):
+            quest_variants = build_variants(
+                'quest image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='quest (Lv50) image',
+            )
+            process_gendered_assets(
+                quest_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/quest/{variant["id"]}_{gender}_01.jpg'
+                ),
+                lambda variant, gender: f'leader_quest_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg',
+                lambda variant, gender, alias: [
+                    f'leader_quest_{variant["id_num"]}_{gender}_01.jpg',
+                    f'{class_data["name"]}_{alias}_quest.png',
+                    *([f'{class_data["name"]}_{alias}_quest_lvl50.png'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            coop_variants = build_variants(
+                'coop image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='coop (Lv50) image',
+            )
+            process_gendered_assets(
+                coop_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/coop/{variant["id"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: f'leader_coop_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
+                lambda variant, gender, alias: [
+                    f'leader_coop_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_coop.png',
+                    *([f'{class_data["name"]}_{alias}_coop_lvl50.png'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            btn_variants = build_variants(
+                'btn image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='btn (Lv50) image',
+            )
+            process_gendered_assets(
+                btn_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/btn/{variant["id"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: f'leader_btn_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
+                lambda variant, gender, alias: [
+                    f'leader_btn_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_btn.png',
+                    *([f'{class_data["name"]}_{alias}_btn_lvl50.png'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            hd_variants = build_variants(
+                'HD image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='HD (Lv50) image',
+            )
+            process_gendered_assets(
+                hd_variants,
+                lambda variant, gender: f'https://media.skycompass.io/assets/customizes/jobs/1138x1138/{variant["id_num"]}_{gender}.png',
+                lambda variant, gender: f'jobs_1138x1138_{variant["id_num"]}_{gender}.png',
+                lambda variant, gender, alias: [
+                    f'{class_data["name"]} {alias} HD.png',
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            my_variants = build_variants(
+                'homescreen image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='homescreen (Lv50) image',
+            )
+            process_gendered_assets(
+                my_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/my/{variant["id"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: f'leader_my_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
+                lambda variant, gender, alias: [
+                    f'leader_my_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_homescreen.png',
+                    f'{class_data["name"]}_{alias}_my.png',
+                    *([
+                        f'{class_data["name"]}_{alias}_homescreen_lvl50.png',
+                        f'{class_data["name"]}_{alias}_my_lvl50.png',
+                    ] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            zenith_variants = build_variants(
+                'zenith image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='zenith (Lv50) image',
+            )
+            process_gendered_assets(
+                zenith_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/zenith/{variant["id"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: f'leader_zenith_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
+                lambda variant, gender, alias: [
+                    f'leader_zenith_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_zenith.png',
+                    *([f'{class_data["name"]}_{alias}_zenith_lvl50.png'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            tower_variants = build_variants(
+                'Tower of Babyl image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='Tower of Babyl (Lv50) image',
+            )
+            process_gendered_assets(
+                tower_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/t/{variant["id"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: f'leader_t_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
+                lambda variant, gender, alias: [
+                    f'leader_t_{variant["id_num"]}_{gender}_01.png',
+                    *([f'{class_data["name"]}_{alias}_tower_lvl50.png'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+        if has_class_fields('id_num', 'name'):
+            process_single_asset(
+                'leader icon',
+                url=(
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/m/{class_data["id_num"]}_01.jpg'
+                ),
+                canonical_name=f'leader_m_{class_data["id_num"]}_01.jpg',
+                other_names=[f'{class_data["name"]} icon.jpg'],
+            )
+
+        square_images_handled = False
+        if has_class_fields('id', 'id_num', 'abbr', 'name'):
+            square_variants = build_variants(
+                'square image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='square (Lv50) image',
+            )
+            square_images_handled = process_gendered_assets(
+                square_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/s/{variant["id"]}_{gender}_01.jpg'
+                ),
+                lambda variant, gender: f'leader_s_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg',
+                lambda variant, gender, alias: [
+                    f'leader_s_{variant["id_num"]}_{gender}_01.jpg',
+                    f'{class_data["name"]}_{alias}_square.jpg',
+                    *([f'{class_data["name"]} square.jpg'] if gender == 0 else []),
+                    *([f'{class_data["name"]}_{alias}_square_lvl50.jpg'] if variant['is_lvl50'] else []),
+                ],
+                adjust_attempts_for_failures=True,
+                    extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+        if not square_images_handled and has_class_fields('id_num', 'name'):
+            process_single_asset(
+                'leader square (legacy)',
+                url=(
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/s/{class_data["id_num"]}_01.jpg'
+                ),
+                canonical_name=f'leader_s_{class_data["id_num"]}_01.jpg',
+                other_names=[f'{class_data["name"]} square.jpg'],
+            )
+
+        if has_class_fields('id_num', 'family', 'name'):
+            row_suffix = get_row_suffix()
+            name_cased = class_data["name"].title()
+            process_single_asset(
+                'job icon',
+                url=(
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/ui/icon/job/{class_data["id_num"]}.png'
+                ),
+                canonical_name=f'icon_job_{class_data["id_num"]}.png',
+                other_names=[
+                    f'icon_{class_data["family"]}_{row_suffix}.png',
+                    f'icon_{name_cased}.png',
+                ],
+            )
+            process_single_asset(
+                'jobtree image',
+                url=(
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/jobtree/{class_data["id_num"]}.png'
+                ),
+                canonical_name=f'leader_jobtree_{class_data["id_num"]}.png',
+                other_names=[
+                    f'{class_data["family"]}_{row_suffix}_jobtree.png',
+                    f'{class_data["name"]}_jobtree.png',
+                ],
+            )
+
+        if has_class_fields('id_num'):
+            process_single_asset(
+                'job name tree image',
+                url=(
+                    'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/ui/job_name_tree_l/{class_data["id_num"]}.png'
+                ),
+                canonical_name=f'job_name_tree_l_{class_data["id_num"]}.png',
+                other_names=[],
+            )
+
+        emit_status(
+            "completed",
+            processed=uploads_success + uploads_duplicates,
+            uploaded=uploads_success,
+            duplicates=uploads_duplicates,
+            total_urls=uploads_attempted,
+        )
+
+        return class_data
 
 def main():
     wi = WikiImages()

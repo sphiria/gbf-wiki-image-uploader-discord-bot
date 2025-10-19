@@ -67,7 +67,7 @@ ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor,Wiki
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "skin", "npc", "status", "artifact"]
+PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "status", "artifact",]
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
@@ -124,6 +124,8 @@ async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -
                 wi.check_weapon(page)
             elif page_type == 'summon':
                 wi.check_summon(page)
+            elif page_type == 'class':
+                wi.check_class(page)
             elif page_type == 'skin':
                 wi.check_skin(page)
             elif page_type == 'npc':
