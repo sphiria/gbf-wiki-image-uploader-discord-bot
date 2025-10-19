@@ -881,6 +881,7 @@ class WikiImages(object):
                     continue
 
             asset_ids = []
+            weapon_type = None
 
             for param in template.params:
                 param_name = param.name.strip()
@@ -890,9 +891,47 @@ class WikiImages(object):
                     if asset_match != None:
                         asset_id = asset_match.group(1)
                     asset_ids.append(asset_id)
+                elif asset_type == 'weapon' and param_name == 'weapon':
+                    weapon_value = str(param.value).strip()
+                    weapon_value = mwparserfromhell.parse(weapon_value).strip_code().strip().lower()
+                    if weapon_value:
+                        weapon_type = weapon_value
 
             for asset_id in asset_ids:
                 for section, params in paths.items():
+                    if (
+                        section == 'wsp'
+                        and asset_type == 'weapon'
+                        and weapon_type == 'melee'
+                    ):
+                        melee_variants = [('_1', '1'), ('_2', '2')]
+                        for suffix, label in melee_variants:
+                            url = (
+                                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                                'img/sp/cjs/{0}{1}.{2}'
+                            ).format(
+                                asset_id,
+                                suffix,
+                                params[0]
+                            )
+                            true_name = "{0} sp {1} {2}.{3}".format(
+                                asset_type.capitalize(),
+                                asset_id,
+                                label,
+                                params[0]
+                            )
+                            other_names = [
+                                f'{asset_name} sprite{label}.{params[0]}'
+                            ]
+                            download_tasks.append({
+                                'url': url,
+                                'true_name': true_name,
+                                'other_names': other_names,
+                                'categories': params[4]
+                            })
+                            total_urls_generated += 1
+                        continue
+
                     versions = len(params[2])
                     for version in range(versions):
                         if section == 'wsp':
@@ -904,6 +943,7 @@ class WikiImages(object):
                                 params[2][version],
                                 params[0]
                             )
+                            section_label = 'sp'
                         elif section == 'f_skin':
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -915,6 +955,7 @@ class WikiImages(object):
                                 params[2][version],
                                 params[0]
                             )
+                            section_label = section
                         else:
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -926,10 +967,11 @@ class WikiImages(object):
                                 params[2][version],
                                 params[0]
                             )
+                            section_label = section
 
                         true_name = "{0} {1} {2}{3}.{4}".format(
                             asset_type.capitalize(),
-                            section,
+                            section_label,
                             asset_id,
                             params[2][version],
                             params[0]
