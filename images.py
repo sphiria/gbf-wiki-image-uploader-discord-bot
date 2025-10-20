@@ -1655,7 +1655,7 @@ class WikiImages(object):
                 sprite_variants,
                 lambda variant, gender: (
                     'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/sd/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                    f'img/sp/assets/leader/sd/{variant["id"]}_{gender}_01.png'
                 ),
                 lambda variant, gender: (
                     f'leader_sd_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
@@ -1726,7 +1726,7 @@ class WikiImages(object):
             ),
             lambda variant, gender, alias: [
                 f'leader_p_{variant["id_num"]}_{gender}_01.png',
-                f'{class_data["name"]}_{alias}_party.png',
+                *([f'{class_data["name"]}_{alias}_party.png'] if not variant['is_lvl50'] else []),
                 *([f'{class_data["name"]}_{alias}_party_lvl50.png'] if variant['is_lvl50'] else []),
             ],
             extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
@@ -1744,7 +1744,7 @@ class WikiImages(object):
             ),
             lambda variant, gender, alias: [
                 f'leader_jobon_z_{variant["id_num"]}_{gender}_01.png',
-                f'{class_data["name"]}_{alias}_jobon_z.png',
+                *([f'{class_data["name"]}_{alias}_jobon_z.png'] if not variant['is_lvl50'] else []),
                 *([f'{class_data["name"]}_{alias}_jobon_z_lvl50.png'] if variant['is_lvl50'] else []),
             ],
             extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
@@ -1779,11 +1779,14 @@ class WikiImages(object):
             ),
             lambda variant, gender, alias: [
                 f'leader_result_ml_{variant["id_num"]}_{gender}_01.jpg',
-                f'{class_data["name"]}_{alias}_result_ml.jpg',
+                *([f'{class_data["name"]}_{alias}_result_ml.jpg'] if not variant['is_lvl50'] else []),
                 *([f'{class_data["name"]}_{alias}_result_ml_lvl50.jpg'] if variant['is_lvl50'] else []),
             ],
             extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
         )
+        if has_class_fields('id', 'id_num', 'abbr', 'name'):
+            result_variants = build_variants('result image', include_lvl50=True, lvl50_label='result (Lv50) image')
+
         if has_class_fields('id', 'id_num', 'abbr', 'name'):
             result_variants = build_variants('result image', include_lvl50=True, lvl50_label='result (Lv50) image')
             process_gendered_assets(
@@ -1797,7 +1800,7 @@ class WikiImages(object):
                 ),
                 lambda variant, gender, alias: [
                     f'leader_result_{variant["id_num"]}_{gender}_01.jpg',
-                    f'{class_data["name"]}_{alias}_result.jpg',
+                    *([f'{class_data["name"]}_{alias}_result.jpg'] if not variant['is_lvl50'] else []),
                     *([f'{class_data["name"]}_{alias}_result_lvl50.jpg'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
@@ -1815,7 +1818,8 @@ class WikiImages(object):
                 ),
                 lambda variant, gender, alias: [
                     f'leader_pm_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_profile.png',
+                    *([f'{class_data["name"]}_{alias}_profile.png'] if not variant['is_lvl50'] else []),
+                    *([f'{class_data["name"]}_{alias}_profile_lvl50.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
             )
@@ -1832,7 +1836,8 @@ class WikiImages(object):
                 ),
                 lambda variant, gender, alias: [
                     f'leader_raid_log_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_raid_log.png',
+                    *([f'{class_data["name"]}_{alias}_raid_log.png'] if not variant['is_lvl50'] else []),
+                    *([f'{class_data["name"]}_{alias}_raid_log_lvl50.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
             )
@@ -1851,7 +1856,7 @@ class WikiImages(object):
                 lambda variant, gender: f'leader_quest_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg',
                 lambda variant, gender, alias: [
                     f'leader_quest_{variant["id_num"]}_{gender}_01.jpg',
-                    f'{class_data["name"]}_{alias}_quest.png',
+                    *([f'{class_data["name"]}_{alias}_quest.png'] if not variant['is_lvl50'] else []),
                     *([f'{class_data["name"]}_{alias}_quest_lvl50.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
@@ -1871,7 +1876,7 @@ class WikiImages(object):
                 lambda variant, gender: f'leader_coop_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
                 lambda variant, gender, alias: [
                     f'leader_coop_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_coop.png',
+                    *([f'{class_data["name"]}_{alias}_coop.png'] if not variant['is_lvl50'] else []),
                     *([f'{class_data["name"]}_{alias}_coop_lvl50.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
@@ -1891,23 +1896,8 @@ class WikiImages(object):
                 lambda variant, gender: f'leader_btn_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
                 lambda variant, gender, alias: [
                     f'leader_btn_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_btn.png',
+                    *([f'{class_data["name"]}_{alias}_btn.png'] if not variant['is_lvl50'] else []),
                     *([f'{class_data["name"]}_{alias}_btn_lvl50.png'] if variant['is_lvl50'] else []),
-                ],
-                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
-            )
-
-            hd_variants = build_variants(
-                'HD image',
-                include_lvl50=supports_lvl50_assets,
-                lvl50_label='HD (Lv50) image',
-            )
-            process_gendered_assets(
-                hd_variants,
-                lambda variant, gender: f'https://media.skycompass.io/assets/customizes/jobs/1138x1138/{variant["id_num"]}_{gender}.png',
-                lambda variant, gender: f'jobs_1138x1138_{variant["id_num"]}_{gender}.png',
-                lambda variant, gender, alias: [
-                    f'{class_data["name"]} {alias} HD.png',
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
             )
@@ -1926,8 +1916,10 @@ class WikiImages(object):
                 lambda variant, gender: f'leader_my_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
                 lambda variant, gender, alias: [
                     f'leader_my_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_homescreen.png',
-                    f'{class_data["name"]}_{alias}_my.png',
+                    *([
+                        f'{class_data["name"]}_{alias}_homescreen.png',
+                        f'{class_data["name"]}_{alias}_my.png',
+                    ] if not variant['is_lvl50'] else []),
                     *([
                         f'{class_data["name"]}_{alias}_homescreen_lvl50.png',
                         f'{class_data["name"]}_{alias}_my_lvl50.png',
@@ -1950,7 +1942,7 @@ class WikiImages(object):
                 lambda variant, gender: f'leader_zenith_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
                 lambda variant, gender, alias: [
                     f'leader_zenith_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_zenith.png',
+                    *([f'{class_data["name"]}_{alias}_zenith.png'] if not variant['is_lvl50'] else []),
                     *([f'{class_data["name"]}_{alias}_zenith_lvl50.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
