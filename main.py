@@ -58,7 +58,10 @@ last_used = {}  # maps user_id -> timestamp of last command
 # --- CONFIG ---
 COOLDOWN_SECONDS = 5
 MAX_PAGE_NAME_LEN = 100
+MAX_ITEM_ID_LEN = 48
+MAX_ITEM_NAME_LEN = 100
 VALID_PAGE_NAME_REGEX = re.compile(r"^[\w\s\-\(\)\'\"\.]+$")
+VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 GUILD_ID = int(os.environ["GUILD_ID"])
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
@@ -85,6 +88,36 @@ def validate_page_name(page_name: str) -> tuple[bool, str]:
         return False, "❌ Invalid page name. Only letters, numbers, spaces, -, (), ', \", and . are allowed."
 
     return True, page_name
+
+def validate_item_id(item_id: str) -> tuple[bool, str]:
+    """
+    Validate a single item upload id.
+    Returns (is_valid, cleaned_value/err_message).
+    """
+    item_id = item_id.strip()
+
+    if len(item_id) == 0 or len(item_id) > MAX_ITEM_ID_LEN:
+        return False, f"Invalid item id. Must be between 1 and {MAX_ITEM_ID_LEN} characters."
+
+    if not VALID_ITEM_ID_REGEX.match(item_id):
+        return False, "Invalid item id. Only letters, numbers, _, and - are allowed."
+
+    return True, item_id
+
+def validate_item_name(item_name: str) -> tuple[bool, str]:
+    """
+    Validate a single item display name.
+    Returns (is_valid, cleaned_value/err_message).
+    """
+    item_name = item_name.strip()
+
+    if len(item_name) == 0 or len(item_name) > MAX_ITEM_NAME_LEN:
+        return False, f"Invalid item name. Must be between 1 and {MAX_ITEM_NAME_LEN} characters."
+
+    if not VALID_PAGE_NAME_REGEX.match(item_name):
+        return False, "Invalid item name. Only letters, numbers, spaces, -, (), ', \", and . are allowed."
+
+    return True, item_name
 
 async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -> tuple[int, str, str]:
     """
@@ -158,6 +191,55 @@ async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
     except Exception as e:
         error_msg = f"❌ Upload task failed: {e}"
+        print(error_msg)
+        return 1, "", str(e)
+
+async def run_single_item_upload(item_id: str, item_name: str, status: dict = None) -> tuple[int, str, str]:
+    """
+    Run single item image upload in a thread and capture stdout/stderr.
+    Returns (return_code, stdout, stderr)
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def upload_task():
+        try:
+            if status:
+                status["stage"] = "initializing"
+
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            wi.delay = 5
+
+            if status:
+                def update_status(stage, **kwargs):
+                    status.update({"stage": stage, **kwargs})
+                wi._status_callback = update_status
+            else:
+                wi._status_callback = lambda stage, **kwargs: None
+
+            if status:
+                status["stage"] = "processing"
+
+            wi.upload_single_item_article_images(item_id, item_name)
+            return 0
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(f"dYs? Starting single item upload for {item_name} (ID: {item_id})")
+        if DRY_RUN:
+            print("dY� DRY RUN MODE - No actual uploads will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as e:
+        error_msg = f"Single item upload task failed: {e}"
         print(error_msg)
         return 1, "", str(e)
 
@@ -297,6 +379,129 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
             # Show error details in Discord if there were errors
             if stderr.strip():
                 error_preview = stderr.strip()[:500]  # First 500 chars
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@bot.tree.command(
+    name="singleitem",
+    description="Upload square/icon variants for a single item by id",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    item_id="Item ID (get it from the image URL)",
+    item_name="Item Name (creates redirects with this name)"
+)
+async def singleitem(interaction: discord.Interaction, item_id: str, item_name: str):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True
+        )
+        return
+
+    is_valid_id, cleaned_id = validate_item_id(item_id)
+    if not is_valid_id:
+        await interaction.response.send_message(cleaned_id, ephemeral=True)
+        return
+
+    is_valid_name, cleaned_name = validate_item_name(item_name)
+    if not is_valid_name:
+        await interaction.response.send_message(cleaned_name, ephemeral=True)
+        return
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/singleitem` again.",
+            ephemeral=True
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Single item upload started for `{cleaned_name}` (ID: `{cleaned_id}`). This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+
+        status = {"stage": "starting", "details": ""}
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+
+                stage = status.get("stage", "processing")
+                if stage == "processing":
+                    processed = status.get("processed", 0)
+                    total = status.get("total")
+                    total_display = total if total else "?"
+                    current_image = status.get("current_image")
+                    current_segment = f" Current: {current_image}" if current_image else ""
+                    content = (
+                        f"{dry_run_prefix}Processing {processed}/{total_display} images for "
+                        f"`{cleaned_name}` (ID: `{cleaned_id}`).{current_segment} "
+                        f"({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}Single item upload for `{cleaned_name}` (ID: `{cleaned_id}`) "
+                        f"is running... ({elapsed}s elapsed)"
+                    )
+
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_single_item_upload(cleaned_id, cleaned_name, status)
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            processed = status.get("processed", 0)
+            uploaded = status.get("uploaded", 0)
+            duplicates = status.get("duplicates", 0)
+            total_checked = status.get("total_urls", 0)
+
+            summary_lines = [
+                f"{dry_run_prefix}Single item upload completed for `{cleaned_name}` (ID: `{cleaned_id}`) in {elapsed}s!",
+                "**Summary:**",
+                f"- Variants processed: {processed}",
+                f"- Images uploaded: {uploaded}",
+                f"- Images found as duplicates: {duplicates}",
+                f"- Total URLs checked: {total_checked}",
+            ]
+
+            await msg.edit(content="\n".join(summary_lines))
+        else:
+            await msg.edit(
+                content=(
+                    f"{dry_run_prefix}Single item upload failed for `{cleaned_name}` "
+                    f"(ID: `{cleaned_id}`) in {elapsed}s!"
+                )
+            )
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
                 await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
 
     except Exception as e:
