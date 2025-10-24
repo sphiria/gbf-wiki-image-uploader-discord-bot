@@ -61,9 +61,11 @@ MAX_PAGE_NAME_LEN = 100
 MAX_ITEM_ID_LEN = 48
 MAX_ITEM_NAME_LEN = 100
 MAX_STATUS_ID_LEN = 64
+MAX_BANNER_ID_LEN = 64
 VALID_PAGE_NAME_REGEX = re.compile(r"^[\w\s\-\(\)\'\"\.]+$")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 VALID_STATUS_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+#?$")
+VALID_BANNER_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 GUILD_ID = int(os.environ["GUILD_ID"])
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
@@ -138,6 +140,23 @@ def validate_status_id(status_id: str) -> tuple[bool, str]:
         return False, "Invalid status id. Only letters, numbers, underscores, and an optional trailing # are allowed."
 
     return True, status_id
+
+def validate_banner_id(banner_id: str) -> tuple[bool, str]:
+    """
+    Validate a gacha banner identifier (portion between `banner_` and the index).
+    Returns (is_valid, cleaned_value/error_message).
+    """
+    banner_id = banner_id.strip()
+    if banner_id.lower().startswith("banner_"):
+        banner_id = banner_id[7:]
+
+    if len(banner_id) == 0 or len(banner_id) > MAX_BANNER_ID_LEN:
+        return False, f"Invalid banner id. Must be between 1 and {MAX_BANNER_ID_LEN} characters."
+
+    if not VALID_BANNER_ID_REGEX.match(banner_id):
+        return False, "Invalid banner id. Only letters, numbers, and underscores are allowed."
+
+    return True, banner_id
 
 async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -> tuple[int, str, str]:
     """
@@ -280,6 +299,7 @@ async def run_status_upload(status_identifier: str, max_index: int | None, statu
                 status.setdefault("uploaded", 0)
                 status.setdefault("failed", 0)
                 status.setdefault("total", 1 if max_index is None else max_index)
+                status.setdefault("downloaded_files", [])
                 status["stage"] = "initializing"
 
             wi = DryRunWikiImages() if DRY_RUN else WikiImages()
@@ -287,6 +307,9 @@ async def run_status_upload(status_identifier: str, max_index: int | None, statu
 
             if status is not None:
                 def update_status(stage, **kwargs):
+                    downloaded_file = kwargs.pop("downloaded_file", None)
+                    if downloaded_file:
+                        status.setdefault("downloaded_files", []).append(downloaded_file)
                     status.update({"stage": stage, **kwargs})
                 wi._status_callback = update_status
             else:
@@ -319,6 +342,65 @@ async def run_status_upload(status_identifier: str, max_index: int | None, statu
         print(error_msg)
         return 1, "", str(e)
 
+async def run_banner_upload(banner_identifier: str, max_index: int, status: dict = None) -> tuple[int, str, str]:
+    """
+    Run gacha banner upload in a thread and capture stdout/stderr.
+    Returns (return_code, stdout, stderr)
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def upload_task():
+        try:
+            if status is not None:
+                status.setdefault("banner_id", banner_identifier)
+                status.setdefault("processed", 0)
+                status.setdefault("uploaded", 0)
+                status.setdefault("failed", 0)
+                status.setdefault("total", max_index)
+                status.setdefault("downloaded_files", [])
+                status["stage"] = "initializing"
+
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            wi.delay = 5
+
+            if status is not None:
+                def update_status(stage, **kwargs):
+                    downloaded_file = kwargs.pop("downloaded_file", None)
+                    if downloaded_file:
+                        status.setdefault("downloaded_files", []).append(downloaded_file)
+                    status.update({"stage": stage, **kwargs})
+                wi._status_callback = update_status
+            else:
+                wi._status_callback = lambda stage, **kwargs: None
+
+            wi.upload_gacha_banners(banner_identifier, max_index)
+
+            if status is not None and status.get("stage") != "completed":
+                status["stage"] = "completed"
+
+            return 0
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(f"Starting banner upload for {banner_identifier} (max index: {max_index})")
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual uploads will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as e:
+        error_msg = f"Gacha banner upload task failed: {e}"
+        print(error_msg)
+        return 1, "", str(e)
+
 # --- BOT SETUP ---
 class WikiBot(discord.Client):
     def __init__(self):
@@ -327,12 +409,68 @@ class WikiBot(discord.Client):
         intents.members = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
+        self._sync_lock: asyncio.Lock | None = None
+        self._commands_synced = False
+        self._last_sync_scope = "unsynced"
 
     async def setup_hook(self):
-        guild = discord.Object(id=GUILD_ID)
-        # Sync commands to your guild for testing (fast updates)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
+        await self.sync_app_commands(initial=True, force=True)
+
+    async def on_ready(self):
+        print(f"Logged in as {self.user} (ID: {self.user.id})")
+        if not self._commands_synced:
+            await self.sync_app_commands()
+
+    async def sync_app_commands(self, *, initial: bool = False, force: bool = False) -> dict:
+        if self._sync_lock is None:
+            self._sync_lock = asyncio.Lock()
+
+        async with self._sync_lock:
+            if self._commands_synced and not force:
+                return {
+                    "scope": self._last_sync_scope,
+                    "count": len(self.tree.get_commands()),
+                    "status": "already_synced",
+                    "error": None,
+                }
+
+            guild = discord.Object(id=GUILD_ID)
+            if initial:
+                # Copy all global commands to the guild for faster propagation
+                self.tree.copy_global_to(guild=guild)
+
+            last_error = None
+            try:
+                commands = await self.tree.sync(guild=guild)
+                self._commands_synced = True
+                self._last_sync_scope = "guild"
+                print(f"Synced {len(commands)} commands to guild {GUILD_ID}")
+                return {
+                    "scope": "guild",
+                    "count": len(commands),
+                    "status": "synced",
+                    "error": None,
+                }
+            except Exception as exc:
+                last_error = exc
+                print(f"Guild slash-command sync failed: {exc}")
+
+            print("Attempting global slash-command sync fallback...")
+            try:
+                commands = await self.tree.sync()
+                self._commands_synced = True
+                self._last_sync_scope = "global"
+                print(f"Fallback global sync succeeded with {len(commands)} commands")
+                return {
+                    "scope": "global",
+                    "count": len(commands),
+                    "status": "fallback_synced",
+                    "error": last_error,
+                }
+            except Exception as final_exc:
+                self._commands_synced = False
+                print(f"Global slash-command sync failed: {final_exc}")
+                raise
 
 
 bot = WikiBot()
@@ -533,6 +671,7 @@ async def statusupload(
             "uploaded": 0,
             "failed": 0,
             "total": total_expected,
+            "downloaded_files": [],
         }
 
         async def progress_updater():
@@ -575,6 +714,7 @@ async def statusupload(
             processed = status_info.get("processed", total_expected)
             uploaded = status_info.get("uploaded", 0)
             failed = status_info.get("failed", 0)
+            downloaded_files = status_info.get("downloaded_files") or []
 
             summary_lines = [
                 f"{dry_run_prefix}Status upload completed for `{cleaned_status_id}` in {elapsed}s!",
@@ -583,6 +723,16 @@ async def statusupload(
                 f"- Icons uploaded: {uploaded}",
                 f"- Icons failed: {failed}",
             ]
+
+            if downloaded_files:
+                base_url = "https://gbf.wiki/File:"
+                unique_files = list(dict.fromkeys(downloaded_files))
+                link_lines = ["", "**Links:**"]
+                link_lines.extend(
+                    f"- [{file_name}]({base_url}{file_name.replace(' ', '_')})"
+                    for file_name in unique_files
+                )
+                summary_lines.extend(link_lines)
 
             await msg.edit(content="\n".join(summary_lines))
         else:
@@ -598,6 +748,197 @@ async def statusupload(
     except Exception as e:
         elapsed = int(time.time() - start_time)
         await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@bot.tree.command(
+    name="bannerupload",
+    description="Upload gacha banner variants to the wiki",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    banner_id="Identifier between `banner_` and the trailing index in the CDN URL",
+    max_index="Highest banner index to attempt (1-50, defaults to 12)",
+)
+async def bannerupload(
+    interaction: discord.Interaction,
+    banner_id: str,
+    max_index: app_commands.Range[int, 1, 50] = 12,
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
+
+    is_valid_banner, cleaned_banner_id = validate_banner_id(banner_id)
+    if not is_valid_banner:
+        await interaction.response.send_message(cleaned_banner_id, ephemeral=True)
+        return
+
+    max_index_value = int(max_index or 12)
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/bannerupload` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Banner upload started for `{cleaned_banner_id}` "
+            f"(up to index {max_index_value}). This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+        status_info = {
+            "stage": "starting",
+            "banner_id": cleaned_banner_id,
+            "processed": 0,
+            "uploaded": 0,
+            "failed": 0,
+            "total": max_index_value,
+            "downloaded_files": [],
+        }
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+                stage = status_info.get("stage", "processing")
+                processed = status_info.get("processed", 0)
+                total = status_info.get("total") or max_index_value
+                current_identifier = status_info.get("current_identifier")
+
+                if stage == "processing":
+                    current_segment = (
+                        f" Current banner: `{current_identifier}`" if current_identifier else ""
+                    )
+                    content = (
+                        f"{dry_run_prefix}Processing {processed}/{total} gacha banners "
+                        f"for `{cleaned_banner_id}`{current_segment} ({elapsed}s elapsed)"
+                    )
+                elif stage == "completed":
+                    content = (
+                        f"{dry_run_prefix}Banner upload for `{cleaned_banner_id}` "
+                        f"is wrapping up ({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}Banner upload for `{cleaned_banner_id}` "
+                        f"is {stage} ({elapsed}s elapsed)"
+                    )
+
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_banner_upload(
+            cleaned_banner_id, max_index_value, status_info
+        )
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            processed = status_info.get("processed", max_index_value)
+            uploaded = status_info.get("uploaded", 0)
+            failed = status_info.get("failed", 0)
+            downloaded_files = status_info.get("downloaded_files") or []
+
+            summary_lines = [
+                f"{dry_run_prefix}Banner upload completed for `{cleaned_banner_id}` in {elapsed}s!",
+                "**Summary:**",
+                f"- Banners processed: {processed}",
+                f"- Banners uploaded: {uploaded}",
+                f"- Banners failed: {failed}",
+            ]
+
+            if downloaded_files:
+                base_url = "https://gbf.wiki/File:"
+                unique_files = list(dict.fromkeys(downloaded_files))
+                link_lines = ["", "**Links:**"]
+                link_lines.extend(
+                    f"- [{file_name}]({base_url}{file_name.replace(' ', '_')})"
+                    for file_name in unique_files
+                )
+                summary_lines.extend(link_lines)
+
+            await msg.edit(content="\n".join(summary_lines))
+        else:
+            await msg.edit(
+                content=f"{dry_run_prefix}Banner upload failed for `{cleaned_banner_id}` in {elapsed}s!"
+            )
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@bot.tree.command(
+    name="synccommands",
+    description="Force a slash-command sync (admins only).",
+)
+@app_commands.guild_only()
+async def synccommands(interaction: discord.Interaction):
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message(
+            "This command can only be used inside a server.", ephemeral=True
+        )
+        return
+
+    member = guild.get_member(interaction.user.id)
+    is_admin = False
+    if member:
+        perms = member.guild_permissions
+        is_admin = perms.administrator or member.id == guild.owner_id
+
+    if not is_admin:
+        await interaction.response.send_message(
+            "You must be a server administrator to sync commands.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        result = await bot.sync_app_commands(force=True)
+    except Exception as exc:
+        await interaction.followup.send(
+            f"Slash-command sync failed: `{exc}`", ephemeral=True
+        )
+        return
+
+    response_lines = [
+        f"Commands synced via `{result['scope']}` scope.",
+        f"Total registered commands: {result['count']}.",
+    ]
+
+    if result.get("status") == "fallback_synced" and result.get("error"):
+        error_preview = str(result["error"])[:400]
+        response_lines.append(f"Guild sync error (used fallback): `{error_preview}`")
+
+    await interaction.followup.send("\n".join(response_lines), ephemeral=True)
 
 
 @bot.tree.command(

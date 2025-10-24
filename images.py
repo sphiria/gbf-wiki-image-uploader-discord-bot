@@ -427,7 +427,7 @@ class WikiImages(object):
             if not success:
                 if report_missing:
                     print(f'Skipping {identifier}.png (download failed).')
-                return False
+                return False, None
 
             true_name = f'{identifier}.png'
             other_names = []
@@ -435,7 +435,7 @@ class WikiImages(object):
 
             if check_image_result is False:
                 print(f'Checking image {true_name} failed! Skipping...')
-                return False
+                return False, None
             elif check_image_result is not True:
                 true_name = check_image_result
 
@@ -444,7 +444,7 @@ class WikiImages(object):
 
             time.sleep(self.delay)
             self.check_file_double_redirect(true_name)
-            return True
+            return True, true_name
 
         total = len(indices)
         processed = 0
@@ -463,20 +463,20 @@ class WikiImages(object):
         for index in indices:
             current_identifier = base_identifier
             success = False
+            final_name = None
 
             if index is None:
-                success = status_download_and_upload(base_identifier)
+                success, final_name = status_download_and_upload(base_identifier)
             else:
                 primary_identifier = f'{base_identifier}_{index}'
-                if status_download_and_upload(primary_identifier, report_missing=False):
+                success, final_name = status_download_and_upload(primary_identifier, report_missing=False)
+                if success:
                     current_identifier = primary_identifier
-                    success = True
                 else:
                     secondary_identifier = f'{base_identifier}{index}'
                     current_identifier = secondary_identifier
-                    if status_download_and_upload(secondary_identifier, report_missing=False):
-                        success = True
-                    else:
+                    success, final_name = status_download_and_upload(secondary_identifier, report_missing=False)
+                    if not success:
                         print(
                             f'No status icon found for index {index} '
                             f'({primary_identifier}.png or {secondary_identifier}.png).'
@@ -488,14 +488,113 @@ class WikiImages(object):
             else:
                 failed += 1
 
-            emit_status(
-                "processing",
-                processed=processed,
-                uploaded=uploaded,
-                failed=failed,
-                total=total,
-                current_identifier=current_identifier,
-            )
+            emit_kwargs = {
+                "processed": processed,
+                "uploaded": uploaded,
+                "failed": failed,
+                "total": total,
+                "current_identifier": current_identifier,
+            }
+            if success and final_name:
+                emit_kwargs["downloaded_file"] = final_name
+
+            emit_status("processing", **emit_kwargs)
+
+        emit_status(
+            "completed",
+            processed=processed,
+            uploaded=uploaded,
+            failed=failed,
+            total=total,
+            current_identifier=None,
+        )
+
+    def upload_gacha_banners(self, banner_identifier, max_index=12):
+        """
+        Upload gacha banner images from the GBF CDN to the wiki.
+
+        Args:
+            banner_identifier (str): Text between `banner_` and the trailing index in the CDN file name.
+            max_index (int): Highest sequential index to attempt. Defaults to 12.
+        """
+        if not banner_identifier:
+            print('Banner identifier is required.')
+            return
+
+        if max_index is None:
+            max_index = 12
+
+        try:
+            max_index = int(max_index)
+        except (TypeError, ValueError):
+            print(f'Invalid maximum index "{max_index}" provided.')
+            return
+
+        if max_index < 1:
+            print('Maximum index must be at least 1.')
+            return
+
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        base_url = (
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+            'img/sp/banner/gacha/{0}'
+        )
+
+        total = max_index
+        processed = 0
+        uploaded = 0
+        failed = 0
+
+        emit_status(
+            "processing",
+            processed=processed,
+            uploaded=uploaded,
+            failed=failed,
+            total=total,
+            current_identifier=None,
+        )
+
+        for index in range(1, max_index + 1):
+            file_name = f'banner_{banner_identifier}_{index}.png'
+            url = base_url.format(file_name)
+            print(f'Downloading {url}...')
+            success, sha1, size, io_obj = self.get_image(url)
+
+            current_identifier = file_name
+            final_name = None
+            if not success:
+                print(f'No gacha banner found for index {index} ({file_name}).')
+                failed += 1
+            else:
+                other_names = []
+                check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
+                if check_result is False:
+                    print(f'Checking image {file_name} failed! Skipping...')
+                    failed += 1
+                else:
+                    final_name = file_name if check_result is True else check_result
+                    for other_name in other_names:
+                        self.check_file_redirect(final_name, other_name)
+                    time.sleep(self.delay)
+                    self.check_file_double_redirect(final_name)
+                    uploaded += 1
+
+            processed += 1
+
+            emit_kwargs = {
+                "processed": processed,
+                "uploaded": uploaded,
+                "failed": failed,
+                "total": total,
+                "current_identifier": current_identifier,
+            }
+            if final_name:
+                emit_kwargs["downloaded_file"] = final_name
+
+            emit_status("processing", **emit_kwargs)
 
         emit_status(
             "completed",
