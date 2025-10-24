@@ -27,6 +27,16 @@ WIKI_PASSWORD = os.environ.get("WIKI_PASSWORD")
 MITM_ROOT = os.environ.get("MITM_ROOT")
 
 class WikiImages(object):
+    # Map of item upload types to CDN path segments
+    ITEM_SINGLE_TYPE_PATHS = {
+        "article": "article",
+        "normal": "normal",
+        "recycling": "recycling",
+        "skillplus": "skillplus",
+        "evolution": "evolution",
+        "npcaugment": "npcaugment",
+    }
+
     def __init__(self):
         """
         Initialize wiki connection and DB.
@@ -279,7 +289,7 @@ class WikiImages(object):
                 return False
             if response['result'] == 'Warning':
                 return False
-            return true_name
+            return True
 
     def investigate_backlinks(self, backlinks, source, target):
         print('Investigating "{0}" backlinks...'.format(source))
@@ -407,6 +417,10 @@ class WikiImages(object):
                 print('Ignoring extra max index argument for single status upload.')
             indices = [None]
 
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
         def status_download_and_upload(identifier, report_missing=True):
             url = url_template.format(identifier)
             success, sha1, size, io = self.get_image(url)
@@ -432,44 +446,93 @@ class WikiImages(object):
             self.check_file_double_redirect(true_name)
             return True
 
+        total = len(indices)
+        processed = 0
+        uploaded = 0
+        failed = 0
+
+        emit_status(
+            "processing",
+            processed=processed,
+            uploaded=uploaded,
+            failed=failed,
+            total=total,
+            current_identifier=None,
+        )
+
         for index in indices:
+            current_identifier = base_identifier
+            success = False
+
             if index is None:
-                identifier = base_identifier
-                status_download_and_upload(identifier)
-                continue
+                success = status_download_and_upload(base_identifier)
+            else:
+                primary_identifier = f'{base_identifier}_{index}'
+                if status_download_and_upload(primary_identifier, report_missing=False):
+                    current_identifier = primary_identifier
+                    success = True
+                else:
+                    secondary_identifier = f'{base_identifier}{index}'
+                    current_identifier = secondary_identifier
+                    if status_download_and_upload(secondary_identifier, report_missing=False):
+                        success = True
+                    else:
+                        print(
+                            f'No status icon found for index {index} '
+                            f'({primary_identifier}.png or {secondary_identifier}.png).'
+                        )
 
-            primary_identifier = f'{base_identifier}_{index}'
-            if status_download_and_upload(primary_identifier, report_missing=False):
-                continue
+            processed += 1
+            if success:
+                uploaded += 1
+            else:
+                failed += 1
 
-            secondary_identifier = f'{base_identifier}{index}'
-            if status_download_and_upload(secondary_identifier, report_missing=False):
-                continue
-
-            print(
-                f'No status icon found for index {index} '
-                f'({primary_identifier}.png or {secondary_identifier}.png).'
+            emit_status(
+                "processing",
+                processed=processed,
+                uploaded=uploaded,
+                failed=failed,
+                total=total,
+                current_identifier=current_identifier,
             )
 
-    def _process_item_article_variant(self, item_id, item_name, variant, redirect_suffix):
+        emit_status(
+            "completed",
+            processed=processed,
+            uploaded=uploaded,
+            failed=failed,
+            total=total,
+            current_identifier=None,
+        )
+
+    def _process_item_variant(self, item_type, item_id, item_name, variant, redirect_suffix):
         """
-        Download and upload a single item article variant image.
+        Download and upload a single item variant image for the given CDN item type.
 
         Returns:
             tuple[str, int, int]: Final image name (or attempted canonical name on failure),
             upload count increment, duplicate count increment.
         """
+        item_type = item_type.lower()
+        path_segment = self.ITEM_SINGLE_TYPE_PATHS.get(item_type)
+        if not path_segment:
+            raise ValueError(f'Unsupported single-item upload type "{item_type}".')
+
         url = (
             'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-            f'img/sp/assets/item/article/{variant}/{item_id}.jpg'
+            f'img/sp/assets/item/{path_segment}/{variant}/{item_id}.jpg'
         )
-        true_name = f'item_article_{variant}_{item_id}.jpg'
+        true_name = f'item_{item_type}_{variant}_{item_id}.jpg'
         other_names = [f'{item_name} {redirect_suffix}.jpg']
 
-        print(f'Downloading {url} for item "{item_name}" (ID: {item_id})...')
+        print(
+            f'Downloading {url} for item "{item_name}" '
+            f'(type: {item_type}, variant: {variant}, ID: {item_id})...'
+        )
         success, sha1, size, io_obj = self.get_image(url)
         if not success:
-            print(f'Failed to download item image for ID {item_id} variant {variant}.')
+            print(f'Failed to download item image for ID {item_id} variant {variant} ({item_type}).')
             return true_name, 0, 0
 
         check_image_result = self.check_image(true_name, sha1, size, io_obj, other_names)
@@ -494,9 +557,13 @@ class WikiImages(object):
 
         return final_name, uploaded_increment, duplicate_increment
 
+    def _process_item_article_variant(self, item_id, item_name, variant, redirect_suffix):
+        """Backward-compatible wrapper for article item uploads."""
+        return self._process_item_variant("article", item_id, item_name, variant, redirect_suffix)
+
     def upload_item_article_images(self, page):
         """
-        Upload item article images for each {{Item}} template found on a page.
+        Upload item images for each {{Item}} template found on a page.
 
         Args:
             page (mwclient.page.Page): Wiki page containing {{Item}} templates.
@@ -516,6 +583,7 @@ class WikiImages(object):
 
             item_id = None
             item_name = None
+            item_type = 'article'
 
             for param in template.params:
                 param_name = param.name.strip()
@@ -528,6 +596,8 @@ class WikiImages(object):
                     item_id = value
                 elif param_name == 'name' and value:
                     item_name = mwparserfromhell.parse(value).strip_code().strip()
+                elif param_name == 'item_type' and value:
+                    item_type = mwparserfromhell.parse(value).strip_code().strip().lower()
 
             if not item_id:
                 print('Skipping template without id parameter.')
@@ -541,8 +611,13 @@ class WikiImages(object):
                 print(f'Skipping item id "{item_id}" without name parameter.')
                 continue
 
+            item_type = (item_type or 'article').lower()
+            if item_type not in self.ITEM_SINGLE_TYPE_PATHS:
+                print(f'Skipping item id "{item_id}" with unsupported type "{item_type}".')
+                continue
+
             seen_ids.add(item_id)
-            items.append({'id': item_id, 'name': item_name})
+            items.append({'id': item_id, 'name': item_name, 'type': item_type})
 
         if not items:
             print('No valid {{Item}} templates found.')
@@ -556,10 +631,11 @@ class WikiImages(object):
         for item in items:
             item_id = item['id']
             item_name = item['name']
+            item_type = item['type']
 
             for variant, redirect_suffix in [('s', 'square'), ('m', 'icon')]:
-                current_image, uploaded_increment, duplicate_increment = self._process_item_article_variant(
-                    item_id, item_name, variant, redirect_suffix
+                current_image, uploaded_increment, duplicate_increment = self._process_item_variant(
+                    item_type, item_id, item_name, variant, redirect_suffix
                 )
 
                 processed_variants += 1
@@ -572,6 +648,7 @@ class WikiImages(object):
                         processed=processed_variants,
                         total=total_variants,
                         current_image=current_image,
+                        item_type=item_type,
                     )
 
         if hasattr(self, '_status_callback'):
@@ -581,16 +658,23 @@ class WikiImages(object):
                 uploaded=successful_uploads,
                 duplicates=duplicate_matches,
                 total_urls=total_variants,
+                item_type=None,
             )
 
-    def upload_single_item_article_images(self, item_id, item_name):
+    def upload_single_item_images(self, item_type, item_id, item_name):
         """
-        Upload item article images for a single item using its id and display name.
+        Upload item images for a single CDN item category using its id and display name.
 
         Args:
+            item_type (str): CDN path segment (e.g. article, normal, recycling).
             item_id (str): Unique identifier for the item on the CDN.
             item_name (str): Display name to use for redirect creation.
         """
+        item_type = str(item_type).strip().lower()
+        if item_type not in self.ITEM_SINGLE_TYPE_PATHS:
+            print(f'Unsupported item type "{item_type}" for single item upload.')
+            return
+
         item_id = str(item_id).strip()
         item_name = mwparserfromhell.parse(item_name).strip_code().strip()
 
@@ -602,7 +686,7 @@ class WikiImages(object):
             print('Item name is required for single item upload.')
             return
 
-        print(f'Processing single item "{item_name}" (ID: {item_id})...')
+        print(f'Processing single item "{item_name}" (type: {item_type}, ID: {item_id})...')
 
         total_variants = 2  # s and m variants
         processed_variants = 0
@@ -610,8 +694,8 @@ class WikiImages(object):
         duplicate_matches = 0
 
         for variant, redirect_suffix in [('s', 'square'), ('m', 'icon')]:
-            current_image, uploaded_increment, duplicate_increment = self._process_item_article_variant(
-                item_id, item_name, variant, redirect_suffix
+            current_image, uploaded_increment, duplicate_increment = self._process_item_variant(
+                item_type, item_id, item_name, variant, redirect_suffix
             )
 
             processed_variants += 1
@@ -624,6 +708,7 @@ class WikiImages(object):
                     processed=processed_variants,
                     total=total_variants,
                     current_image=current_image,
+                    item_type=item_type,
                 )
 
         if hasattr(self, '_status_callback'):
@@ -633,7 +718,12 @@ class WikiImages(object):
                 uploaded=successful_uploads,
                 duplicates=duplicate_matches,
                 total_urls=total_variants,
+                item_type=item_type,
             )
+
+    def upload_single_item_article_images(self, item_id, item_name):
+        """Backward-compatible wrapper for article single-item uploads."""
+        self.upload_single_item_images("article", item_id, item_name)
 
     def check_character(self, page):
         paths = {
@@ -2268,12 +2358,26 @@ def main():
         page_name = sys.argv[2]
         wi.upload_item_article_images(wi.wiki.pages[page_name])
     elif mode == 'singleitem':
-        if len(sys.argv) < 4:
-            print('Please supply an item id and a name.')
+        if len(sys.argv) < 5:
+            print('Usage: python images.py singleitem <item_type> <item_id> <item_name>')
+            print(
+                'Supported item types: '
+                + ', '.join(sorted(wi.ITEM_SINGLE_TYPE_PATHS.keys()))
+            )
             return
-        item_id = sys.argv[2]
-        item_name = ' '.join(sys.argv[3:])
-        wi.upload_single_item_article_images(item_id, item_name)
+        item_type = sys.argv[2].lower()
+        if item_type not in wi.ITEM_SINGLE_TYPE_PATHS:
+            print(
+                f'Unsupported item type "{item_type}". '
+                f'Supported types: {", ".join(sorted(wi.ITEM_SINGLE_TYPE_PATHS.keys()))}'
+            )
+            return
+        item_id = sys.argv[3]
+        item_name = ' '.join(sys.argv[4:]).strip()
+        if not item_id or not item_name:
+            print('Item id and item name are required for single item upload.')
+            return
+        wi.upload_single_item_images(item_type, item_id, item_name)
     elif mode == 'summon':
         wi.check_summon(wi.wiki.pages[sys.argv[2]])
     elif mode == 'summons':

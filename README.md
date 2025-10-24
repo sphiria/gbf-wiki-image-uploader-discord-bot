@@ -34,5 +34,14 @@ uv run main.py
 ## usage
 
 Use the `/imgupload` slash command in Discord with:
-- `page_type`: character, weapon, summon, skin, npc, or artifact
+- `page_type`: character, weapon, summon, class, skin, npc, artifact, or item
 - `page_name`: The wiki page name to process
+
+Use the `/statusupload` slash command to upload status icons:
+- `status_id`: Base status identifier (e.g. `1438`, `status_1438`, `1438#`)
+- `max_iterations`: Optional when using `#`; defaults to 10 and accepts values from 1-100
+
+Use the `/itemupload` slash command to upload square/icon variants for a single item:
+- `item_type`: One of `article`, `normal`, `recycling`, `skillplus`, `evolution`, or `npcaugment`
+- `item_id`: ID from the item image URL path (e.g. `20500`)
+- `item_name`: Display name used when creating redirects
