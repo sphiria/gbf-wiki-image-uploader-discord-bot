@@ -1894,7 +1894,7 @@ class WikiImages(object):
                 sprite_variants,
                 lambda variant, gender: (
                     'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/sd/{variant["id"]}_{variant["abbr"]}_{gender}_01.png'
+                    f'img/sp/assets/leader/sd/{variant["id"]}_{gender}_01.png'
                 ),
                 lambda variant, gender: (
                     f'leader_sd_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
@@ -2023,6 +2023,9 @@ class WikiImages(object):
             ],
             extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
         )
+        if has_class_fields('id', 'id_num', 'abbr', 'name'):
+            result_variants = build_variants('result image', include_lvl50=True, lvl50_label='result (Lv50) image')
+
         if has_class_fields('id', 'id_num', 'abbr', 'name'):
             result_variants = build_variants('result image', include_lvl50=True, lvl50_label='result (Lv50) image')
             process_gendered_assets(
