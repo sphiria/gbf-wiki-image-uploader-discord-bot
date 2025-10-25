@@ -298,7 +298,7 @@ async def run_status_upload(status_identifier: str, max_index: int | None, statu
                 status.setdefault("processed", 0)
                 status.setdefault("uploaded", 0)
                 status.setdefault("failed", 0)
-                status.setdefault("total", 1 if max_index is None else max_index)
+                status.setdefault("total", 1 if max_index is None else max_index + 1)
                 status.setdefault("downloaded_files", [])
                 status["stage"] = "initializing"
 
@@ -632,7 +632,7 @@ async def statusupload(
 
     ranged = cleaned_status_id.endswith("#")
     max_index_value = max_index if ranged else None
-    total_expected = max_index_value if ranged else 1
+    total_expected = (max_index_value + 1) if ranged else 1
 
     now = time.time()
     last = last_used.get(interaction.user.id, 0)

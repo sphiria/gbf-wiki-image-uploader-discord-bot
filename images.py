@@ -411,11 +411,12 @@ class WikiImages(object):
                 print('Maximum index must be at least 1.')
                 return
 
-            indices = range(1, max_index + 1)
+            attempt_indices = [None]
+            attempt_indices.extend(range(1, max_index + 1))
         else:
             if max_index is not None:
                 print('Ignoring extra max index argument for single status upload.')
-            indices = [None]
+            attempt_indices = [None]
 
         def emit_status(stage, **kwargs):
             if hasattr(self, '_status_callback'):
@@ -446,7 +447,7 @@ class WikiImages(object):
             self.check_file_double_redirect(true_name)
             return True, true_name
 
-        total = len(indices)
+        total = len(attempt_indices)
         processed = 0
         uploaded = 0
         failed = 0
@@ -460,7 +461,7 @@ class WikiImages(object):
             current_identifier=None,
         )
 
-        for index in indices:
+        for index in attempt_indices:
             current_identifier = base_identifier
             success = False
             final_name = None

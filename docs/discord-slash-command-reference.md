@@ -18,7 +18,7 @@ Usage: `/imgupload page_type:<character|weapon|summon|class|skin|npc|artifact|it
 Usage: `/statusupload status_id:<1438|status_1438|status_1438#> max_index:<1-100 (defaults 10)>`
 - Purpose: Upload small/large status effect icons in bulk.
 - Inputs:
-  - `status_id` - accept raw numeric IDs, prefixed IDs (`status_1438`), or add a trailing `#` to iterate sequential IDs. When `#` is present the command walks up to `max_index` consecutive identifiers.
+  - `status_id` - accept raw numeric IDs, prefixed IDs (`status_1438`), or add a trailing `#` to iterate sequential IDs. When `#` is present the command uploads the base identifier first, then walks up to `max_index` consecutive identifiers.
   - `max_index` - only used when `status_id` ends with `#`; choose 1-100 (default 10) to define the upper bound.
 - Checks & Limits: same role/cooldown/lock rules; IDs must be alphanumeric/underscore with an optional trailing `#`.
 - Output: progress callouts show which icon number is active. The summary lists processed/uploaded/failed counts and wiki links for every file created; embed previews are auto-suppressed to keep the post tidy.
