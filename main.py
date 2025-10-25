@@ -607,12 +607,12 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)
 @app_commands.describe(
     status_id="Status identifier (e.g. 1438, status_1438, 1438#)",
-    max_iterations="Maximum iterations when using # (1-100, defaults to 10)",
+    max_index="Maximum index when using # (1-100, defaults to 10)",
 )
 async def statusupload(
     interaction: discord.Interaction,
     status_id: str,
-    max_iterations: app_commands.Range[int, 1, 100] = 10,
+    max_index: app_commands.Range[int, 1, 100] = 10,
 ):
     member = interaction.guild.get_member(interaction.user.id)
     if not member or not (
@@ -631,8 +631,8 @@ async def statusupload(
         return
 
     ranged = cleaned_status_id.endswith("#")
-    max_index = max_iterations if ranged else None
-    total_expected = max_index if ranged else 1
+    max_index_value = max_index if ranged else None
+    total_expected = max_index_value if ranged else 1
 
     now = time.time()
     last = last_used.get(interaction.user.id, 0)
@@ -654,9 +654,7 @@ async def statusupload(
 
     async with upload_lock:
         dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
-        range_text = (
-            f" (up to {max_index} icons)" if ranged else ""
-        )
+        range_text = f" (up to {max_index_value} icons)" if ranged else ""
         await interaction.response.send_message(
             f"{dry_run_prefix}Status upload started for `{cleaned_status_id}`{range_text}. This may take a while..."
         )
@@ -706,7 +704,7 @@ async def statusupload(
                 await msg.edit(content=content)
 
         updater_task = asyncio.create_task(progress_updater())
-        return_code, stdout, stderr = await run_status_upload(cleaned_status_id, max_index, status_info)
+        return_code, stdout, stderr = await run_status_upload(cleaned_status_id, max_index_value, status_info)
         updater_task.cancel()
         elapsed = int(time.time() - start_time)
 
@@ -734,7 +732,8 @@ async def statusupload(
                 )
                 summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines))
+            # Suppress automatic embed previews for the wiki links to keep the message concise.
+            await msg.edit(content="\n".join(summary_lines), suppress=True)
         else:
             await msg.edit(
                 content=(
@@ -881,7 +880,7 @@ async def bannerupload(
                 )
                 summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines))
+            await msg.edit(content="\n".join(summary_lines), suppress=True)
         else:
             await msg.edit(
                 content=f"{dry_run_prefix}Banner upload failed for `{cleaned_banner_id}` in {elapsed}s!"
@@ -1076,7 +1075,7 @@ async def itemupload(
 
             summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines))
+            await msg.edit(content="\n".join(summary_lines), suppress=True)
         else:
             await msg.edit(
                 content=(

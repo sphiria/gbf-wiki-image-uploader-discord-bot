@@ -33,15 +33,12 @@ uv run main.py
 
 ## usage
 
-Use the `/imgupload` slash command in Discord with:
-- `page_type`: character, weapon, summon, class, skin, npc, artifact, or item
-- `page_name`: The wiki page name to process
+See `docs/discord-slash-command-reference.md` for Discord-ready copy you can paste into a server announcement.
 
-Use the `/statusupload` slash command to upload status icons:
-- `status_id`: Base status identifier (e.g. `1438`, `status_1438`, `1438#`)
-- `max_iterations`: Optional when using `#`; defaults to 10 and accepts values from 1-100
+Quick overview of the available slash commands:
 
-Use the `/itemupload` slash command to upload square/icon variants for a single item:
-- `item_type`: One of `article`, `normal`, `recycling`, `skillplus`, `evolution`, or `npcaugment`
-- `item_id`: ID from the item image URL path (e.g. `20500`)
-- `item_name`: Display name used when creating redirects
+- `/imgupload page_type:<type> page_name:<title>` — bulk-upload all images for a wiki page (types: character, weapon, summon, class, skin, npc, artifact, item).
+- `/statusupload status_id:<id or id#> max_iterations:<1-100>` — upload status effect icons (use `#` to iterate sequential IDs, defaults to 10 iterations).
+- `/bannerupload banner_id:<campaign id> max_index:<1-50>` — iterate `banner_<id>_<index>.jpg` assets to upload gacha banner variants (default max index 12).
+- `/itemupload item_type:<article|normal|recycling|skillplus|evolution|npcaugment> item_id:<cdn id> item_name:<display name>` — upload square/icon variants for a single item and create redirects.
+- `/synccommands` — admin-only utility to force a guild/global slash-command sync if Discord stops showing new commands.
