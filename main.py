@@ -727,13 +727,12 @@ async def statusupload(
                 unique_files = list(dict.fromkeys(downloaded_files))
                 link_lines = ["", "**Links:**"]
                 link_lines.extend(
-                    f"- [{file_name}]({base_url}{file_name.replace(' ', '_')})"
+                    f"- {file_name}: <{base_url}{file_name.replace(' ', '_')}>"
                     for file_name in unique_files
                 )
                 summary_lines.extend(link_lines)
 
-            # Suppress automatic embed previews for the wiki links to keep the message concise.
-            await msg.edit(content="\n".join(summary_lines), suppress=True)
+            await msg.edit(content="\n".join(summary_lines))
         else:
             await msg.edit(
                 content=(
@@ -875,12 +874,12 @@ async def bannerupload(
                 unique_files = list(dict.fromkeys(downloaded_files))
                 link_lines = ["", "**Links:**"]
                 link_lines.extend(
-                    f"- [{file_name}]({base_url}{file_name.replace(' ', '_')})"
+                    f"- {file_name}: <{base_url}{file_name.replace(' ', '_')}>"
                     for file_name in unique_files
                 )
                 summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines), suppress=True)
+            await msg.edit(content="\n".join(summary_lines))
         else:
             await msg.edit(
                 content=f"{dry_run_prefix}Banner upload failed for `{cleaned_banner_id}` in {elapsed}s!"
@@ -1067,15 +1066,15 @@ async def itemupload(
             link_lines = [
                 "",
                 "**Links:**",
-                f"- [Canonical S]({base_url}{canonical_s_file.replace(' ', '_')})",
-                f"- [Canonical M]({base_url}{canonical_m_file.replace(' ', '_')})",
-                f"- [Redirect Square]({base_url}{redirect_square_file.replace(' ', '_')})",
-                f"- [Redirect Icon]({base_url}{redirect_icon_file.replace(' ', '_')})",
+                f"- Canonical S: <{base_url}{canonical_s_file.replace(' ', '_')}>",
+                f"- Canonical M: <{base_url}{canonical_m_file.replace(' ', '_')}>",
+                f"- Redirect Square: <{base_url}{redirect_square_file.replace(' ', '_')}>",
+                f"- Redirect Icon: <{base_url}{redirect_icon_file.replace(' ', '_')}>",
             ]
 
             summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines), suppress=True)
+            await msg.edit(content="\n".join(summary_lines))
         else:
             await msg.edit(
                 content=(
