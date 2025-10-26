@@ -12,6 +12,8 @@ import asyncio
 import aiohttp
 from io import BytesIO
 from gbfwiki import GBFWiki, GBFDB
+from dataclasses import dataclass
+from typing import Callable, Optional, Sequence
 
 # optional for local development only
 try:
@@ -25,6 +27,79 @@ except Exception:
 WIKI_USERNAME = os.environ.get("WIKI_USERNAME")
 WIKI_PASSWORD = os.environ.get("WIKI_PASSWORD")
 MITM_ROOT = os.environ.get("MITM_ROOT")
+
+
+@dataclass(frozen=True)
+class AssetVariant:
+    suffix: str
+    label: str = ''
+
+
+@dataclass(frozen=True)
+class AssetSpec:
+    section: str
+    extension: str
+    filename_suffix: str
+    variants: Sequence[AssetVariant]
+    categories: Sequence[str]
+    section_label: Optional[str] = None
+    url_builder: Optional[Callable[[str, str, AssetVariant, 'AssetSpec'], str]] = None
+    canonical_name_builder: Optional[Callable[[str, str, AssetVariant, 'AssetSpec'], str]] = None
+    other_names_builder: Optional[Callable[[str, str, str, AssetVariant, int, 'AssetSpec'], Sequence[str]]] = None
+
+    def build_url(self, asset_type: str, asset_id: str, variant: AssetVariant) -> str:
+        if self.url_builder:
+            return self.url_builder(asset_type, asset_id, variant, self)
+        return (
+            'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+            f'img/sp/assets/{asset_type}/{self.section}/{asset_id}{variant.suffix}.{self.extension}'
+        )
+
+    def canonical_section_label(self) -> str:
+        return self.section_label or self.section
+
+    def build_canonical_name(self, asset_type: str, asset_id: str, variant: AssetVariant) -> str:
+        if self.canonical_name_builder:
+            return self.canonical_name_builder(asset_type, asset_id, variant, self)
+        return "{0} {1} {2}{3}.{4}".format(
+            asset_type.capitalize(),
+            self.canonical_section_label(),
+            asset_id,
+            variant.suffix,
+            self.extension
+        )
+
+    def build_other_names(
+        self,
+        asset_name: str,
+        asset_type: str,
+        canonical_name: str,
+        variant: AssetVariant,
+        variant_count: int,
+    ):
+        if self.other_names_builder:
+            names = self.other_names_builder(
+                asset_name,
+                asset_type,
+                canonical_name,
+                variant,
+                variant_count,
+                self
+            )
+            return list(names) if names else []
+
+        other_names = []
+        base_name = f"{asset_name}{self.filename_suffix}.{self.extension}"
+        if (variant_count < 2) or (variant.label in ('', 'A')):
+            other_names.append(base_name)
+
+        if variant_count > 1 and variant.label:
+            spacer = ' ' if (self.filename_suffix == '' and variant.label) else ''
+            other_names.append(
+                f"{asset_name}{self.filename_suffix}{spacer}{variant.label}.{self.extension}"
+            )
+
+        return other_names
 
 class WikiImages(object):
     # Map of item upload types to CDN path segments
@@ -207,7 +282,7 @@ class WikiImages(object):
             tasks = [download_single(session, url) for url in urls]
             return await asyncio.gather(*tasks)
 
-    def check_image(self, name, sha1, size, io, other_names):
+    def check_image(self, name, sha1, size, io, other_names, description_text=None):
         print(f"[WIKI] Starting check_image for: {name}")
         true_name = name.capitalize()
         file_name = 'File:' + true_name
@@ -282,7 +357,10 @@ class WikiImages(object):
             print('Uploading "{0}"...'.format(file_name))
             io.seek(0)
             try:
-                response = self.wiki.upload(io, filename=true_name, ignore=True)
+                upload_kwargs = {"filename": true_name, "ignore": True}
+                if description_text:
+                    upload_kwargs["description"] = description_text
+                response = self.wiki.upload(io, **upload_kwargs)
                 print(response['result'] + ': ' + name)
             except Exception as e:
                 print(f'Upload failed for {file_name}: {e}')
@@ -422,6 +500,8 @@ class WikiImages(object):
             if hasattr(self, '_status_callback'):
                 self._status_callback(stage, **kwargs)
 
+        status_category_text = '[[Category:Status Icons]]'
+
         def status_download_and_upload(identifier, report_missing=True):
             url = url_template.format(identifier)
             success, sha1, size, io = self.get_image(url)
@@ -432,7 +512,14 @@ class WikiImages(object):
 
             true_name = f'{identifier}.png'
             other_names = []
-            check_image_result = self.check_image(true_name, sha1, size, io, other_names)
+            check_image_result = self.check_image(
+                true_name,
+                sha1,
+                size,
+                io,
+                other_names,
+                description_text=status_category_text,
+            )
 
             if check_image_result is False:
                 print(f'Checking image {true_name} failed! Skipping...')
@@ -930,6 +1017,10 @@ class WikiImages(object):
             'raid_normal': ['jpg', '_raid',     ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04', '_81', '_82', '_91', '_91_0', '_91_1'], ['A', 'A2', 'A101', 'A102', 'A103', 'B', 'B2',  'B101', 'B102', 'B103', 'C', 'C2',  'C101', 'C102', 'C103', 'D', 'ST', 'ST2', 'EX', 'EX1', 'EX2'], ['Character Images', 'Raid Character Images']],
             
             'quest': ['jpg', '_quest',     ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04', '_81', '_82', '_91', '_91_0', '_91_1'], ['A', 'A2', 'A101', 'A102', 'A103', 'B', 'B2',  'B101', 'B102', 'B103', 'C', 'C2',  'C101', 'C102', 'C103', 'D', 'ST', 'ST2', 'EX', 'EX1', 'EX2'], ['Character Images', 'Quest Character Images']],
+
+            'skycompass': ['png', '_HD',     
+                ['_01', '_01_0', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_0201', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04', '_81', '_82', '_91', '_91_0', '_91_1'], 
+                ['A', 'A1', 'A2', 'A101', 'A102', 'A103', 'B', 'B1', 'B2',  'B101', 'B102', 'B103', 'C', 'C2',  'C101', 'C102', 'C103', 'D', 'ST', 'ST2', 'EX', 'EX1', 'EX2'], ['Character Images', 'Skycompass Images', 'Skycompass Character Images']],
             
             # 'zoom':          ['png', '',        ['_01_101', '_01_102', '_01_103'], ['A1', 'A2', 'A3'], ['Character Images', 'Full Character Images'  ]],
             # 'f':             ['jpg', '_tall',   ['_01_101', '_01_102', '_01_103', '_02_101', '_02_102', '_02_103', '_03_101', '_03_102', '_03_103'], ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'], ['Character Images', 'Tall Character Images'  ]],
@@ -958,20 +1049,20 @@ class WikiImages(object):
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
 
     def check_summon(self, page):
-        paths = {
-            'b':  ['png', '',        ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Full Summon Images'  ]],
-            'ls': ['jpg', '_tall',   ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Tall Summon Images'  ]],
-            'm':  ['jpg', '_icon',   ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Icon Summon Images'  ]],
-            's':  ['jpg', '_square', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Square Summon Images']],
-            'party_main':  ['jpg', '_party_main', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Party Main Summon Images']],
-            'party_sub':  ['jpg', '_party_sub', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Party Sub Summon Images']],
-            'detail':  ['png', '_detail', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Detail Summon Images']],
-            #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/b/1010200300.png
-            #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/ls/1010200300.jpg
-            #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/m/1010200300.jpg
-            #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/s/1010200300.jpg
-        }
-        self.check_sp_asset(page, 'summon', 'Summon', paths, False)
+        print('Checking page {0}...'.format(page.name))
+        specs = self._get_summon_asset_specs()
+        asset_ids = self._extract_asset_ids_from_template(page, 'Summon')
+
+        if not asset_ids:
+            print('No Summon asset ids found; aborting.')
+            return
+
+        download_tasks = self._build_asset_download_tasks('summon', page.name, asset_ids, specs)
+        if not download_tasks:
+            print('No Summon download tasks generated; nothing to do.')
+            return
+
+        self._process_download_tasks_sequential(download_tasks, 'Summon')
 
     def check_weapon(self, page):
         paths = {
@@ -995,12 +1086,213 @@ class WikiImages(object):
         }
         self.check_sp_asset(page, 'weapon', 'Weapon', paths, True)
 
-    def check_npc(self, page):
-        paths = {
-            'zoom':          ['png', '',        ['_01'], [''], ['NPC Images', 'Full NPC Images'  ]],
-            'm':             ['jpg', '_icon',   ['_01'], [''], ['NPC Images', 'Icon NPC Images'  ]],
+    def _extract_asset_ids_from_template(self, page, template_name):
+        """
+        Locate asset ids defined inside the requested template.
+        """
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+        asset_ids = []
+        seen_ids = set()
+
+        for template in templates:
+            if template.name.strip() != template_name:
+                continue
+
+            for param in template.params:
+                if param.name.strip() != 'id':
+                    continue
+
+                asset_id = str(param.value).strip()
+                asset_match = re.match(r'^{{{id\|([A-Za-z0-9_]+)}}}', asset_id)
+                if asset_match is not None:
+                    asset_id = asset_match.group(1)
+
+                if asset_id and asset_id not in seen_ids:
+                    seen_ids.add(asset_id)
+                    asset_ids.append(asset_id)
+
+        if not asset_ids:
+            print(f'No asset ids found in template "{template_name}".')
+        return asset_ids
+
+    def _build_asset_variants(self, suffixes, labels):
+        suffix_list = list(suffixes or [''])
+        label_list = list(labels or [])
+        if not label_list:
+            label_list = [''] * len(suffix_list)
+        if len(label_list) < len(suffix_list):
+            label_list.extend([''] * (len(suffix_list) - len(label_list)))
+        elif len(label_list) > len(suffix_list):
+            suffix_list.extend([''] * (len(label_list) - len(suffix_list)))
+        return tuple(AssetVariant(suffix=suffix_list[i], label=label_list[i]) for i in range(len(suffix_list)))
+
+    def _build_asset_specs_from_paths(self, raw_paths):
+        specs = []
+        for section, params in raw_paths.items():
+            extension, filename_suffix, suffixes, labels, categories = params
+            specs.append(
+                AssetSpec(
+                    section=section,
+                    extension=extension,
+                    filename_suffix=filename_suffix,
+                    variants=self._build_asset_variants(suffixes, labels),
+                    categories=tuple(categories),
+                )
+            )
+        return specs
+
+    def _get_npc_asset_specs(self):
+        raw_paths = {
+            'zoom': ['png', '', ['_01'], [''], ['NPC Images', 'Full NPC Images']],
+            'm': ['jpg', '_icon', ['_01'], [''], ['NPC Images', 'Icon NPC Images']],
         }
-        self.check_sp_asset(page, 'npc', 'Non-party Character', paths, False)
+        return self._build_asset_specs_from_paths(raw_paths)
+
+    def _get_summon_asset_specs(self):
+        raw_paths = {
+            'b': ['png', '',        ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Full Summon Images']],
+            'ls': ['jpg', '_tall',   ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Tall Summon Images']],
+            'm': ['jpg', '_icon',   ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Icon Summon Images']],
+            's': ['jpg', '_square', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Square Summon Images']],
+            'party_main': ['jpg', '_party_main', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Party Main Summon Images']],
+            'party_sub': ['jpg', '_party_sub', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Party Sub Summon Images']],
+            'detail': ['png', '_detail', ['', '_02', '_03', '_04'], ['A', 'B', 'C', 'D'], ['Summon Images', 'Detail Summon Images']],
+        }
+        specs = self._build_asset_specs_from_paths(raw_paths)
+
+        def build_skycompass_url(asset_type, asset_id, variant, spec):
+            return (
+                'https://media.skycompass.io/assets/archives/summons/'
+                f'{asset_id}/detail_l.png'
+            )
+
+        def build_skycompass_canonical_name(asset_type, asset_id, variant, spec):
+            return f'archives_summons_{asset_id}_detail_l.png'
+
+        def build_skycompass_other_names(asset_name, asset_type, canonical_name, variant, variant_count, spec):
+            return [f'{asset_name}_HD.png']
+
+        specs.append(
+            AssetSpec(
+                section='skycompass',
+                extension='png',
+                filename_suffix='',
+                variants=(AssetVariant('', ''),),
+                categories=('Summon Images', 'Skycompass Images', 'Skycompass Summon Images'),
+                section_label='skycompass',
+                url_builder=build_skycompass_url,
+                canonical_name_builder=build_skycompass_canonical_name,
+                other_names_builder=build_skycompass_other_names,
+            )
+        )
+
+        return specs
+
+    def _build_asset_download_tasks(self, asset_type, asset_name, asset_ids, specs):
+        download_tasks = []
+
+        for asset_id in asset_ids:
+            for spec in specs:
+                variants = spec.variants or (AssetVariant('', ''),)
+                variant_count = len(variants)
+                for variant in variants:
+                    url = spec.build_url(asset_type, asset_id, variant)
+                    true_name = spec.build_canonical_name(asset_type, asset_id, variant)
+                    other_names = spec.build_other_names(
+                        asset_name,
+                        asset_type,
+                        true_name,
+                        variant,
+                        variant_count
+                    )
+                    download_tasks.append({
+                        'url': url,
+                        'true_name': true_name,
+                        'other_names': other_names,
+                        'categories': list(spec.categories),
+                    })
+
+        return download_tasks
+
+    def _process_download_tasks_sequential(self, download_tasks, asset_label):
+        if not download_tasks:
+            print('No download tasks to process.')
+            return
+
+        total = len(download_tasks)
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+
+        print(f'Beginning sequential processing of {total} {asset_label} images.')
+
+        for index, task in enumerate(download_tasks, start=1):
+            print(f'[{index}/{total}] Downloading {task["url"]}...')
+            success, sha1, size, io_obj = self.get_image(task['url'])
+            if not success:
+                failed += 1
+                continue
+
+            check_result = self.check_image(task['true_name'], sha1, size, io_obj, task['other_names'])
+            if check_result is False:
+                failed += 1
+                print(f'Upload validation failed for {task["true_name"]}.')
+                continue
+
+            final_name = task['true_name'] if check_result is True else check_result
+            if check_result is True:
+                uploaded += 1
+            else:
+                duplicates += 1
+
+            self.check_image_categories(final_name, task['categories'])
+            for other_name in task['other_names']:
+                self.check_file_redirect(final_name, other_name)
+
+            time.sleep(self.delay)
+            self.check_file_double_redirect(final_name)
+
+            processed = uploaded + duplicates
+            if hasattr(self, '_status_callback'):
+                self._status_callback(
+                    "processing",
+                    processed=processed,
+                    total=total,
+                    current_image=final_name
+                )
+
+        print(
+            f'{asset_label} processing summary — uploaded: {uploaded}, '
+            f'duplicates: {duplicates}, failed: {failed}, total: {total}.'
+        )
+
+        if hasattr(self, '_status_callback'):
+            self._status_callback(
+                "completed",
+                processed=uploaded + duplicates,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total_urls=total
+            )
+
+    def check_npc(self, page):
+        print('Checking page {0}...'.format(page.name))
+        specs = self._get_npc_asset_specs()
+        asset_ids = self._extract_asset_ids_from_template(page, 'Non-party Character')
+
+        if not asset_ids:
+            print('No NPC asset ids found; aborting.')
+            return
+
+        download_tasks = self._build_asset_download_tasks('npc', page.name, asset_ids, specs)
+        if not download_tasks:
+            print('No NPC download tasks generated; nothing to do.')
+            return
+
+        self._process_download_tasks_sequential(download_tasks, 'NPC')
 
     def check_artifact(self, page):
         paths = {
