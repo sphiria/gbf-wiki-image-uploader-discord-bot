@@ -298,8 +298,11 @@ class WikiImages(object):
         # filter out archived images...
         duplicates = []
         for wiki_duplicate in wiki_duplicates:
-            if not ('/archive/' in wiki_duplicate.imageinfo['url']):
-                duplicates.append(wiki_duplicate)
+            imageinfo = getattr(wiki_duplicate, 'imageinfo', {}) or {}
+            image_url = imageinfo.get('url')
+            if image_url and ('/archive/' in image_url):
+                continue
+            duplicates.append(wiki_duplicate)
 
         if len(duplicates) > 1:
             # just don't handle too many duplicates
