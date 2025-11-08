@@ -110,6 +110,7 @@ class WikiImages(object):
         "skillplus": "skillplus",
         "evolution": "evolution",
         "npcaugment": "npcaugment",
+        "set": "set",
     }
 
     def __init__(self):
@@ -389,18 +390,29 @@ class WikiImages(object):
             self.investigate_backlinks(depths, backlink.name, target)
 
     def check_image_categories(self, name, categories):
-        # doesn't work!
-        image = self.wiki.images[name]
-        if image.exists and not image.redirect:
-            pagetext = image.text()
-            new_text = pagetext
-            for category in categories:
-                category_text = '[[Category:{0}]]'.format(category)
-                if not (category_text in new_text):
-                    new_text = new_text + category_text
-            if pagetext != new_text:
-                print('Updating categories for {0}...'.format(name))
-                image.save(new_text, summary='Batch image categories')
+        """
+        Ensure the uploaded file page includes the requested categories.
+
+        Older code tried to edit via self.wiki.images[], but mwclient only
+        supports saves through the page object. This uses the File: page to
+        append any missing category tags.
+        """
+        page_name = f'File:{name}'
+        page = self.wiki.pages[page_name]
+        if not page.exists or page.redirect:
+            return
+
+        pagetext = page.text()
+        new_text = pagetext
+        for category in categories:
+            category_text = f'[[Category:{category}]]'
+            if category_text not in new_text:
+                separator = '\n' if new_text and not new_text.endswith('\n') else ''
+                new_text = f'{new_text}{separator}{category_text}'
+
+        if pagetext != new_text:
+            print(f'Updating categories for {name}...')
+            page.save(new_text, summary='Batch image categories')
 
     def check_file_redirect(self, redirect_to, redirect_from):
         redirect_to = redirect_to[0].upper() + redirect_to[1:]
@@ -2742,6 +2754,13 @@ def main():
     elif mode == 'classes':
         #wi.class_images()
         pass
+    elif mode == 'banner':
+        if len(sys.argv) < 3:
+            print('Please supply a gacha banner identifier.')
+            return
+        banner_identifier = sys.argv[2]
+        max_index = sys.argv[3] if len(sys.argv) > 3 else None
+        wi.upload_gacha_banners(banner_identifier, max_index)
     elif mode == 'status':
         if len(sys.argv) < 3:
             print('Please supply a status identifier.')

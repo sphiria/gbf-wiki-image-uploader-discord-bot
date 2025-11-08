@@ -10,7 +10,7 @@ Usage: `/imgupload page_type:<character|weapon|summon|class|skin|npc|artifact|it
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
 - Inputs:
   - `page_type` - pick the asset family; determines which CDN paths are scanned.
-  - `page_name` - target wiki page (1-100 chars; letters, numbers, spaces, `- ( ) ' " .` only). The bot trims whitespace before running.
+  - `page_name` - target wiki page (1-100 chars; rejects control characters plus #, <, >, [, ], {, }, | so titles with &, !, ?, :, /, etc. are accepted). The bot trims whitespace before running.
 - Checks & Limits: role requirement, cooldown, and single-upload lock. Invalid names are rejected before any scripts run.
 - Output: background task reports "Downloading/Processing/Downloaded" states and ends with counts for images downloaded, uploaded, duplicated, failed, plus total URLs scanned. Wiki errors are echoed back in a code block.
 
@@ -33,11 +33,11 @@ Usage: `/bannerupload banner_id:<campaign id> max_index:<1-50 (defaults 12)>`
 - Output: shows which banner slug/index it is processing, then reports processed/uploaded/failed counts and wiki links for every successful upload.
 
 **/itemupload**
-Usage: `/itemupload item_type:<Article|Normal|Recycling|Skillplus|Evolution|Npcaugment> item_id:<CDN id> item_name:<Display Name>`
+Usage: `/itemupload item_type:<Article|Normal|Recycling|Skillplus|Evolution|Npcaugment|Set> item_id:<CDN id> item_name:<Display Name>`
 - Purpose: Upload the square/icon pair for a single item along with canonical redirects for the supplied display name.
 - Inputs:
-  - `item_type` - choose which CDN subfolder to query (`article`, `normal`, `recycling`, `skillplus`, `evolution`, `npcaugment`).
-  - `item_id` - path fragment straight from the asset URL (1-48 chars; letters, numbers, `_`, `-` only).
+  - `item_type` - choose which CDN subfolder to query (`article`, `normal`, `recycling`, `skillplus`, `evolution`, `npcaugment`, `set`).
+  - `item_id` - path fragment straight from the asset URL (1-48 chars; letters, numbers, `_`, `-` only — IDs such as `teamforce_340` are valid).
   - `item_name` - wiki-facing name used for redirect files (same validation as page names).
 - Checks & Limits: role/cooldown/lock plus validation for every field before the upload worker starts.
 - Output: progress mentions current variant, then the summary lists variants processed, uploads, duplicates, total URLs checked, and direct wiki links for canonical/redirect targets (`Item_<type>_s/m_<id>`, `<Name> square/icon`).
