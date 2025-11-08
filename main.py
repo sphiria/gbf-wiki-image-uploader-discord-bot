@@ -77,7 +77,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item"]
 
 # Supported single-item upload types (CDN path segments)
-ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal"]
+ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
 
 def normalize_item_type_input(raw_value: str | None) -> str:
     """

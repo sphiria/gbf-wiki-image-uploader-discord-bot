@@ -113,6 +113,7 @@ class WikiImages(object):
         "ticket": "ticket",
         "campaign": "campaign",
         "npcarousal": "npcarousal",
+        "memorial": "memorial",
         "npcaugment": "npcaugment",
         "set": "set",
     }
