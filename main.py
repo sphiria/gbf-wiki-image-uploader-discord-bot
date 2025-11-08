@@ -62,7 +62,7 @@ MAX_ITEM_ID_LEN = 48
 MAX_ITEM_NAME_LEN = 100
 MAX_STATUS_ID_LEN = 64
 MAX_BANNER_ID_LEN = 64
-VALID_PAGE_NAME_REGEX = re.compile(r"^[\w\s\-\(\)\'\"\.]+$")
+PAGE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|\x00-\x1F]")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 VALID_STATUS_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+#?$")
 VALID_BANNER_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+$")
@@ -77,7 +77,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item"]
 
 # Supported single-item upload types (CDN path segments)
-ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "npcaugment"]
+ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "npcaugment", "set"]
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
@@ -91,8 +91,8 @@ def validate_page_name(page_name: str) -> tuple[bool, str]:
         return False, f"❌ Invalid page name. Must be between 1 and {MAX_PAGE_NAME_LEN} characters."
 
     # Character check
-    if not VALID_PAGE_NAME_REGEX.match(page_name):
-        return False, "❌ Invalid page name. Only letters, numbers, spaces, -, (), ', \", and . are allowed."
+    if PAGE_NAME_INVALID_PATTERN.search(page_name):
+        return False, "❌ Invalid page name. Characters #, <, >, [, ], {, }, |, or control characters are not allowed."
 
     return True, page_name
 
@@ -121,8 +121,8 @@ def validate_item_name(item_name: str) -> tuple[bool, str]:
     if len(item_name) == 0 or len(item_name) > MAX_ITEM_NAME_LEN:
         return False, f"Invalid item name. Must be between 1 and {MAX_ITEM_NAME_LEN} characters."
 
-    if not VALID_PAGE_NAME_REGEX.match(item_name):
-        return False, "Invalid item name. Only letters, numbers, spaces, -, (), ', \", and . are allowed."
+    if PAGE_NAME_INVALID_PATTERN.search(item_name):
+        return False, "Invalid item name. Characters #, <, >, [, ], {, }, |, or control characters are not allowed."
 
     return True, item_name
 
