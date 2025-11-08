@@ -36,7 +36,7 @@ Usage: `/bannerupload banner_id:<campaign id> max_index:<1-50 (defaults 12)>`
 Usage: `/itemupload item_type:<CDN folder (e.g. Article, Normal)> item_id:<CDN id> item_name:<Display Name>`
 - Purpose: Upload the square/icon pair for a single item along with canonical redirects for the supplied display name.
 - Inputs:
-  - `item_type` - type any CDN subfolder; the UI suggests common values (`article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`) but free-form entries are supported.
+  - `item_type` - type any CDN subfolder; the UI suggests common values (`article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`) but free-form entries are supported.
   - `item_id` - path fragment straight from the asset URL (1-48 chars; letters, numbers, `_`, `-` only — IDs such as `teamforce_340` are valid).
   - `item_name` - wiki-facing name used for redirect files (same validation as page names).
 - Checks & Limits: role/cooldown/lock plus validation for every field before the upload worker starts.

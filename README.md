@@ -40,5 +40,5 @@ Quick overview of the available slash commands:
 - `/imgupload page_type:<type> page_name:<title>` — bulk-upload all images for a wiki page (types: character, weapon, summon, class, skin, npc, artifact, item).
 - `/statusupload status_id:<id or id#> max_iterations:<1-100>` — upload status effect icons (use `#` to iterate sequential IDs, defaults to 10 iterations).
 - `/bannerupload banner_id:<campaign id> max_index:<1-50>` — iterate `banner_<id>_<index>.jpg` assets to upload gacha banner variants (default max index 12).
-- `/itemupload item_type:<CDN folder (e.g. article, normal)> item_id:<cdn id> item_name:<display name>` — upload square/icon variants for a single item and create redirects (you can type any folder, but common choices include `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`).
+- `/itemupload item_type:<CDN folder (e.g. article, normal)> item_id:<cdn id> item_name:<display name>` — upload square/icon variants for a single item and create redirects (you can type any folder, but common choices include `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`).
 - `/synccommands` — admin-only utility to force a guild/global slash-command sync if Discord stops showing new commands.
