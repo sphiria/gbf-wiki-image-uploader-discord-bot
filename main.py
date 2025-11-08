@@ -77,7 +77,14 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item"]
 
 # Supported single-item upload types (CDN path segments)
-ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "npcaugment", "set"]
+ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal"]
+
+def normalize_item_type_input(raw_value: str | None) -> str:
+    """
+    Normalize slash-command item type input.
+    Always lower-cases and trims; returns an empty string when not provided.
+    """
+    return (raw_value or "").strip().lower()
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
@@ -945,14 +952,13 @@ async def synccommands(interaction: discord.Interaction):
 )
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)
 @app_commands.describe(
-    item_type="Item asset category",
+    item_type="CDN folder name (article, normal, etc.). Suggestions provided; custom entries allowed.",
     item_id="Item ID (from the image URL path)",
     item_name="Item Name (creates redirects with this name)"
 )
-@app_commands.choices(item_type=[app_commands.Choice(name=it.title(), value=it) for it in ITEM_TYPES])
 async def itemupload(
     interaction: discord.Interaction,
-    item_type: app_commands.Choice[str],
+    item_type: str,
     item_id: str,
     item_name: str
 ):
@@ -977,7 +983,13 @@ async def itemupload(
         await interaction.response.send_message(cleaned_name, ephemeral=True)
         return
 
-    item_type_value = item_type.value
+    item_type_value = normalize_item_type_input(item_type)
+    if not item_type_value:
+        await interaction.response.send_message(
+            "Item type is required. Provide any CDN folder name such as `article`.",
+            ephemeral=True
+        )
+        return
 
     now = time.time()
     last = last_used.get(interaction.user.id, 0)
@@ -1089,6 +1101,20 @@ async def itemupload(
     except Exception as e:
         elapsed = int(time.time() - start_time)
         await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@itemupload.autocomplete("item_type")
+async def itemupload_item_type_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> list[app_commands.Choice[str]]:
+    """Suggest common CDN folders while keeping the input free-form."""
+    current_lower = (current or "").lower()
+    filtered = [it for it in ITEM_TYPES if not current_lower or current_lower in it]
+    return [
+        app_commands.Choice(name=it.title(), value=it)
+        for it in filtered[:25]
+    ]
 
 
 # --- START BOT ---
