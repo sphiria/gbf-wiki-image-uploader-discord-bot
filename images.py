@@ -109,8 +109,26 @@ class WikiImages(object):
         "recycling": "recycling",
         "skillplus": "skillplus",
         "evolution": "evolution",
+        "lottery": "lottery",
+        "ticket": "ticket",
+        "campaign": "campaign",
+        "npcarousal": "npcarousal",
         "npcaugment": "npcaugment",
         "set": "set",
+    }
+
+    # (variant, redirect_suffix, cdn_variant_segment)
+    ITEM_VARIANT_CONFIG = {
+        "__default__": [
+            ("s", "square", None),
+            ("m", "icon", None),
+        ],
+        "ticket": [
+            ("s", "square", ""),
+        ],
+        "campaign": [
+            ("s", "square", ""),
+        ],
     }
 
     def __init__(self):
@@ -133,6 +151,14 @@ class WikiImages(object):
 
         # Other settings
         self.delay = 25
+
+    def _item_variant_specs(self, item_type: str):
+        """
+        Return variant configuration tuples for the given item type.
+        Falls back to the default config when no specific mapping exists.
+        """
+        key = (item_type or "").lower()
+        return self.ITEM_VARIANT_CONFIG.get(key, self.ITEM_VARIANT_CONFIG["__default__"])
 
     def _perform_wiki_action_with_retry(self, action, *args, max_attempts=5, **kwargs):
         """
@@ -708,7 +734,7 @@ class WikiImages(object):
             current_identifier=None,
         )
 
-    def _process_item_variant(self, item_type, item_id, item_name, variant, redirect_suffix):
+    def _process_item_variant(self, item_type, item_id, item_name, variant, redirect_suffix, cdn_variant=None):
         """
         Download and upload a single item variant image for the given CDN item type.
 
@@ -717,13 +743,16 @@ class WikiImages(object):
             upload count increment, duplicate count increment.
         """
         item_type = item_type.lower()
-        path_segment = self.ITEM_SINGLE_TYPE_PATHS.get(item_type)
+        path_segment = self.ITEM_SINGLE_TYPE_PATHS.get(item_type, item_type)
         if not path_segment:
-            raise ValueError(f'Unsupported single-item upload type "{item_type}".')
+            raise ValueError('Item type (CDN folder) is required for single-item uploads.')
 
+        cdn_variant = variant if cdn_variant is None else cdn_variant
+        cdn_variant = cdn_variant.strip('/') if cdn_variant else ''
+        variant_path = f'{cdn_variant}/' if cdn_variant else ''
         url = (
             'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-            f'img/sp/assets/item/{path_segment}/{variant}/{item_id}.jpg'
+            f'img/sp/assets/item/{path_segment}/{variant_path}{item_id}.jpg'
         )
         true_name = f'item_{item_type}_{variant}_{item_id}.jpg'
         other_names = [f'{item_name} {redirect_suffix}.jpg']
@@ -825,7 +854,10 @@ class WikiImages(object):
             print('No valid {{Item}} templates found.')
             return
 
-        total_variants = len(items) * 2  # s and m variants
+        total_variants = sum(
+            len(self._item_variant_specs(item["type"]))
+            for item in items
+        )
         processed_variants = 0
         successful_uploads = 0
         duplicate_matches = 0
@@ -835,9 +867,11 @@ class WikiImages(object):
             item_name = item['name']
             item_type = item['type']
 
-            for variant, redirect_suffix in [('s', 'square'), ('m', 'icon')]:
+            variant_specs = self._item_variant_specs(item_type)
+
+            for variant, redirect_suffix, cdn_variant in variant_specs:
                 current_image, uploaded_increment, duplicate_increment = self._process_item_variant(
-                    item_type, item_id, item_name, variant, redirect_suffix
+                    item_type, item_id, item_name, variant, redirect_suffix, cdn_variant
                 )
 
                 processed_variants += 1
@@ -873,9 +907,6 @@ class WikiImages(object):
             item_name (str): Display name to use for redirect creation.
         """
         item_type = str(item_type).strip().lower()
-        if item_type not in self.ITEM_SINGLE_TYPE_PATHS:
-            print(f'Unsupported item type "{item_type}" for single item upload.')
-            return
 
         item_id = str(item_id).strip()
         item_name = mwparserfromhell.parse(item_name).strip_code().strip()
@@ -890,14 +921,19 @@ class WikiImages(object):
 
         print(f'Processing single item "{item_name}" (type: {item_type}, ID: {item_id})...')
 
-        total_variants = 2  # s and m variants
+        variant_specs = self._item_variant_specs(item_type)
+        if not variant_specs:
+            print(f'No configured variants for item type "{item_type}".')
+            return
+
+        total_variants = len(variant_specs)
         processed_variants = 0
         successful_uploads = 0
         duplicate_matches = 0
 
-        for variant, redirect_suffix in [('s', 'square'), ('m', 'icon')]:
+        for variant, redirect_suffix, cdn_variant in variant_specs:
             current_image, uploaded_increment, duplicate_increment = self._process_item_variant(
-                item_type, item_id, item_name, variant, redirect_suffix
+                item_type, item_id, item_name, variant, redirect_suffix, cdn_variant
             )
 
             processed_variants += 1
