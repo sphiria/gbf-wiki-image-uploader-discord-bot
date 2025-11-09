@@ -132,6 +132,8 @@ class WikiImages(object):
         ],
     }
 
+    EVENT_BANNER_MAX_INDEX = 20
+
     def __init__(self):
         """
         Initialize wiki connection and DB.
@@ -963,6 +965,275 @@ class WikiImages(object):
     def upload_single_item_article_images(self, item_id, item_name):
         """Backward-compatible wrapper for article single-item uploads."""
         self.upload_single_item_images("article", item_id, item_name)
+
+    def upload_enemy_images(self, enemy_id):
+        """
+        Upload S and M variants for an enemy icon and create canonical + redirect files.
+        """
+        enemy_id = str(enemy_id).strip()
+        if not enemy_id:
+            raise ValueError("Enemy id is required for enemy uploads.")
+
+        variants = [
+            {
+                "variant": "s",
+                "url": (
+                    "https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/"
+                    f"img/sp/assets/enemy/s/{enemy_id}.png"
+                ),
+                "canonical": f"enemy_s_{enemy_id}.png",
+                "redirect": f"enemy_icon_{enemy_id}_S.png",
+            },
+            {
+                "variant": "m",
+                "url": (
+                    "https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/"
+                    f"img/sp/assets/enemy/m/{enemy_id}.png"
+                ),
+                "canonical": f"enemy_m_{enemy_id}.png",
+                "redirect": f"enemy_icon_{enemy_id}_M.png",
+            },
+        ]
+
+        total = len(variants)
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+        file_entries = []
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=total,
+                current_image=None,
+                enemy_id=enemy_id,
+            )
+
+        for entry in variants:
+            url = entry["url"]
+            canonical_name = entry["canonical"]
+            redirect_name = entry["redirect"]
+
+            print(f'Downloading enemy variant "{entry["variant"]}" ({url})...')
+            success, sha1, size, io_obj = self.get_image(url)
+            if not success:
+                failed += 1
+                print(f'Failed to download {canonical_name}.')
+                continue
+
+            processed += 1
+
+            if hasattr(self, "_status_callback"):
+                self._status_callback(
+                    "processing",
+                    processed=processed,
+                    total=total,
+                    current_image=canonical_name,
+                    enemy_id=enemy_id,
+                )
+
+            other_names = [redirect_name]
+            check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
+            if check_image_result is True:
+                uploaded += 1
+            elif check_image_result is False:
+                failed += 1
+                print(f'Upload validation failed for {canonical_name}.')
+                continue
+            else:
+                duplicates += 1
+                canonical_name = check_image_result
+
+            file_entries.append(
+                {
+                    "variant": entry["variant"],
+                    "canonical": canonical_name,
+                    "redirect": redirect_name,
+                }
+            )
+
+            self.check_file_redirect(canonical_name, redirect_name)
+            time.sleep(self.delay)
+            self.check_file_double_redirect(canonical_name)
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "completed",
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total=total,
+                total_urls=processed,
+                enemy_id=enemy_id,
+            )
+
+        return {
+            "processed": processed,
+            "uploaded": uploaded,
+            "duplicates": duplicates,
+            "failed": failed,
+            "total": total,
+            "total_urls": processed,
+            "files": file_entries,
+            "enemy_id": enemy_id,
+        }
+
+    def _upload_event_banner_series(
+        self,
+        *,
+        event_id,
+        event_name,
+        event_run,
+        image_type,
+        url_template,
+        canonical_template,
+        redirect_template,
+        max_index=None,
+    ):
+        """
+        Internal helper to upload indexed event banner assets that follow a consistent pattern.
+        """
+        event_id = str(event_id).strip().lower()
+        if not event_id:
+            raise ValueError("Event id is required for event banner uploads.")
+
+        event_name = mwparserfromhell.parse(event_name).strip_code().strip()
+        max_index = max_index or self.EVENT_BANNER_MAX_INDEX
+
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+        file_entries = []
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=max_index,
+                current_image=None,
+                event_id=event_id,
+                event_run=event_run,
+                image_type=image_type,
+            )
+
+        for index in range(1, max_index + 1):
+            url = url_template.format(event_id=event_id, index=index)
+            canonical_name = canonical_template.format(event_id=event_id, index=index)
+            redirect_name = redirect_template.format(event_name=event_name, index=index)
+
+            print(
+                f'Downloading {image_type} banner #{index} for "{event_name}" '
+                f'(event id: {event_id}, run: {event_run}) -> {url}'
+            )
+
+            success, sha1, size, io_obj = self.get_image(url)
+            if not success:
+                if index == 1:
+                    print(f'No {image_type} banners found for event id "{event_id}".')
+                break
+
+            processed += 1
+
+            if hasattr(self, "_status_callback"):
+                self._status_callback(
+                    "processing",
+                    processed=processed,
+                    total=max_index,
+                    current_image=canonical_name,
+                    event_id=event_id,
+                    event_run=event_run,
+                    image_type=image_type,
+                )
+
+            other_names = [redirect_name]
+            check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
+            if check_image_result is True:
+                uploaded += 1
+            elif check_image_result is False:
+                failed += 1
+                print(f'Upload validation failed for {canonical_name}.')
+                continue
+            else:
+                duplicates += 1
+                canonical_name = check_image_result
+
+            file_entries.append(
+                {
+                    "index": index,
+                    "canonical": canonical_name,
+                    "redirect": redirect_name,
+                }
+            )
+
+            self.check_file_redirect(canonical_name, redirect_name)
+            time.sleep(self.delay)
+            self.check_file_double_redirect(canonical_name)
+
+        if processed == 0:
+            raise ValueError(f'No {image_type} banner images found for event id "{event_id}".')
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "completed",
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total=max_index,
+                total_urls=processed,
+                event_id=event_id,
+                event_run=event_run,
+                image_type=image_type,
+            )
+
+        return {
+            "processed": processed,
+            "uploaded": uploaded,
+            "duplicates": duplicates,
+            "failed": failed,
+            "total_urls": processed,
+            "total": max_index,
+            "files": file_entries,
+            "event_id": event_id,
+            "event_run": event_run,
+            "image_type": image_type,
+        }
+
+    def upload_event_banners(self, event_id, event_name, event_run, max_index=None):
+        """Upload banner_event_start_<index>.png assets."""
+        return self._upload_event_banner_series(
+            event_id=event_id,
+            event_name=event_name,
+            event_run=event_run,
+            image_type="banner_start",
+            url_template=(
+                "https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/"
+                "img/sp/banner/events/{event_id}/banner_event_start_{index}.png"
+            ),
+            canonical_template="events_{event_id}_banner_event_start_{index}.png",
+            redirect_template="banner_{event_name}_{index}.png",
+            max_index=max_index,
+        )
+
+    def upload_event_notice_banners(self, event_id, event_name, event_run, max_index=None):
+        """Upload banner_event_notice_<index>.png assets."""
+        return self._upload_event_banner_series(
+            event_id=event_id,
+            event_name=event_name,
+            event_run=event_run,
+            image_type="banner_notice",
+            url_template=(
+                "https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/"
+                "img/sp/banner/events/{event_id}/banner_event_notice_{index}.png"
+            ),
+            canonical_template="events_{event_id}_banner_event_notice_{index}.png",
+            redirect_template="banner_{event_name}_notice_{index}.png",
+            max_index=max_index,
+        )
 
     def check_character(self, page):
         paths = {

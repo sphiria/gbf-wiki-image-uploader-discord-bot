@@ -37,10 +37,29 @@ Usage: `/itemupload item_type:<CDN folder (e.g. Article, Normal)> item_id:<CDN i
 - Purpose: Upload the square/icon pair for a single item along with canonical redirects for the supplied display name.
 - Inputs:
   - `item_type` - type any CDN subfolder; the UI suggests common values (`article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`) but free-form entries are supported.
-  - `item_id` - path fragment straight from the asset URL (1-48 chars; letters, numbers, `_`, `-` only — IDs such as `teamforce_340` are valid).
+  - `item_id` - path fragment straight from the asset URL (1-48 chars; letters, numbers, `_`, `-` only - IDs such as `teamforce_340` are valid).
   - `item_name` - wiki-facing name used for redirect files (same validation as page names).
 - Checks & Limits: role/cooldown/lock plus validation for every field before the upload worker starts.
 - Output: progress mentions current variant, then the summary lists variants processed, uploads, duplicates, total URLs checked, and direct wiki links for canonical/redirect targets (`Item_<type>_s/m_<id>`, `<Name> square/icon`).
+
+**/enemyupload**
+Usage: `/enemyupload id:<8104243>`
+- Purpose: Upload the S/M icons for a single enemy id and wire up the matching redirects.
+- Inputs:
+  - `id` - numeric CDN identifier (the part that appears in the `/enemy/s/<id>.png` path). Digits only.
+- Checks & Limits: same role/cooldown/lock rules as other uploaders; input is validated before contacting the CDN.
+- Output: summary lists processed/uploaded/duplicates/failed counts plus wiki links for each canonical/redirect pair (`enemy_s_<id>.png`, `enemy_m_<id>.png`, `enemy_icon_<id>_S.png`, `enemy_icon_<id>_M.png`).
+
+**/eventupload**
+-Usage: `/eventupload event_id:<biography042> event_name:<Event Name> image_type:<banner_start|banner_notice> event_run:<default|redux|redux2|side_story>`
+- Purpose: Upload the indexed `banner_event_start_<index>.png` (live banners) or `banner_event_notice_<index>.png` (teaser banners) assets for an event and create the matching redirects.
+- Inputs:
+  - `event_id` - CDN folder slug such as `biography042`; must be lowercase letters/numbers/underscores.
+  - `event_name` - display name used when building redirect filenames (spaces allowed; keep it exactly how you want it to appear on the wiki).
+  - `image_type` - strict dropdown (`banner_start`, `banner_notice`) that decides which asset pipeline to run and which canonical/redirect names are generated.
+  - `event_run` - pick one of the fixed options (`default`, `redux`, `redux2`, `side_story`) for bookkeeping.
+- Checks & Limits: same role/cooldown/lock behavior as other uploaders; command stops when a banner index is missing (max 20 attempts).
+- Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair (start banners create `banner_<EventName>_<index>.png`, notice banners create `banner_<EventName>_notice_<index>.png`).
 
 **/synccommands**
 Usage: `/synccommands`
