@@ -62,22 +62,41 @@ MAX_ITEM_ID_LEN = 48
 MAX_ITEM_NAME_LEN = 100
 MAX_STATUS_ID_LEN = 64
 MAX_BANNER_ID_LEN = 64
+MAX_EVENT_ID_LEN = 64
+MAX_ENEMY_ID_LEN = 64
 PAGE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|\x00-\x1F]")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 VALID_STATUS_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+#?$")
 VALID_BANNER_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+$")
+VALID_EVENT_ID_REGEX = re.compile(r"^[a-z0-9_]+$")
+VALID_ENEMY_ID_REGEX = re.compile(r"^[0-9]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 GUILD_ID = int(os.environ["GUILD_ID"])
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
 ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor,Wiki Admin,Wiki Discord Moderator,Verified Editor").split(",")]
 # Enable dry-run mode (no actual uploads, just logging)
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
+ENABLE_EVENT_UPLOAD = os.getenv("ENABLE_EVENTUPLOAD", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
 PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item"]
 
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
+
+EVENT_IMAGE_TYPE_CHOICES = [
+    app_commands.Choice(name="Event Start Banners", value="banner_start"),
+    app_commands.Choice(name="Event Notice Banners", value="banner_notice"),
+]
+EVENT_IMAGE_TYPE_SET = {choice.value for choice in EVENT_IMAGE_TYPE_CHOICES}
+
+EVENT_RUN_CHOICES = [
+    app_commands.Choice(name="Default", value="default"),
+    app_commands.Choice(name="Redux", value="redux"),
+    app_commands.Choice(name="Redux 2", value="redux2"),
+    app_commands.Choice(name="Side Story", value="side_story"),
+]
+EVENT_RUN_VALUE_SET = {choice.value for choice in EVENT_RUN_CHOICES}
 
 def normalize_item_type_input(raw_value: str | None) -> str:
     """
@@ -133,6 +152,20 @@ def validate_item_name(item_name: str) -> tuple[bool, str]:
 
     return True, item_name
 
+def validate_event_id(event_id: str) -> tuple[bool, str]:
+    """
+    Validate an event identifier used for CDN folder resolution.
+    """
+    event_id = (event_id or "").strip().lower()
+
+    if len(event_id) == 0 or len(event_id) > MAX_EVENT_ID_LEN:
+        return False, f"Invalid event id. Must be between 1 and {MAX_EVENT_ID_LEN} characters."
+
+    if not VALID_EVENT_ID_REGEX.match(event_id):
+        return False, "Invalid event id. Only lowercase letters, numbers, and underscores are allowed."
+
+    return True, event_id
+
 def validate_status_id(status_id: str) -> tuple[bool, str]:
     """
     Validate a status icon identifier.
@@ -147,6 +180,20 @@ def validate_status_id(status_id: str) -> tuple[bool, str]:
         return False, "Invalid status id. Only letters, numbers, underscores, and an optional trailing # are allowed."
 
     return True, status_id
+
+def validate_enemy_id(enemy_id: str) -> tuple[bool, str]:
+    """
+    Validate an enemy id for the enemy upload command.
+    """
+    enemy_id = (enemy_id or "").strip()
+
+    if len(enemy_id) == 0 or len(enemy_id) > MAX_ENEMY_ID_LEN:
+        return False, f"Invalid enemy id. Must be between 1 and {MAX_ENEMY_ID_LEN} digits."
+
+    if not VALID_ENEMY_ID_REGEX.match(enemy_id):
+        return False, "Invalid enemy id. Only digits are allowed."
+
+    return True, enemy_id
 
 def validate_banner_id(banner_id: str) -> tuple[bool, str]:
     """
@@ -287,6 +334,129 @@ async def run_item_upload(item_type: str, item_id: str, item_name: str, status: 
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
     except Exception as e:
         error_msg = f"Single item upload task failed: {e}"
+        print(error_msg)
+        return 1, "", str(e)
+
+async def run_event_upload(
+    event_id: str,
+    event_name: str,
+    image_type: str,
+    event_run: str,
+    status: dict | None = None,
+) -> tuple[int, str, str]:
+    """
+    Run event asset upload in a thread and capture stdout/stderr.
+    Returns (return_code, stdout, stderr)
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def upload_task():
+        try:
+            if status is not None:
+                status.setdefault("stage", "initializing")
+                status.setdefault("processed", 0)
+                status.setdefault("uploaded", 0)
+                status.setdefault("duplicates", 0)
+                status.setdefault("failed", 0)
+                status.setdefault("total_urls", 0)
+                status.setdefault("files", [])
+
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            wi.delay = 5
+
+            if status is not None:
+                def update_status(stage, **kwargs):
+                    status.update({"stage": stage, **kwargs})
+                wi._status_callback = update_status
+            else:
+                wi._status_callback = lambda stage, **kwargs: None
+
+            if image_type == "banner_start":
+                result = wi.upload_event_banners(event_id, event_name, event_run)
+            elif image_type == "banner_notice":
+                result = wi.upload_event_notice_banners(event_id, event_name, event_run)
+            else:
+                raise ValueError(f"Unsupported event image type '{image_type}'.")
+            if status is not None:
+                status.update(result)
+                status["stage"] = "completed"
+            return 0
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(
+            f"Starting event upload for {event_name} (event id: {event_id}, type: {image_type}, run: {event_run})"
+        )
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual uploads will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as e:
+        error_msg = f"Event upload task failed: {e}"
+        print(error_msg)
+        return 1, "", str(e)
+
+async def run_enemy_upload(enemy_id: str, status: dict | None = None) -> tuple[int, str, str]:
+    """
+    Run enemy icon upload in a thread and capture stdout/stderr.
+    Returns (return_code, stdout, stderr)
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def upload_task():
+        try:
+            if status is not None:
+                status.setdefault("stage", "initializing")
+                status.setdefault("processed", 0)
+                status.setdefault("uploaded", 0)
+                status.setdefault("duplicates", 0)
+                status.setdefault("failed", 0)
+                status.setdefault("total", 2)
+                status.setdefault("files", [])
+
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            wi.delay = 5
+
+            if status is not None:
+                def update_status(stage, **kwargs):
+                    status.update({"stage": stage, **kwargs})
+                wi._status_callback = update_status
+            else:
+                wi._status_callback = lambda stage, **kwargs: None
+
+            result = wi.upload_enemy_images(enemy_id)
+            if status is not None:
+                status.update(result)
+                status["stage"] = "completed"
+            return 0
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(f"Starting enemy upload for id {enemy_id}")
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual uploads will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as e:
+        error_msg = f"Enemy upload task failed: {e}"
         print(error_msg)
         return 1, "", str(e)
 
@@ -1103,6 +1273,175 @@ async def itemupload(
         await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
 
 
+if ENABLE_EVENT_UPLOAD:
+
+    @bot.tree.command(
+        name="eventupload",
+        description="Upload event-specific assets such as banner images",
+    )
+    @app_commands.checks.has_any_role(*ALLOWED_ROLES)
+    @app_commands.describe(
+        event_id="CDN folder identifier (e.g. biography042)",
+        event_name="Event display name (used for redirects)",
+        image_type="Select which image set to upload (banner_start or banner_notice).",
+        event_run="Select which run (default/redux/side story) this upload targets.",
+    )
+    @app_commands.choices(image_type=EVENT_IMAGE_TYPE_CHOICES, event_run=EVENT_RUN_CHOICES)
+    async def eventupload(
+        interaction: discord.Interaction,
+        event_id: str,
+        event_name: str,
+        image_type: app_commands.Choice[str],
+        event_run: app_commands.Choice[str],
+    ):
+        member = interaction.guild.get_member(interaction.user.id)
+        if not member or not (
+            any(role.name in ALLOWED_ROLES for role in member.roles)
+            or member.guild.owner_id == interaction.user.id
+        ):
+            await interaction.response.send_message(
+                f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+                ephemeral=True,
+            )
+            return
+
+        is_valid_event_id, cleaned_event_id = validate_event_id(event_id)
+        if not is_valid_event_id:
+            await interaction.response.send_message(cleaned_event_id, ephemeral=True)
+            return
+
+        is_valid_event_name, cleaned_event_name = validate_item_name(event_name)
+        if not is_valid_event_name:
+            await interaction.response.send_message(cleaned_event_name, ephemeral=True)
+            return
+
+        image_type_value = image_type.value
+        if image_type_value not in EVENT_IMAGE_TYPE_SET:
+            await interaction.response.send_message("Invalid image type option.", ephemeral=True)
+            return
+
+        event_run_value = event_run.value
+        if event_run_value not in EVENT_RUN_VALUE_SET:
+            await interaction.response.send_message("Invalid event run option.", ephemeral=True)
+            return
+
+        now = time.time()
+        last = last_used.get(interaction.user.id, 0)
+        if now - last < COOLDOWN_SECONDS:
+            remaining = int(COOLDOWN_SECONDS - (now - last))
+            await interaction.response.send_message(
+                f"Please wait {remaining}s before using `/eventupload` again.",
+                ephemeral=True,
+            )
+            return
+        last_used[interaction.user.id] = now
+
+        if upload_lock.locked():
+            await interaction.response.send_message(
+                "Another upload is already running. Please wait until it finishes.",
+                ephemeral=True,
+            )
+            return
+
+        async with upload_lock:
+            dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+            await interaction.response.send_message(
+                f"{dry_run_prefix}Event upload started for `{cleaned_event_name}` "
+                f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`). "
+                "This may take a while..."
+            )
+            msg = await interaction.original_response()
+
+        try:
+            start_time = time.time()
+            status = {
+                "stage": "starting",
+                "event_id": cleaned_event_id,
+                "image_type": image_type_value,
+                "event_run": event_run_value,
+                "total": WikiImages.EVENT_BANNER_MAX_INDEX,
+            }
+
+            async def progress_updater():
+                while True:
+                    await asyncio.sleep(15)
+                    elapsed = int(time.time() - start_time)
+
+                    stage = status.get("stage", "processing")
+                    processed = status.get("processed", 0)
+                    total = status.get("total") or WikiImages.EVENT_BANNER_MAX_INDEX
+                    current_image = status.get("current_image")
+                    current_segment = f" Current: {current_image}" if current_image else ""
+
+                    if stage == "processing":
+                        content = (
+                            f"{dry_run_prefix}Processing {processed}/{total} event assets for "
+                            f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`)."
+                            f"{current_segment} ({elapsed}s elapsed)"
+                        )
+                    else:
+                        content = (
+                            f"{dry_run_prefix}Event upload for `{cleaned_event_name}` "
+                            f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`) "
+                            f"is running... ({elapsed}s elapsed)"
+                        )
+
+                    await msg.edit(content=content)
+
+            updater_task = asyncio.create_task(progress_updater())
+            return_code, stdout, stderr = await run_event_upload(
+                cleaned_event_id, cleaned_event_name, image_type_value, event_run_value, status
+            )
+            updater_task.cancel()
+            elapsed = int(time.time() - start_time)
+
+            if return_code == 0:
+                processed = status.get("processed", 0)
+                uploaded = status.get("uploaded", 0)
+                duplicates = status.get("duplicates", 0)
+                failed = status.get("failed", 0)
+                files = status.get("files", [])
+
+                summary_lines = [
+                    f"{dry_run_prefix}Event upload completed for `{cleaned_event_name}` "
+                    f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`) in {elapsed}s!",
+                    "**Summary:**",
+                    f"- Banners processed: {processed}",
+                    f"- Images uploaded: {uploaded}",
+                    f"- Images found as duplicates: {duplicates}",
+                    f"- Images failed validation: {failed}",
+                ]
+
+                if files:
+                    base_url = "https://gbf.wiki/File:"
+                    link_lines = ["", "**Links:**"]
+                    for entry in files:
+                        index = entry.get("index")
+                        canonical_name = entry.get("canonical")
+                        redirect_name = entry.get("redirect")
+                        link_lines.append(
+                            f"- #{index}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
+                            f"Redirect <{base_url}{redirect_name.replace(' ', '_')}>"
+                        )
+                    summary_lines.extend(link_lines)
+
+                await msg.edit(content="\n".join(summary_lines))
+            else:
+                await msg.edit(
+                    content=(
+                        f"{dry_run_prefix}Event upload failed for `{cleaned_event_name}` "
+                        f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`) in {elapsed}s!"
+                    )
+                )
+                if stderr.strip():
+                    error_preview = stderr.strip()[:500]
+                    await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+        except Exception as e:
+            elapsed = int(time.time() - start_time)
+            await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
 @itemupload.autocomplete("item_type")
 async def itemupload_item_type_autocomplete(
     interaction: discord.Interaction,
@@ -1115,6 +1454,142 @@ async def itemupload_item_type_autocomplete(
         app_commands.Choice(name=it.title(), value=it)
         for it in filtered[:25]
     ]
+
+
+@bot.tree.command(
+    name="enemyupload",
+    description="Upload enemy S/M icons by id",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    enemy_id="Enemy identifier (numeric) used in the CDN URL.",
+)
+async def enemyupload(
+    interaction: discord.Interaction,
+    enemy_id: str,
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
+
+    is_valid_enemy_id, cleaned_enemy_id = validate_enemy_id(enemy_id)
+    if not is_valid_enemy_id:
+        await interaction.response.send_message(cleaned_enemy_id, ephemeral=True)
+        return
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/enemyupload` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Enemy upload started for id `{cleaned_enemy_id}`. This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+        status = {
+            "stage": "starting",
+            "enemy_id": cleaned_enemy_id,
+            "total": 2,
+        }
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+
+                stage = status.get("stage", "processing")
+                processed = status.get("processed", 0)
+                total = status.get("total", 2)
+                current_image = status.get("current_image")
+                current_segment = f" Current: {current_image}" if current_image else ""
+
+                if stage == "processing":
+                    content = (
+                        f"{dry_run_prefix}Processing {processed}/{total} enemy images for "
+                        f"`{cleaned_enemy_id}`.{current_segment} ({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}Enemy upload for `{cleaned_enemy_id}` "
+                        f"is running... ({elapsed}s elapsed)"
+                    )
+
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_enemy_upload(cleaned_enemy_id, status)
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            processed = status.get("processed", 0)
+            uploaded = status.get("uploaded", 0)
+            duplicates = status.get("duplicates", 0)
+            failed = status.get("failed", 0)
+            files = status.get("files", [])
+
+            summary_lines = [
+                f"{dry_run_prefix}Enemy upload completed for `{cleaned_enemy_id}` in {elapsed}s!",
+                "**Summary:**",
+                f"- Variants processed: {processed}",
+                f"- Images uploaded: {uploaded}",
+                f"- Images found as duplicates: {duplicates}",
+                f"- Images failed validation: {failed}",
+            ]
+
+            if files:
+                base_url = "https://gbf.wiki/File:"
+                link_lines = ["", "**Links:**"]
+                for entry in files:
+                    variant_label = entry.get("variant", "").upper() or "?"
+                    canonical_name = entry.get("canonical")
+                    redirect_name = entry.get("redirect")
+                    link_lines.append(
+                        f"- {variant_label}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
+                        f"Redirect <{base_url}{redirect_name.replace(' ', '_')}>"
+                    )
+                summary_lines.extend(link_lines)
+
+            await msg.edit(content="\n".join(summary_lines))
+        else:
+            await msg.edit(
+                content=(
+                    f"{dry_run_prefix}Enemy upload failed for `{cleaned_enemy_id}` "
+                    f"in {elapsed}s!"
+                )
+            )
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 # --- START BOT ---
