@@ -1787,18 +1787,28 @@ class WikiImages(object):
             
             print(f'Processing icon: {canonical_name} (index: {index})')
             
-            # Download image
+            # Always try to download from CDN first to get SHA1 for verification
             success, sha1, size, io = self.get_image(url)
             if not success:
-                print(f'Skipping {canonical_name} (download failed).')
-                failed += 1
-                emit_status("downloading", successful=successful, failed=failed)
+                # Download failed - check if file exists on wiki by name as fallback
+                true_name = canonical_name.capitalize()
+                file_page = self.wiki.pages["File:" + true_name]
+                if file_page.exists and not file_page.redirect:
+                    # File exists on wiki but CDN download failed - count as duplicate
+                    duplicates += 1
+                    print(f'Image {canonical_name} exists on wiki but CDN download failed (counted as duplicate).')
+                    emit_status("downloading", successful=successful, failed=failed)
+                else:
+                    # Download failed and file doesn't exist on wiki
+                    print(f'Skipping {canonical_name} (download failed and not found on wiki).')
+                    failed += 1
+                    emit_status("downloading", successful=successful, failed=failed)
                 continue
             
             successful += 1
             emit_status("downloading", successful=successful, failed=failed)
             
-            # Check and upload image
+            # Download succeeded - check SHA1 against wiki
             other_names = []  # No redirects needed for skill icons
             check_image_result = self.check_image(
                 canonical_name,
@@ -1814,7 +1824,7 @@ class WikiImages(object):
                 failed += 1
                 continue
             elif check_image_result is not True:
-                # Image already exists with a different name
+                # Image already exists with a different name (SHA1 match found)
                 duplicates += 1
                 print(f'Image {canonical_name} found as duplicate: {check_image_result}')
             else:
@@ -3578,6 +3588,12 @@ def main():
     elif mode == 'classes':
         #wi.class_images()
         pass
+    elif mode == 'skill_icons':
+        if len(sys.argv) < 3:
+            print('Please supply a page name containing {{Character}} template.')
+            return
+        page_name = sys.argv[2]
+        wi.check_skill_icons(wi.wiki.pages[page_name])
     elif mode == 'banner':
         if len(sys.argv) < 3:
             print('Please supply a gacha banner identifier.')
