@@ -6,10 +6,11 @@ __General Rules__
 - Progress pings land every ~15s; final summaries include key counts and wiki links. If the bot runs in dry-run mode you will see a `[DRY RUN]` prefix.
 
 **/imgupload**
-Usage: `/imgupload page_type:<character|weapon|summon|class|skin|npc|artifact|item> page_name:<Wiki Page Title>`
+Usage: `/imgupload page_type:<character|weapon|summon|class|skin|npc|artifact|item|manatura|shield|skill_icons> page_name:<Wiki Page Title>`
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
 - Inputs:
   - `page_type` - pick the asset family; determines which CDN paths are scanned.
+    - `skill_icons` - extracts ability icon parameters from the Character template (`a1_icon`, `a2_icon`, `a3_icon`, `a4_icon`, `a1a_icon`, `a2a_icon`, `a3a_icon`, `a4a_icon`, `a1b_icon`, `a2b_icon`, `a3b_icon`, `a4b_icon`) and uploads the corresponding icons from the CDN. Supports comma-separated values in icon parameters (e.g., `Ability_m_2232_3.png,Ability_m_2233_3.png`). Icons are uploaded with canonical names matching the parameter values (e.g., `Ability_m_2731_3.png`). If no icons are found in the parameters, the upload is skipped.
   - `page_name` - target wiki page (1-100 chars; rejects control characters plus #, <, >, [, ], {, }, | so titles with &, !, ?, :, /, etc. are accepted). The bot trims whitespace before running.
 - Checks & Limits: role requirement, cooldown, and single-upload lock. Invalid names are rejected before any scripts run.
 - Output: background task reports "Downloading/Processing/Downloaded" states and ends with counts for images downloaded, uploaded, duplicated, failed, plus total URLs scanned. Wiki errors are echoed back in a code block.
