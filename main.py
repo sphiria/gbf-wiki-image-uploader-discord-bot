@@ -79,7 +79,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 ENABLE_EVENT_UPLOAD = os.getenv("ENABLE_EVENTUPLOAD", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item", "manatura", "shield"]
+PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item", "manatura", "shield", "skill_icons"]
 
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
@@ -264,6 +264,8 @@ async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -
                 wi.check_manatura(page)
             elif page_type == 'shield':
                 wi.check_shield(page)
+            elif page_type == 'skill_icons':
+                wi.check_skill_icons(page)
             else:
                 raise ValueError(f"Unknown page type: {page_type}")
                 

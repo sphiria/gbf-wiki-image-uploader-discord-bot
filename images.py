@@ -1697,6 +1697,136 @@ class WikiImages(object):
         }
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
 
+    def check_skill_icons(self, page):
+        """
+        Extract skill icon parameters from Character template and upload the icons.
+        Looks for a1_icon, a2_icon, a3_icon, a4_icon, a1a_icon, a2a_icon, a3a_icon, a4a_icon,
+        a1b_icon, a2b_icon, a3b_icon, a4b_icon parameters.
+        Icons can be comma-separated (e.g., "Ability_m_2232_3.png,Ability_m_2233_3.png").
+        """
+        print(f'Checking skill icons for page {page.name}...')
+        
+        # Get page text and parse templates
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+        
+        # Find Character template
+        character_template = None
+        for template in templates:
+            if template.name.strip() == 'Character':
+                character_template = template
+                break
+        
+        if not character_template:
+            print('No Character template found; aborting.')
+            return
+        
+        # Icon parameter names to check
+        icon_params = [
+            'a1_icon', 'a2_icon', 'a3_icon', 'a4_icon',
+            'a1a_icon', 'a2a_icon', 'a3a_icon', 'a4a_icon',
+            'a1b_icon', 'a2b_icon', 'a3b_icon', 'a4b_icon'
+        ]
+        
+        # Extract all icon filenames from template parameters
+        icon_filenames = []
+        for param in character_template.params:
+            param_name = param.name.strip()
+            if param_name in icon_params:
+                value = str(param.value).strip()
+                if value:  # Skip empty params
+                    # Split by comma to handle multiple icons
+                    icons = [icon.strip() for icon in value.split(',') if icon.strip()]
+                    icon_filenames.extend(icons)
+        
+        if not icon_filenames:
+            print('No skill icons found in icon parameters; skipping.')
+            return
+        
+        # Extract indices from icon filenames
+        # Pattern: Ability_m_{index}.png -> extract {index}
+        icon_indices = []
+        for icon_filename in icon_filenames:
+            # Match pattern like "Ability_m_2731_3.png" or "Ability_m_2232_3.png"
+            match = re.match(r'Ability_m_([0-9_]+)\.png', icon_filename)
+            if match:
+                index = match.group(1)
+                icon_indices.append((index, icon_filename))  # Store both index and original filename
+            else:
+                print(f'Warning: Could not extract index from icon filename: {icon_filename}')
+        
+        if not icon_indices:
+            print('No valid icon indices found; skipping.')
+            return
+        
+        print(f'Found {len(icon_indices)} skill icon(s) to upload.')
+        
+        # Status callback for progress updates
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+        
+        emit_status("downloading", total_urls=len(icon_indices), successful=0, failed=0)
+        
+        # Download and upload each icon
+        url_template = (
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+            'img/sp/ui/icon/ability/m/{0}.png'
+        )
+        
+        category_text = '[[Category:Ability Icons]]'
+        successful = 0
+        failed = 0
+        uploaded = 0
+        duplicates = 0
+        
+        for index, original_filename in icon_indices:
+            url = url_template.format(index)
+            canonical_name = original_filename  # Use the exact filename from the param
+            
+            print(f'Processing icon: {canonical_name} (index: {index})')
+            
+            # Download image
+            success, sha1, size, io = self.get_image(url)
+            if not success:
+                print(f'Skipping {canonical_name} (download failed).')
+                failed += 1
+                emit_status("downloading", successful=successful, failed=failed)
+                continue
+            
+            successful += 1
+            emit_status("downloading", successful=successful, failed=failed)
+            
+            # Check and upload image
+            other_names = []  # No redirects needed for skill icons
+            check_image_result = self.check_image(
+                canonical_name,
+                sha1,
+                size,
+                io,
+                other_names,
+                description_text=category_text,
+            )
+            
+            if check_image_result is False:
+                print(f'Checking image {canonical_name} failed! Skipping...')
+                failed += 1
+                continue
+            elif check_image_result is not True:
+                # Image already exists with a different name
+                duplicates += 1
+                print(f'Image {canonical_name} found as duplicate: {check_image_result}')
+            else:
+                uploaded += 1
+                print(f'Successfully uploaded {canonical_name}')
+            
+            # Small delay between uploads
+            time.sleep(self.delay)
+        
+        emit_status("completed", successful=successful, uploaded=uploaded, duplicates=duplicates, failed=failed)
+        print(f'Skill icon upload completed: {successful} downloaded, {uploaded} uploaded, {duplicates} duplicates, {failed} failed.')
+
     def check_summon(self, page):
         print('Checking page {0}...'.format(page.name))
         specs = self._get_summon_asset_specs()
@@ -2192,65 +2322,125 @@ class WikiImages(object):
             print(f"Starting concurrent download of {len(urls)} images...")
             print(f"Sample URLs: {urls[:2]}...")
             
+            download_results = []
+            
             try:
                 # Run async function in current thread
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    # Add timeout to prevent hanging
+                    # Use a longer timeout to ensure all downloads complete
+                    # gather preserves order, so results[i] corresponds to urls[i]
                     download_task = self.get_images_concurrent(urls)
-                    download_results = loop.run_until_complete(asyncio.wait_for(download_task, timeout=300))  # 5 minute timeout
+                    try:
+                        download_results = loop.run_until_complete(asyncio.wait_for(download_task, timeout=900))  # 15 minute timeout
+                    except asyncio.TimeoutError:
+                        print(f"Concurrent download timed out after 15 minutes")
+                        print("Falling back to sequential downloads for remaining URLs...")
+                        # gather was cancelled, so we have no results
+                        # We'll fall through to sequential download below
+                        download_results = None
                 finally:
                     loop.close()
                 
-                print(f"Download results received: {len(download_results)} results")
+                # If we got results from concurrent download, verify we have all of them
+                if download_results and len(download_results) == len(download_tasks):
+                    print(f"Download results received: {len(download_results)} results (all {len(download_tasks)} tasks)")
+                    
+                    # Results are in same order as tasks (gather preserves order)
+                    # Verify by checking URLs match
+                    for i, (url, *result) in enumerate(download_results):
+                        if url != download_tasks[i]['url']:
+                            print(f"WARNING: URL mismatch at index {i}: expected {download_tasks[i]['url']}, got {url}")
+                    
+                    successful = sum(1 for _, success, _, _, _ in download_results if success)
+                    failed = len(download_results) - successful
+                    print(f"Download Status Report:")
+                    print(f"  Successful (200): {successful}")
+                    print(f"  Failed (404/errors): {failed}")
+                    print(f"  Total attempted: {len(download_results)}")
+                    
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
+                else:
+                    # Partial results or timeout - fall back to sequential to ensure all URLs are processed
+                    if download_results:
+                        print(f"Received partial results ({len(download_results)}/{len(download_tasks)}), completing with sequential downloads...")
+                    else:
+                        print("No concurrent download results, falling back to sequential downloads...")
+                    
+                    # Build a set of URLs we already have results for
+                    completed_urls = set()
+                    if download_results:
+                        for url, *result in download_results:
+                            completed_urls.add(url)
+                    
+                    # Keep all results we have (both successful and failed)
+                    temp_results = []
+                    if download_results:
+                        for url, success, sha1, size, io_obj in download_results:
+                            temp_results.append((url, success, sha1, size, io_obj))
+                    
+                    # Then download remaining URLs sequentially to ensure ALL are processed
+                    for task in download_tasks:
+                        if task['url'] not in completed_urls:
+                            print(f"Sequentially downloading: {task['url']}")
+                            success, sha1, size, io_obj = self.get_image(task['url'])
+                            temp_results.append((task['url'], success, sha1, size, io_obj))
+                    
+                    download_results = temp_results
+                    
+                    successful = sum(1 for _, success, _, _, _ in download_results if success)
+                    failed = len(download_results) - successful
+                    print(f"Final Download Status Report:")
+                    print(f"  Successful (200): {successful}")
+                    print(f"  Failed (404/errors): {failed}")
+                    print(f"  Total attempted: {len(download_results)}")
+                    
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
+                        
+            except Exception as e:
+                print(f"Concurrent download failed: {e}")
+                print("Falling back to sequential downloads...")
+                
+                # Fallback to sequential method - ensure ALL tasks are processed
+                download_results = []
+                for task in download_tasks:
+                    success, sha1, size, io_obj = self.get_image(task['url'])
+                    download_results.append((task['url'], success, sha1, size, io_obj))
                 
                 successful = sum(1 for _, success, _, _, _ in download_results if success)
                 failed = len(download_results) - successful
-                print(f"Download Status Report:")
+                print(f"Sequential Download Status Report:")
                 print(f"  Successful (200): {successful}")
                 print(f"  Failed (404/errors): {failed}")
                 print(f"  Total attempted: {len(download_results)}")
                 
                 if hasattr(self, '_status_callback'):
                     self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
-            except Exception as e:
-                print(f"Concurrent download failed: {e}")
-                print("Falling back to sequential downloads...")
-                
-                # Fallback to original sequential method
-                for task in download_tasks:
-                    success, sha1, size, io_obj = self.get_image(task['url'])
-                    if success:
-                        check_image_result = self.check_image(task['true_name'], sha1, size, io_obj, task['other_names'])
-                        if check_image_result == True:
-                            pass
-                        elif check_image_result == False:
-                            print('Checking image {0} failed! Skipping...'.format(task['true_name']))
-                            continue
-                        else:
-                            task['true_name'] = check_image_result
-                        
-                        self.check_image_categories(task['true_name'], task['categories'])
-                        
-                        for other_name in task['other_names']:
-                            self.check_file_redirect(task['true_name'], other_name)
-                        
-                        time.sleep(self.delay)  # Keep wiki delay
-                        
-                        self.check_file_double_redirect(task['true_name'])
-                return
             
             # Process results with wiki operations (keep delays for wiki politeness)
+            # Match results to tasks by URL to handle reordering in fallback cases
+            url_to_task = {task['url']: task for task in download_tasks}
+            url_to_result = {url: (success, sha1, size, io_obj) for url, success, sha1, size, io_obj in download_results}
+            
             images_processed = 0
             images_uploaded = 0
             images_duplicate = 0
             images_failed = 0
             
-            for i, (url, success, sha1, size, io_obj) in enumerate(download_results):
+            # Process tasks in original order to maintain consistency
+            for task in download_tasks:
+                url = task['url']
+                if url not in url_to_result:
+                    # This shouldn't happen, but skip if it does
+                    print(f"WARNING: No result found for URL: {url}")
+                    continue
+                
+                success, sha1, size, io_obj = url_to_result[url]
                 if success:
                     images_processed += 1
-                    task = download_tasks[i]
                     print(f"Processing image {images_processed}/{successful}: {task['true_name']}")
                     
                     if hasattr(self, '_status_callback'):
