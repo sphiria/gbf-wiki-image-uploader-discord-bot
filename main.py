@@ -79,7 +79,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 ENABLE_EVENT_UPLOAD = os.getenv("ENABLE_EVENTUPLOAD", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item"]
+PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item", "manatura"]
 
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
@@ -260,6 +260,8 @@ async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -
                 wi.upload_item_article_images(page)
             elif page_type == 'artifact':
                 wi.check_artifact(page)
+            elif page_type == 'manatura':
+                wi.check_manatura(page)
             else:
                 raise ValueError(f"Unknown page type: {page_type}")
                 
@@ -1565,15 +1567,30 @@ async def enemyupload(
             if files:
                 base_url = "https://gbf.wiki/File:"
                 link_lines = ["", "**Links:**"]
-                for entry in files:
-                    variant_label = entry.get("variant", "").upper() or "?"
-                    canonical_name = entry.get("canonical")
-                    redirect_name = entry.get("redirect")
+                canonical_s = next((f["canonical"] for f in files if f.get("variant") == "s"), None)
+                canonical_m = next((f["canonical"] for f in files if f.get("variant") == "m"), None)
+                redirect_s = next((f["redirect"] for f in files if f.get("variant") == "s"), None)
+                redirect_m = next((f["redirect"] for f in files if f.get("variant") == "m"), None)
+
+                if canonical_s:
                     link_lines.append(
-                        f"- {variant_label}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
-                        f"Redirect <{base_url}{redirect_name.replace(' ', '_')}>"
+                        f"- Canonical S: <{base_url}{canonical_s.replace(' ', '_')}>"
                     )
-                summary_lines.extend(link_lines)
+                if canonical_m:
+                    link_lines.append(
+                        f"- Canonical M: <{base_url}{canonical_m.replace(' ', '_')}>"
+                    )
+                if redirect_s:
+                    link_lines.append(
+                        f"- Redirect S: <{base_url}{redirect_s.replace(' ', '_')}>"
+                    )
+                if redirect_m:
+                    link_lines.append(
+                        f"- Redirect M: <{base_url}{redirect_m.replace(' ', '_')}>"
+                    )
+
+                if len(link_lines) > 2:
+                    summary_lines.extend(link_lines)
 
             await msg.edit(content="\n".join(summary_lines))
         else:
