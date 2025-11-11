@@ -991,7 +991,7 @@ class WikiImages(object):
                     f"img/sp/assets/enemy/m/{enemy_id}.png"
                 ),
                 "canonical": f"enemy_m_{enemy_id}.png",
-                "redirect": f"enemy_icon_{enemy_id}_M.png",
+                "redirect": f"enemy_Icon_{enemy_id}_M.png",
             },
         ]
 
@@ -1079,6 +1079,169 @@ class WikiImages(object):
             "total_urls": processed,
             "files": file_entries,
             "enemy_id": enemy_id,
+        }
+
+    def check_manatura(self, page):
+        """
+        Upload manatura familiar images for each {{Class/Manatura/Row}} template found on a page.
+        
+        For each template, extracts id and name parameters and uploads:
+        - familiar_m_{id}.jpg (from /familiar/m/{id}.jpg) with redirect {name}_icon.jpg
+        - familiar_s_{id}.jpg (from /familiar/s/{id}.jpg) with redirect {name}_square.jpg
+        
+        Args:
+            page (mwclient.page.Page): Wiki page containing {{Class/Manatura/Row}} templates.
+        """
+        print(f'Processing Class/Manatura/Row templates on page "{page.name}"...')
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+
+        manatura_rows = []
+        seen_ids = set()
+
+        for template in templates:
+            template_name = template.name.strip()
+            if template_name.lower() != 'class/manatura/row':
+                continue
+
+            row_id = None
+            row_name = None
+
+            for param in template.params:
+                param_name = param.name.strip().lower()
+                raw_value = str(param.value).strip()
+                clean_value = mwparserfromhell.parse(raw_value).strip_code().strip()
+
+                if param_name == 'id' and clean_value:
+                    row_id = clean_value
+                elif param_name == 'name' and clean_value:
+                    row_name = clean_value
+
+            if not row_id:
+                print('Skipping template without id parameter.')
+                continue
+
+            if row_id in seen_ids:
+                print(f'Skipping duplicate manatura id "{row_id}".')
+                continue
+
+            if not row_name:
+                print(f'Skipping manatura id "{row_id}" without name parameter.')
+                continue
+
+            seen_ids.add(row_id)
+            manatura_rows.append({
+                'id': row_id,
+                'name': row_name,
+            })
+
+        if not manatura_rows:
+            print('No {{Class/Manatura/Row}} templates found with valid id and name parameters.')
+            return
+
+        total_rows = len(manatura_rows)
+        total_variants = total_rows * 2  # m and s variants per row
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=total_variants,
+                current_image=None,
+            )
+
+        for row in manatura_rows:
+            row_id = row['id']
+            row_name = row['name']
+
+            variants = [
+                {
+                    "variant": "m",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/assets/familiar/m/{row_id}.jpg"
+                    ),
+                    "canonical": f"familiar_m_{row_id}.jpg",
+                    "redirect": f"{row_name}_icon.jpg",
+                },
+                {
+                    "variant": "s",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/assets/familiar/s/{row_id}.jpg"
+                    ),
+                    "canonical": f"familiar_s_{row_id}.jpg",
+                    "redirect": f"{row_name}_square.jpg",
+                },
+            ]
+
+            for entry in variants:
+                url = entry["url"]
+                canonical_name = entry["canonical"]
+                redirect_name = entry["redirect"]
+
+                print(f'Downloading manatura "{row_name}" variant "{entry["variant"]}" ({url})...')
+                success, sha1, size, io_obj = self.get_image(url)
+                if not success:
+                    failed += 1
+                    print(f'Failed to download {canonical_name}.')
+                    processed += 1
+                    if hasattr(self, "_status_callback"):
+                        self._status_callback(
+                            "processing",
+                            processed=processed,
+                            total=total_variants,
+                            current_image=canonical_name,
+                        )
+                    continue
+
+                processed += 1
+
+                if hasattr(self, "_status_callback"):
+                    self._status_callback(
+                        "processing",
+                        processed=processed,
+                        total=total_variants,
+                        current_image=canonical_name,
+                    )
+
+                other_names = [redirect_name]
+                check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
+                if check_image_result is True:
+                    uploaded += 1
+                elif check_image_result is False:
+                    failed += 1
+                    print(f'Upload validation failed for {canonical_name}.')
+                    continue
+                else:
+                    duplicates += 1
+                    canonical_name = check_image_result
+
+                self.check_file_redirect(canonical_name, redirect_name)
+                time.sleep(self.delay)
+                self.check_file_double_redirect(canonical_name)
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "completed",
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total=total_variants,
+            )
+
+        print(f'\nManatura upload complete: {uploaded} uploaded, {duplicates} duplicates, {failed} failed')
+        return {
+            "uploaded": uploaded,
+            "duplicates": duplicates,
+            "failed": failed,
+            "total": total_variants,
         }
 
     def _upload_event_banner_series(
