@@ -79,7 +79,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 ENABLE_EVENT_UPLOAD = os.getenv("ENABLE_EVENTUPLOAD", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "npc", "artifact", "item", "manatura", "shield", "skill_icons", "bullet"]
+PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "skill_icons", "npc", "artifact", "item", "manatura", "shield", "bullet"]
 
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
@@ -340,6 +340,19 @@ async def run_item_upload(item_type: str, item_id: str, item_name: str, status: 
             return_code = await asyncio.to_thread(upload_task)
 
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+
+
+async def get_progress_message(interaction: discord.Interaction):
+    """
+    Return a message handle that can be edited after the interaction webhook token expires.
+    Fetch the original interaction response, then switch to a channel-bound partial message so
+    subsequent edits use the bot token instead of the short-lived webhook token.
+    """
+    response_message = await interaction.original_response()
+    channel = getattr(interaction, "channel", None)
+    if channel is not None:
+        return channel.get_partial_message(response_message.id)
+    return response_message
     except Exception as e:
         error_msg = f"Single item upload task failed: {e}"
         print(error_msg)
@@ -717,7 +730,7 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         await interaction.response.send_message(
             f"{dry_run_prefix}Upload started for `{page_name}` ({page_type.value}). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_progress_message(interaction)
 
     try:
         start_time = time.time()
@@ -843,7 +856,7 @@ async def statusupload(
         await interaction.response.send_message(
             f"{dry_run_prefix}Status upload started for `{cleaned_status_id}`{range_text}. This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_progress_message(interaction)
 
     try:
         start_time = time.time()
@@ -989,7 +1002,7 @@ async def bannerupload(
             f"{dry_run_prefix}Banner upload started for `{cleaned_banner_id}` "
             f"(up to index {max_index_value}). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_progress_message(interaction)
 
     try:
         start_time = time.time()
@@ -1193,7 +1206,7 @@ async def itemupload(
             f"{dry_run_prefix}Single-item upload started for `{cleaned_name}` "
             f"(type: `{item_type_value}`, ID: `{cleaned_id}`). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_progress_message(interaction)
 
     try:
         start_time = time.time()
@@ -1358,7 +1371,7 @@ if ENABLE_EVENT_UPLOAD:
                 f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`). "
                 "This may take a while..."
             )
-            msg = await interaction.original_response()
+            msg = await get_progress_message(interaction)
 
         try:
             start_time = time.time()
@@ -1515,7 +1528,7 @@ async def enemyupload(
         await interaction.response.send_message(
             f"{dry_run_prefix}Enemy upload started for id `{cleaned_enemy_id}`. This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_progress_message(interaction)
 
     try:
         start_time = time.time()
