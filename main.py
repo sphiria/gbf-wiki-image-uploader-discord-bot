@@ -782,9 +782,17 @@ async def upload(
         await interaction.response.send_message(
             f"{dry_run_prefix}Upload started for `{page_name}` ({page_type.value}). This may take a while..."
         )
-        msg = await get_progress_message(interaction)
 
-    try:
+        try:
+            msg = await get_progress_message(interaction)
+        except Exception as fetch_error:
+            print(f"Failed to fetch progress message handle: {fetch_error}")
+            try:
+                msg = await interaction.original_response()
+            except Exception as original_error:
+                print(f"Fallback to original response failed: {original_error}")
+                msg = None
+
         start_time = time.time()
 
         status = {"stage": "starting", "details": ""}
@@ -812,48 +820,60 @@ async def upload(
                 await msg.edit(content=content)
 
         # start the updater task
-        updater_task = asyncio.create_task(progress_updater())
+        updater_task = asyncio.create_task(progress_updater()) if msg else None
 
-        filter_arg = class_skin_filter if page_type.value == "class_skin" else None
-        return_code, stdout, stderr = await run_wiki_upload(
-            page_type.value,
-            page_name,
-            status,
-            filter_value=filter_arg,
-        )
-        
-        updater_task.cancel()
+        try:
+            filter_arg = class_skin_filter if page_type.value == "class_skin" else None
+            return_code, stdout, stderr = await run_wiki_upload(
+                page_type.value,
+                page_name,
+                status,
+                filter_value=filter_arg,
+            )
+        except Exception as run_error:
+            if updater_task:
+                updater_task.cancel()
+            elapsed = int(time.time() - start_time)
+            error_text = f"Error while running script after {elapsed}s:\n```{run_error}```"
+            if msg:
+                await msg.edit(content=error_text)
+            else:
+                await interaction.followup.send(error_text)
+            return
+        finally:
+            if updater_task:
+                updater_task.cancel()
+
         elapsed = int(time.time() - start_time)
 
-        if return_code == 0:
-            # Create summary from final status
-            downloaded = status.get("successful", 0)
-            processed = status.get("processed", 0) 
-            uploaded = status.get("uploaded", 0)
-            duplicates = status.get("duplicates", 0)
-            failed = status.get("failed", 0)
-            total_checked = status.get("total_urls", 0)
-            
-            summary = f"{dry_run_prefix}Upload completed for `{page_name}` ({page_type.value}) in {elapsed}s!\n"
-            summary += f"**Summary:**\n"
-            summary += f"• Images downloaded: {downloaded}\n"
-            summary += f"• Images uploaded: {uploaded}\n"
-            summary += f"• Images found as duplicates: {duplicates}\n"
-            summary += f"• Images processed: {processed}\n" 
-            summary += f"• Download failures: {failed}\n"
-            summary += f"• Total URLs checked: {total_checked}"
-            
-            await msg.edit(content=summary)
-        else:
-            await msg.edit(content=f"{dry_run_prefix}Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s!")
-            # Show error details in Discord if there were errors
-            if stderr.strip():
-                error_preview = stderr.strip()[:500]  # First 500 chars
-                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
-
-    except Exception as e:
-        elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        try:
+            if return_code == 0:
+                downloaded = status.get("successful", 0)
+                processed = status.get("processed", 0) 
+                uploaded = status.get("uploaded", 0)
+                duplicates = status.get("duplicates", 0)
+                failed = status.get("failed", 0)
+                total_checked = status.get("total_urls", 0)
+                
+                summary = f"{dry_run_prefix}Upload completed for `{page_name}` ({page_type.value}) in {elapsed}s!\n"
+                summary += f"**Summary:**\n"
+                summary += f"• Images downloaded: {downloaded}\n"
+                summary += f"• Images uploaded: {uploaded}\n"
+                summary += f"• Images found as duplicates: {duplicates}\n"
+                summary += f"• Images processed: {processed}\n" 
+                summary += f"• Download failures: {failed}\n"
+                summary += f"• Total URLs checked: {total_checked}"
+                
+                if msg:
+                    await msg.edit(content=summary)
+            else:
+                if msg:
+                    await msg.edit(content=f"{dry_run_prefix}Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s!")
+                if stderr.strip():
+                    error_preview = stderr.strip()[:500]
+                    await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+        except Exception as edit_error:
+            print(f"Failed to edit progress message: {edit_error}")
 
 
 @bot.tree.command(
