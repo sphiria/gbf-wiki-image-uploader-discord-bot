@@ -389,11 +389,18 @@ async def get_progress_message(interaction: discord.Interaction):
     Fetch the original interaction response, then switch to a channel-bound partial message so
     subsequent edits use the bot token instead of the short-lived webhook token.
     """
-    response_message = await interaction.original_response()
-    channel = getattr(interaction, "channel", None)
-    if channel is not None:
-        return channel.get_partial_message(response_message.id)
-    return response_message
+    last_error = None
+    for attempt in range(3):
+        try:
+            response_message = await interaction.original_response()
+            channel = getattr(interaction, "channel", None)
+            if channel is not None:
+                return channel.get_partial_message(response_message.id)
+            return response_message
+        except Exception as exc:  # pylint: disable=broad-except
+            last_error = exc
+            await asyncio.sleep(0.2)
+    raise last_error if last_error else RuntimeError("unable to fetch progress message")
 
 async def run_event_upload(
     event_id: str,
@@ -786,94 +793,80 @@ async def upload(
         try:
             msg = await get_progress_message(interaction)
         except Exception as fetch_error:
-            print(f"Failed to fetch progress message handle: {fetch_error}")
-            try:
-                msg = await interaction.original_response()
-            except Exception as original_error:
-                print(f"Fallback to original response failed: {original_error}")
-                msg = None
+            print(f"Failed to fetch progress message handle after retries: {fetch_error}")
+            msg = None
 
-        start_time = time.time()
+    start_time = time.time()
 
-        status = {"stage": "starting", "details": ""}
-        
-        # define updater function here
-        async def progress_updater():
-            while True:
-                await asyncio.sleep(15)
-                elapsed = int(time.time() - start_time)
-                
-                if status["stage"] == "downloading":
-                    content = f"{dry_run_prefix}Downloading images for `{page_name}` ({page_type.value})... ({elapsed}s elapsed)"
-                elif status["stage"] == "processing":
-                    processed = status.get("processed", 0)
-                    total = status.get("total", 0)
-                    current_image = status.get("current_image", "")
-                    content = f"{dry_run_prefix}Processing {processed}/{total} images for `{page_name}` ({page_type.value}). Current: {current_image} ({elapsed}s elapsed)"
-                elif status["stage"] == "downloaded":
-                    successful = status.get("successful", 0)
-                    failed = status.get("failed", 0)
-                    content = f"{dry_run_prefix}Downloaded {successful} images, {failed} failed for `{page_name}` ({page_type.value}). Starting processing... ({elapsed}s elapsed)"
-                else:
-                    content = f"{dry_run_prefix}Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
-                
+    status = {"stage": "starting", "details": ""}
+
+    async def progress_updater():
+        while True:
+            await asyncio.sleep(15)
+            elapsed = int(time.time() - start_time)
+
+            if status["stage"] == "downloading":
+                content = f"{dry_run_prefix}Downloading images for `{page_name}` ({page_type.value})... ({elapsed}s elapsed)"
+            elif status["stage"] == "processing":
+                processed = status.get("processed", 0)
+                total = status.get("total", 0)
+                current_image = status.get("current_image", "")
+                content = f"{dry_run_prefix}Processing {processed}/{total} images for `{page_name}` ({page_type.value}). Current: {current_image} ({elapsed}s elapsed)"
+            elif status["stage"] == "downloaded":
+                successful = status.get("successful", 0)
+                failed = status.get("failed", 0)
+                content = f"{dry_run_prefix}Downloaded {successful} images, {failed} failed for `{page_name}` ({page_type.value}). Starting processing... ({elapsed}s elapsed)"
+            else:
+                content = f"{dry_run_prefix}Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
+
+            if msg:
                 await msg.edit(content=content)
 
-        # start the updater task
-        updater_task = asyncio.create_task(progress_updater()) if msg else None
+    updater_task = asyncio.create_task(progress_updater()) if msg else None
 
-        try:
-            filter_arg = class_skin_filter if page_type.value == "class_skin" else None
-            return_code, stdout, stderr = await run_wiki_upload(
-                page_type.value,
-                page_name,
-                status,
-                filter_value=filter_arg,
-            )
-        except Exception as run_error:
-            if updater_task:
-                updater_task.cancel()
-            elapsed = int(time.time() - start_time)
-            error_text = f"Error while running script after {elapsed}s:\n```{run_error}```"
-            if msg:
-                await msg.edit(content=error_text)
-            else:
-                await interaction.followup.send(error_text)
-            return
-        finally:
-            if updater_task:
-                updater_task.cancel()
+    filter_arg = class_skin_filter if page_type.value == "class_skin" else None
+    return_code, stdout, stderr = await run_wiki_upload(
+        page_type.value,
+        page_name,
+        status,
+        filter_value=filter_arg,
+    )
+
+    if updater_task:
+        updater_task.cancel()
 
         elapsed = int(time.time() - start_time)
 
-        try:
-            if return_code == 0:
-                downloaded = status.get("successful", 0)
-                processed = status.get("processed", 0) 
-                uploaded = status.get("uploaded", 0)
-                duplicates = status.get("duplicates", 0)
-                failed = status.get("failed", 0)
-                total_checked = status.get("total_urls", 0)
-                
-                summary = f"{dry_run_prefix}Upload completed for `{page_name}` ({page_type.value}) in {elapsed}s!\n"
-                summary += f"**Summary:**\n"
-                summary += f"• Images downloaded: {downloaded}\n"
-                summary += f"• Images uploaded: {uploaded}\n"
-                summary += f"• Images found as duplicates: {duplicates}\n"
-                summary += f"• Images processed: {processed}\n" 
-                summary += f"• Download failures: {failed}\n"
-                summary += f"• Total URLs checked: {total_checked}"
-                
-                if msg:
-                    await msg.edit(content=summary)
+        if return_code == 0:
+            downloaded = status.get("successful", 0)
+            processed = status.get("processed", 0) 
+            uploaded = status.get("uploaded", 0)
+            duplicates = status.get("duplicates", 0)
+            failed = status.get("failed", 0)
+            total_checked = status.get("total_urls", 0)
+            
+            summary = f"{dry_run_prefix}Upload completed for `{page_name}` ({page_type.value}) in {elapsed}s!\n"
+            summary += f"**Summary:**\n"
+            summary += f"• Images downloaded: {downloaded}\n"
+            summary += f"• Images uploaded: {uploaded}\n"
+            summary += f"• Images found as duplicates: {duplicates}\n"
+            summary += f"• Images processed: {processed}\n" 
+            summary += f"• Download failures: {failed}\n"
+            summary += f"• Total URLs checked: {total_checked}"
+            
+            if msg:
+                await msg.edit(content=summary)
             else:
-                if msg:
-                    await msg.edit(content=f"{dry_run_prefix}Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s!")
-                if stderr.strip():
-                    error_preview = stderr.strip()[:500]
-                    await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
-        except Exception as edit_error:
-            print(f"Failed to edit progress message: {edit_error}")
+                await interaction.followup.send(summary)
+        else:
+            failure_text = f"{dry_run_prefix}Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s!"
+            if msg:
+                await msg.edit(content=failure_text)
+            else:
+                await interaction.followup.send(failure_text)
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
 
 
 @bot.tree.command(
