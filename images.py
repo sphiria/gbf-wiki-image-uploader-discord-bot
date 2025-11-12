@@ -2229,6 +2229,474 @@ class WikiImages(object):
                 total_urls=total
             )
 
+    def check_class_skin(self, page, filter_id):
+        """Upload ClassSkin assets for a specific template id or all templates when filter=all."""
+        print(f'Preparing ClassSkin upload for page {page.name} (filter: {filter_id})...')
+
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+
+        def clean_param(template, param_name):
+            if not template.has(param_name):
+                return ''
+            raw_value = str(template.get(param_name).value)
+            return mwparserfromhell.parse(raw_value).strip_code().strip()
+
+        class_skin_entries = []
+        for template in templates:
+            if template.name.strip().lower() != 'classskin':
+                continue
+            template_id = clean_param(template, 'id')
+            if not template_id:
+                continue
+            class_skin_entries.append((template, template_id))
+
+        if not class_skin_entries:
+            print('No ClassSkin templates found; skipping upload.')
+            emit_status('completed', processed=0, uploaded=0, duplicates=0, failed=1, total_urls=0)
+            return
+
+        filter_norm = (filter_id or '').strip().lower()
+        if filter_norm and filter_norm != 'all':
+            target_templates = [entry for entry in class_skin_entries if entry[1] == filter_id]
+        else:
+            target_templates = class_skin_entries
+
+        if not target_templates:
+            print(f'No ClassSkin template with id {filter_id} found on {page.name}.')
+            emit_status('completed', processed=0, uploaded=0, duplicates=0, failed=1, total_urls=0)
+            return
+
+        base_categories = ['Outfit Images', 'Skin Outfit Images']
+        icon_categories = ['Outfit Images', 'Icon Outfit Images']
+        square_categories = ['Outfit Images', 'Square Outfit Images']
+        raid_categories = ['Outfit Images', 'Raid Outfit Images']
+        p_categories = ['Outfit Images', 'P Outfit Images']
+        t_categories = ['Outfit Images', 'Babyl Outfit Images']
+        talk_categories = ['Outfit Images', 'Talk Outfit Images']
+        btn_categories = ['Outfit Images', 'Btn Outfit Images']
+        result_ml_categories = ['Outfit Images', 'Result ML Outfit Images']
+        result_categories = ['Outfit Images', 'Result Outfit Images']
+        jobon_z_categories = ['Outfit Images', 'Jobon z Outfit Images']
+        quest_categories = ['Outfit Images', 'Quest Outfit Images']
+        sd_categories = ['Outfit Images', 'Sprite Outfit Images']
+        sky_compass_categories = ['Sky Compass Images', 'Sky Compass Outfit Images']
+        skin_name_categories = ['Outfit Images', 'Skin Name Outfit Images']
+        pm_categories = ['Outfit Images', 'PM Outfit Images']
+
+        gender_specs = [
+            {'value': 0, 'display': 'Gran'},
+            {'value': 1, 'display': 'Djeeta'},
+        ]
+
+        square_hosts = {
+            0: 'prd-game-a4-granbluefantasy.akamaized.net',
+            1: 'prd-game-a5-granbluefantasy.akamaized.net',
+        }
+
+        p_hosts = {
+            0: 'prd-game-a4-granbluefantasy.akamaized.net',
+            1: 'prd-game-a4-granbluefantasy.akamaized.net',
+        }
+
+        t_hosts = {
+            0: 'prd-game-a4-granbluefantasy.akamaized.net',
+            1: 'prd-game-a4-granbluefantasy.akamaized.net',
+        }
+
+        talk_hosts = {
+            0: 'prd-game-a-granbluefantasy.akamaized.net',
+            1: 'prd-game-a-granbluefantasy.akamaized.net',
+        }
+
+        btn_hosts = {
+            0: 'prd-game-a2-granbluefantasy.akamaized.net',
+            1: 'prd-game-a2-granbluefantasy.akamaized.net',
+        }
+
+        result_ml_hosts = {
+            0: 'prd-game-a4-granbluefantasy.akamaized.net',
+            1: 'prd-game-a4-granbluefantasy.akamaized.net',
+        }
+
+        result_hosts = {
+            0: 'prd-game-a4-granbluefantasy.akamaized.net',
+            1: 'prd-game-a4-granbluefantasy.akamaized.net',
+        }
+
+        jobon_z_hosts = {
+            0: 'prd-game-a-granbluefantasy.akamaized.net',
+            1: 'prd-game-a-granbluefantasy.akamaized.net',
+        }
+
+        quest_hosts = {
+            0: 'prd-game-a2-granbluefantasy.akamaized.net',
+            1: 'prd-game-a2-granbluefantasy.akamaized.net',
+        }
+
+        sd_hosts = {
+            0: 'prd-game-a2-granbluefantasy.akamaized.net',
+            1: 'prd-game-a2-granbluefantasy.akamaized.net',
+        }
+
+        sky_compass_hosts = {
+            0: 'media.skycompass.io',
+            1: 'media.skycompass.io',
+        }
+
+        skin_name_host = 'prd-game-a-granbluefantasy.akamaized.net'
+        pm_hosts = {
+            0: 'prd-game-a1-granbluefantasy.akamaized.net',
+            1: 'prd-game-a1-granbluefantasy.akamaized.net',
+        }
+
+        download_tasks = []
+
+        for template, template_id in target_templates:
+            print(f'Queueing assets for ClassSkin template {template_id}...')
+            skin_name = clean_param(template, 'desc') or page.name
+            weapon_id = clean_param(template, 'id_weapon')
+
+            base_url = (
+                'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/skin/{template_id}_01.png'
+            )
+            base_canonical = f'Leader_skin_{template_id}_01.png'
+            base_redirects = []
+            if skin_name:
+                base_redirects.append(f'{skin_name} skin.png')
+
+            download_tasks.append({
+                'label': 'skin artwork',
+                'url': base_url,
+                'canonical': base_canonical,
+                'other_names': base_redirects,
+                'categories': base_categories,
+            })
+
+            icon_url = (
+                'https://prd-game-a3-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/m/{template_id}_01.jpg'
+            )
+            icon_canonical = f'Leader_m_{template_id}_01.jpg'
+            icon_redirects = []
+            if skin_name:
+                icon_redirects.append(f'{skin_name} (MC) icon.jpg')
+
+            download_tasks.append({
+                'label': 'mc icon',
+                'url': icon_url,
+                'canonical': icon_canonical,
+                'other_names': icon_redirects,
+                'categories': icon_categories,
+            })
+
+            square_url = (
+                'https://prd-game-a4-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/assets/leader/s/{template_id}_01.jpg'
+            )
+            square_canonical = f'Leader_s_{template_id}_01.jpg'
+            square_redirects = []
+            if skin_name:
+                square_redirects.append(f'{skin_name} (MC) square.jpg')
+
+            download_tasks.append({
+                'label': 'square (MC)',
+                'url': square_url,
+                'canonical': square_canonical,
+                'other_names': square_redirects,
+                'categories': square_categories,
+            })
+
+            if weapon_id:
+                for spec in gender_specs:
+                    gender_value = spec['value']
+                    display_name = spec['display']
+                    raid_url = (
+                        'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                        f'img/sp/assets/leader/raid_normal/{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    canonical = (
+                        f'Leader_raid_normal_{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    other_names = [
+                        f'Leader_raid_normal_{template_id}_{gender_value}_01.jpg',
+                    ]
+                    if skin_name:
+                        other_names.append(f'{skin_name} ({display_name}) raid.jpg')
+
+                    download_tasks.append({
+                        'label': f'raid_normal ({display_name})',
+                        'url': raid_url,
+                        'canonical': canonical,
+                        'other_names': other_names,
+                        'categories': raid_categories,
+                    })
+
+                    square_host = square_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                    square_variant_url = (
+                        f'https://{square_host}/assets_en/img/sp/assets/leader/s/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    square_variant_canonical = (
+                        f'Leader_s_{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    square_variant_other_names = [
+                        f'Leader_s_{template_id}_{gender_value}_01.jpg',
+                    ]
+                    if skin_name:
+                        square_variant_other_names.append(f'{skin_name} ({display_name}) square.jpg')
+
+                    download_tasks.append({
+                        'label': f'square ({display_name})',
+                        'url': square_variant_url,
+                        'canonical': square_variant_canonical,
+                        'other_names': square_variant_other_names,
+                        'categories': square_categories,
+                    })
+
+                    p_host = p_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                    p_variant_url = (
+                        f'https://{p_host}/assets_en/img/sp/assets/leader/p/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    p_canonical = (
+                        f'Leader_p_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    p_other_names = []
+                    if skin_name:
+                        p_other_names.append(f'{skin_name} ({display_name}) p.png')
+
+                    download_tasks.append({
+                        'label': f'p asset ({display_name})',
+                        'url': p_variant_url,
+                        'canonical': p_canonical,
+                        'other_names': p_other_names,
+                        'categories': p_categories,
+                    })
+
+                    t_host = t_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                    t_variant_url = (
+                        f'https://{t_host}/assets_en/img/sp/assets/leader/t/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    t_canonical = (
+                        f'Leader_t_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    t_other_names = []
+                    if skin_name:
+                        t_other_names.append(f'{skin_name} ({display_name}) t.png')
+
+                    download_tasks.append({
+                        'label': f't asset ({display_name})',
+                        'url': t_variant_url,
+                        'canonical': t_canonical,
+                        'other_names': t_other_names,
+                        'categories': t_categories,
+                    })
+
+                    talk_host = talk_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
+                    talk_variant_url = (
+                        f'https://{talk_host}/assets_en/img/sp/assets/leader/talk/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    talk_canonical = (
+                        f'Leader_talk_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    talk_other_names = []
+                    if skin_name:
+                        talk_other_names.append(f'{skin_name} ({display_name}) talk.png')
+
+                    download_tasks.append({
+                        'label': f'talk asset ({display_name})',
+                        'url': talk_variant_url,
+                        'canonical': talk_canonical,
+                        'other_names': talk_other_names,
+                        'categories': talk_categories,
+                    })
+
+                    btn_host = btn_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                    btn_variant_url = (
+                        f'https://{btn_host}/assets_en/img/sp/assets/leader/btn/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    btn_canonical = (
+                        f'Leader_btn_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    btn_other_names = []
+                    if skin_name:
+                        btn_other_names.append(f'{skin_name} ({display_name}) btn.png')
+
+                    download_tasks.append({
+                        'label': f'btn asset ({display_name})',
+                        'url': btn_variant_url,
+                        'canonical': btn_canonical,
+                        'other_names': btn_other_names,
+                        'categories': btn_categories,
+                    })
+
+                    result_ml_host = result_ml_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                    result_ml_url = (
+                        f'https://{result_ml_host}/assets_en/img/sp/assets/leader/result_ml/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    result_ml_canonical = (
+                        f'Leader_result_ml_{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    result_ml_other_names = []
+                    if skin_name:
+                        result_ml_other_names.append(f'{skin_name} ({display_name}) result ml.jpg')
+
+                    download_tasks.append({
+                        'label': f'result_ml asset ({display_name})',
+                        'url': result_ml_url,
+                        'canonical': result_ml_canonical,
+                        'other_names': result_ml_other_names,
+                        'categories': result_ml_categories,
+                    })
+
+                    result_host = result_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                    result_url = (
+                        f'https://{result_host}/assets_en/img/sp/assets/leader/result/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    result_canonical = (
+                        f'Leader_result_{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    result_other_names = []
+                    if skin_name:
+                        result_other_names.append(f'{skin_name} ({display_name}) result.jpg')
+
+                    download_tasks.append({
+                        'label': f'result asset ({display_name})',
+                        'url': result_url,
+                        'canonical': result_canonical,
+                        'other_names': result_other_names,
+                        'categories': result_categories,
+                    })
+
+                    jobon_z_host = jobon_z_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
+                    jobon_z_url = (
+                        f'https://{jobon_z_host}/assets_en/img/sp/assets/leader/jobon_z/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    jobon_z_canonical = (
+                        f'Leader_jobon_z_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    jobon_z_other_names = []
+                    if skin_name:
+                        jobon_z_other_names.append(f'{skin_name} ({display_name}) jobon z.png')
+
+                    download_tasks.append({
+                        'label': f'jobon_z asset ({display_name})',
+                        'url': jobon_z_url,
+                        'canonical': jobon_z_canonical,
+                        'other_names': jobon_z_other_names,
+                        'categories': jobon_z_categories,
+                    })
+
+                    quest_host = quest_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                    quest_url = (
+                        f'https://{quest_host}/assets_en/img/sp/assets/leader/quest/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    quest_canonical = (
+                        f'Leader_quest_{template_id}_{weapon_id}_{gender_value}_01.jpg'
+                    )
+                    quest_other_names = []
+                    if skin_name:
+                        quest_other_names.append(f'{skin_name} ({display_name}) quest.jpg')
+
+                    download_tasks.append({
+                        'label': f'quest asset ({display_name})',
+                        'url': quest_url,
+                        'canonical': quest_canonical,
+                        'other_names': quest_other_names,
+                        'categories': quest_categories,
+                    })
+
+                    sd_host = sd_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                    sd_url = (
+                        f'https://{sd_host}/assets_en/img/sp/assets/leader/sd/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    sd_canonical = (
+                        f'Leader_sd_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    sd_other_names = []
+                    if skin_name:
+                        sd_other_names.append(f'{skin_name} ({display_name}) SD.png')
+
+                    download_tasks.append({
+                        'label': f'sd asset ({display_name})',
+                        'url': sd_url,
+                        'canonical': sd_canonical,
+                        'other_names': sd_other_names,
+                        'categories': sd_categories,
+                    })
+
+                    sky_host = sky_compass_hosts.get(gender_value, 'media.skycompass.io')
+                    sky_url = (
+                        f'https://{sky_host}/assets/customizes/jobs/1138x1138/'
+                        f'{template_id}_{gender_value}.png'
+                    )
+                    sky_canonical = f'jobs_1138x1138_{template_id}_{gender_value}.png'
+                    sky_other_names = []
+                    if skin_name:
+                        sky_other_names.append(f'{skin_name} ({display_name}).png')
+                        sky_other_names.append(f'{skin_name} ({display_name}) HD.png')
+
+                    download_tasks.append({
+                        'label': f'sky compass asset ({display_name})',
+                        'url': sky_url,
+                        'canonical': sky_canonical,
+                        'other_names': sky_other_names,
+                        'categories': sky_compass_categories,
+                    })
+
+                    pm_host = pm_hosts.get(gender_value, 'prd-game-a1-granbluefantasy.akamaized.net')
+                    pm_url = (
+                        f'https://{pm_host}/assets_en/img/sp/assets/leader/pm/'
+                        f'{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    pm_canonical = (
+                        f'Leader_pm_{template_id}_{weapon_id}_{gender_value}_01.png'
+                    )
+                    pm_other_names = []
+                    if skin_name:
+                        pm_other_names.append(f'{skin_name} ({display_name}) pm.png')
+
+                    download_tasks.append({
+                        'label': f'pm asset ({display_name})',
+                        'url': pm_url,
+                        'canonical': pm_canonical,
+                        'other_names': pm_other_names,
+                        'categories': pm_categories,
+                    })
+            else:
+                print(f'No id_weapon parameter found for ClassSkin {template_id}; skipping gendered assets.')
+
+            skin_name_url = (
+                f'https://{skin_name_host}/assets_en/img/sp/event/common/teamraid/assets/skin_name/'
+                f'{template_id}.png'
+            )
+            skin_name_canonical = f'Assets_skin_name_{template_id}.png'
+            skin_name_redirects = []
+            if skin_name:
+                skin_name_redirects.append(f'{skin_name} skin_name.png')
+
+            download_tasks.append({
+                'label': 'skin name asset',
+                'url': skin_name_url,
+                'canonical': skin_name_canonical,
+                'other_names': skin_name_redirects,
+                'categories': skin_name_categories,
+            })
     def check_npc(self, page):
         print('Checking page {0}...'.format(page.name))
         specs = self._get_npc_asset_specs()
@@ -2271,7 +2739,7 @@ class WikiImages(object):
             # 'skin':          ['png', '_skin',   ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Skin Outfit Images'  ]],
             # 'detail':        ['png', '_detail', ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Detail Outfit Character Images']],
             # 't':             ['png', '_babyl',  ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Babyl Outfit Character Images']],
-            # 'raid_normal':   ['jpg', '_raid',   ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Raid Outfit Character Images']],
+            # 'raid_normal':   ['jpg', '_raid',   ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Raid Outfit Images']],
             # 'cutin_special': ['jpg', '_cutin',  ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Cutin Outfit Character Images']],
             # 'raid_chain':    ['jpg', '_chain',  ['_01', '_01_01', '_81', '_82'], ['A', 'A01', 'ST', 'ST2'], ['Outfit Images', 'Chain Burst Outfit Character Images']],
             # 'quest':         ['jpg', '_quest',  ['_01', '_81', '_82'], ['A', 'ST', 'ST2'], ['Outfit Images', 'Quest Outfit Character Images']],
@@ -2286,7 +2754,7 @@ class WikiImages(object):
             'skin':          ['png', '_skin',   ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Skin Outfit Images'  ]],
             'detail':        ['png', '_detail', ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Detail Outfit Character Images']],
             't':             ['png', '_babyl',  ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Babyl Outfit Character Images']],
-            'raid_normal':   ['jpg', '_raid',   ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Raid Outfit Character Images']],
+            'raid_normal':   ['jpg', '_raid',   ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Raid Outfit Images']],
             'cutin_special': ['jpg', '_cutin',  ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Cutin Outfit Character Images']],
             'raid_chain':    ['jpg', '_chain',  ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Chain Burst Outfit Character Images']],
             'quest':         ['jpg', '_quest',  ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Quest Outfit Character Images']],
@@ -2564,7 +3032,7 @@ class WikiImages(object):
                     import time as time_module
                     start_time = time_module.time()
                     timeout_seconds = 900  # 15 minute total timeout
-                    
+
                     # Use as_completed to process results incrementally
                     for task in asyncio.as_completed(task_to_url.keys()):
                         # Check if we've exceeded the timeout

@@ -64,12 +64,14 @@ MAX_STATUS_ID_LEN = 64
 MAX_BANNER_ID_LEN = 64
 MAX_EVENT_ID_LEN = 64
 MAX_ENEMY_ID_LEN = 64
+MAX_CLASS_SKIN_ID_LEN = 64
 PAGE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|\x00-\x1F]")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 VALID_STATUS_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+#?$")
 VALID_BANNER_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+$")
 VALID_EVENT_ID_REGEX = re.compile(r"^[a-z0-9_]+$")
 VALID_ENEMY_ID_REGEX = re.compile(r"^[0-9]+$")
+VALID_CLASS_SKIN_ID_REGEX = re.compile(r"^[0-9]+$")
 DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
 GUILD_ID = int(os.environ["GUILD_ID"])
 # Comma-separated list of allowed roles, e.g. "Wiki Editor,Wiki Admin"
@@ -79,7 +81,21 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 ENABLE_EVENT_UPLOAD = os.getenv("ENABLE_EVENTUPLOAD", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
-PAGE_TYPES = ["character", "weapon", "summon", "class", "skin", "skill_icons", "npc", "artifact", "item", "manatura", "shield", "bullet"]
+PAGE_TYPES = [
+    "character",
+    "weapon",
+    "summon",
+    "class",
+    "class_skin",
+    "skin",
+    "skill_icons",
+    "npc",
+    "artifact",
+    "item",
+    "manatura",
+    "shield",
+    "bullet",
+]
 
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
@@ -195,6 +211,18 @@ def validate_enemy_id(enemy_id: str) -> tuple[bool, str]:
 
     return True, enemy_id
 
+def validate_class_skin_filter(filter_value: str) -> tuple[bool, str]:
+    """Validate the ClassSkin filter id input."""
+    filter_value = (filter_value or "").strip()
+
+    if len(filter_value) == 0 or len(filter_value) > MAX_CLASS_SKIN_ID_LEN:
+        return False, f"Invalid filter id. Must be between 1 and {MAX_CLASS_SKIN_ID_LEN} digits."
+
+    if not VALID_CLASS_SKIN_ID_REGEX.match(filter_value):
+        return False, "Invalid filter id. Only digits are allowed."
+
+    return True, filter_value
+
 def validate_banner_id(banner_id: str) -> tuple[bool, str]:
     """
     Validate a gacha banner identifier (portion between `banner_` and the index).
@@ -212,7 +240,12 @@ def validate_banner_id(banner_id: str) -> tuple[bool, str]:
 
     return True, banner_id
 
-async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -> tuple[int, str, str]:
+async def run_wiki_upload(
+    page_type: str,
+    page_name: str,
+    status: dict = None,
+    filter_value: str | None = None,
+) -> tuple[int, str, str]:
     """
     Run wiki image upload in a thread and capture stdout/stderr.
     Returns (return_code, stdout, stderr)
@@ -252,6 +285,10 @@ async def run_wiki_upload(page_type: str, page_name: str, status: dict = None) -
                 wi.check_summon(page)
             elif page_type == 'class':
                 wi.check_class(page)
+            elif page_type == 'class_skin':
+                if not filter_value:
+                    raise ValueError("class_skin uploads require a filter id")
+                wi.check_class_skin(page, filter_value)
             elif page_type == 'skin':
                 wi.check_skin(page)
             elif page_type == 'npc':
@@ -340,6 +377,10 @@ async def run_item_upload(item_type: str, item_id: str, item_name: str, status: 
             return_code = await asyncio.to_thread(upload_task)
 
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as e:
+        error_msg = f"Single item upload task failed: {e}"
+        print(error_msg)
+        return 1, "", str(e)
 
 
 async def get_progress_message(interaction: discord.Interaction):
@@ -353,10 +394,6 @@ async def get_progress_message(interaction: discord.Interaction):
     if channel is not None:
         return channel.get_partial_message(response_message.id)
     return response_message
-    except Exception as e:
-        error_msg = f"Single item upload task failed: {e}"
-        print(error_msg)
-        return 1, "", str(e)
 
 async def run_event_upload(
     event_id: str,
@@ -684,10 +721,17 @@ from discord import app_commands
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)  # only allow your roles
 @app_commands.describe(
     page_type="Type of page",
-    page_name="Wiki page name"
+    page_name="Wiki page name",
+    page_filter="Additional filter parameter (required for class skin uploads)",
 )
+@app_commands.rename(page_filter="filter")
 @app_commands.choices(page_type=[app_commands.Choice(name=pt, value=pt) for pt in PAGE_TYPES])
-async def upload(interaction: discord.Interaction, page_type: app_commands.Choice[str], page_name: str):
+async def upload(
+    interaction: discord.Interaction,
+    page_type: app_commands.Choice[str],
+    page_name: str,
+    page_filter: str | None = None,
+):
     member = interaction.guild.get_member(interaction.user.id)
     if not member or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
@@ -704,6 +748,14 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         await interaction.response.send_message(result, ephemeral=True)
         return
     page_name = result  # validated + stripped
+
+    class_skin_filter = None
+    if page_type.value == "class_skin":
+        is_valid_filter, filter_result = validate_class_skin_filter(page_filter or "")
+        if not is_valid_filter:
+            await interaction.response.send_message(filter_result, ephemeral=True)
+            return
+        class_skin_filter = filter_result
 
     # Check cooldown
     now = time.time()
@@ -762,7 +814,13 @@ async def upload(interaction: discord.Interaction, page_type: app_commands.Choic
         # start the updater task
         updater_task = asyncio.create_task(progress_updater())
 
-        return_code, stdout, stderr = await run_wiki_upload(page_type.value, page_name, status)
+        filter_arg = class_skin_filter if page_type.value == "class_skin" else None
+        return_code, stdout, stderr = await run_wiki_upload(
+            page_type.value,
+            page_name,
+            status,
+            filter_value=filter_arg,
+        )
         
         updater_task.cancel()
         elapsed = int(time.time() - start_time)
