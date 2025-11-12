@@ -2863,211 +2863,89 @@ class WikiImages(object):
                         })
                         total_urls_generated += 1
         
-        # Download all images concurrently with incremental processing
+        # Download all images concurrently
         if download_tasks:
             urls = [task['url'] for task in download_tasks]
             print(f"Starting concurrent download of {len(urls)} images...")
             print(f"Sample URLs: {urls[:2]}...")
             
-            download_results = {}
-            download_results_lock = asyncio.Lock() if hasattr(asyncio, 'Lock') else None
-            
-            async def download_with_incremental_processing():
-                """Download images concurrently and collect results incrementally"""
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
-                }
-                proxy_url = os.environ.get("PROXY_URL")
-                
-                async def download_single(session, url, max_retries=3):
-                    for attempt in range(max_retries + 1):
-                        try:
-                            kwargs = {'headers': headers}
-                            if proxy_url:
-                                kwargs['proxy'] = proxy_url
-                            
-                            async with session.get(url, **kwargs) as response:
-                                if response.status == 200:
-                                    content = await response.read()
-                                    io_obj = BytesIO(content)
-                                    io_obj.seek(0)
-                                    
-                                    sha1 = hashlib.sha1()
-                                    sha1.update(content)
-                                    sha1_hex = sha1.hexdigest()
-                                    size = len(content)
-                                    
-                                    io_obj.seek(0)
-                                    return url, True, sha1_hex, size, io_obj
-                                    
-                                elif response.status == 404:
-                                    print(f'Download failed (404 Not Found): {url}')
-                                    return url, False, "", 0, False
-                                    
-                                elif response.status in [407, 429, 500, 502, 503, 504]:
-                                    if attempt < max_retries:
-                                        wait_time = (2 ** attempt)
-                                        await asyncio.sleep(wait_time)
-                                        continue
-                                    else:
-                                        print(f'Download failed ({response.status}) after {max_retries} retries: {url}')
-                                        return url, False, "", 0, False
-                                else:
-                                    print(f'Download failed ({response.status}): {url}')
-                                    return url, False, "", 0, False
-                                    
-                        except Exception as e:
-                            if attempt < max_retries:
-                                wait_time = (2 ** attempt)
-                                await asyncio.sleep(wait_time)
-                                continue
-                            else:
-                                print(f'Download failed after {max_retries} retries: [network error]')
-                                return url, False, "", 0, False
-                    
-                    return url, False, "", 0, False
-                
-                timeout = aiohttp.ClientTimeout(total=30)
-                connector = aiohttp.TCPConnector()
-                async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-                    # Create tasks for all URLs
-                    task_to_url = {asyncio.create_task(download_single(session, url)): url for url in urls}
-                    
-                    # Process results as they complete using as_completed
-                    # This ensures we never lose results even if there's a timeout
-                    completed_count = 0
-                    import time as time_module
-                    start_time = time_module.time()
-                    timeout_seconds = 900  # 15 minute total timeout
-                    
-                    # Use as_completed to process results incrementally
-                    for task in asyncio.as_completed(task_to_url.keys()):
-                        # Check if we've exceeded the timeout
-                        elapsed = time_module.time() - start_time
-                        if elapsed > timeout_seconds:
-                            print(f"Concurrent download timed out after {timeout_seconds} seconds")
-                            print(f"Completed {completed_count}/{len(urls)} downloads before timeout")
-                            # Cancel remaining tasks
-                            for remaining_task in task_to_url.keys():
-                                if not remaining_task.done():
-                                    remaining_task.cancel()
-                            # Wait a bit for cancellations to propagate
-                            await asyncio.sleep(0.5)
-                            break
-                        
-                        try:
-                            result = await task
-                            url, success, sha1, size, io_obj = result
-                            download_results[url] = (success, sha1, size, io_obj)
-                            completed_count += 1
-                            
-                            if completed_count % 50 == 0:
-                                print(f"Progress: {completed_count}/{len(urls)} downloads completed...")
-                        except asyncio.CancelledError:
-                            # Task was cancelled - mark as failed
-                            task_url = task_to_url.get(task, "unknown")
-                            if task_url != "unknown":
-                                download_results[task_url] = (False, "", 0, False)
-                            completed_count += 1
-                        except Exception as e:
-                            # Individual task failed - mark it as failed
-                            task_url = task_to_url.get(task, "unknown")
-                            print(f"Task failed for {task_url}: {e}")
-                            if task_url != "unknown":
-                                download_results[task_url] = (False, "", 0, False)
-                            completed_count += 1
-                    
-                    # Cancel any remaining tasks that didn't complete
-                    for task in task_to_url.keys():
-                        if not task.done():
-                            task.cancel()
-                    # Wait a bit for cancellations
-                    await asyncio.sleep(0.5)
-                    
-                    # Ensure we have results for all URLs (mark missing ones as failed)
-                    for url in urls:
-                        if url not in download_results:
-                            print(f"WARNING: No result for {url}, marking as failed")
-                            download_results[url] = (False, "", 0, False)
-                    
-                    # Retry failed downloads (non-404s) to ensure consistency
-                    # Network errors can be transient, so retry them once
-                    failed_urls_to_retry = []
-                    for url in urls:
-                        if url in download_results:
-                            success, sha1, size, io_obj = download_results[url]
-                            # Only retry if it failed and it's not a 404 (404s are permanent)
-                            # We can't tell if it was a 404 from the result, so we'll retry all failures
-                            # but limit to one retry to avoid infinite loops
-                            if not success and url not in failed_urls_to_retry:
-                                failed_urls_to_retry.append(url)
-                    
-                    # Retry failed downloads sequentially with a small delay
-                    if failed_urls_to_retry:
-                        print(f"Retrying {len(failed_urls_to_retry)} failed downloads to ensure consistency...")
-                        for url in failed_urls_to_retry:
-                            try:
-                                result = await download_single(session, url, max_retries=1)  # Only 1 retry for consistency check
-                                url_retry, success, sha1, size, io_obj = result
-                                if success:
-                                    print(f"Retry succeeded for {url}")
-                                    download_results[url] = (success, sha1, size, io_obj)
-                                else:
-                                    print(f"Retry still failed for {url}")
-                            except Exception as e:
-                                print(f"Retry exception for {url}: {e}")
-                                # Keep original failure result
-                                pass
-                            # Small delay between retries to avoid overwhelming the server
-                            await asyncio.sleep(0.1)
+            download_results = []
             
             try:
                 # Run async function in current thread
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    loop.run_until_complete(download_with_incremental_processing())
+                    # Use a longer timeout to ensure all downloads complete
+                    # gather preserves order, so results[i] corresponds to urls[i]
+                    download_task = self.get_images_concurrent(urls)
+                    try:
+                        download_results = loop.run_until_complete(asyncio.wait_for(download_task, timeout=900))  # 15 minute timeout
+                    except asyncio.TimeoutError:
+                        print(f"Concurrent download timed out after 15 minutes")
+                        print("Falling back to sequential downloads for remaining URLs...")
+                        # gather was cancelled, so we have no results
+                        # We'll fall through to sequential download below
+                        download_results = None
                 finally:
                     loop.close()
                 
-                # Convert results dict to list format matching original structure
-                # Ensure results are in the same order as download_tasks for consistency
-                download_results_list = []
-                for task in download_tasks:
-                    url = task['url']
-                    if url in download_results:
-                        success, sha1, size, io_obj = download_results[url]
-                        download_results_list.append((url, success, sha1, size, io_obj))
+                # If we got results from concurrent download, verify we have all of them
+                if download_results and len(download_results) == len(download_tasks):
+                    print(f"Download results received: {len(download_results)} results (all {len(download_tasks)} tasks)")
+                    
+                    # Results are in same order as tasks (gather preserves order)
+                    # Verify by checking URLs match
+                    for i, (url, *result) in enumerate(download_results):
+                        if url != download_tasks[i]['url']:
+                            print(f"WARNING: URL mismatch at index {i}: expected {download_tasks[i]['url']}, got {url}")
+                    
+                    successful = sum(1 for _, success, _, _, _ in download_results if success)
+                    failed = len(download_results) - successful
+                    print(f"Download Status Report:")
+                    print(f"  Successful (200): {successful}")
+                    print(f"  Failed (404/errors): {failed}")
+                    print(f"  Total attempted: {len(download_results)}")
+                    
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
+                else:
+                    # Partial results or timeout - fall back to sequential to ensure all URLs are processed
+                    if download_results:
+                        print(f"Received partial results ({len(download_results)}/{len(download_tasks)}), completing with sequential downloads...")
                     else:
-                        # This shouldn't happen, but handle it
-                        print(f"WARNING: Missing result for {url}, adding as failed")
-                        download_results_list.append((url, False, "", 0, False))
-                
-                download_results = download_results_list
-                
-                successful = sum(1 for _, success, _, _, _ in download_results if success)
-                failed = len(download_results) - successful
-                print(f"Download Status Report:")
-                print(f"  Successful (200): {successful}")
-                print(f"  Failed (404/errors): {failed}")
-                print(f"  Total attempted: {len(download_results)}")
-                print(f"  Total URLs in task list: {len(download_tasks)}")
-                
-                # Verify we processed all URLs
-                if len(download_results) != len(download_tasks):
-                    print(f"WARNING: Result count ({len(download_results)}) doesn't match task count ({len(download_tasks)})")
-                    # Ensure we have results for all tasks
-                    task_urls = {task['url'] for task in download_tasks}
-                    result_urls = {url for url, _, _, _, _ in download_results}
-                    missing_urls = task_urls - result_urls
-                    if missing_urls:
-                        print(f"WARNING: Missing results for {len(missing_urls)} URLs")
-                        for url in missing_urls:
-                            download_results.append((url, False, "", 0, False))
-                            print(f"  Added missing result for: {url}")
-                
-                if hasattr(self, '_status_callback'):
-                    self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
+                        print("No concurrent download results, falling back to sequential downloads...")
+                    
+                    # Build a set of URLs we already have results for
+                    completed_urls = set()
+                    if download_results:
+                        for url, *result in download_results:
+                            completed_urls.add(url)
+                    
+                    # Keep all results we have (both successful and failed)
+                    temp_results = []
+                    if download_results:
+                        for url, success, sha1, size, io_obj in download_results:
+                            temp_results.append((url, success, sha1, size, io_obj))
+                    
+                    # Then download remaining URLs sequentially to ensure ALL are processed
+                    for task in download_tasks:
+                        if task['url'] not in completed_urls:
+                            print(f"Sequentially downloading: {task['url']}")
+                            success, sha1, size, io_obj = self.get_image(task['url'])
+                            temp_results.append((task['url'], success, sha1, size, io_obj))
+                    
+                    download_results = temp_results
+                    
+                    successful = sum(1 for _, success, _, _, _ in download_results if success)
+                    failed = len(download_results) - successful
+                    print(f"Final Download Status Report:")
+                    print(f"  Successful (200): {successful}")
+                    print(f"  Failed (404/errors): {failed}")
+                    print(f"  Total attempted: {len(download_results)}")
+                    
+                    if hasattr(self, '_status_callback'):
+                        self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
                         
             except Exception as e:
                 print(f"Concurrent download failed: {e}")

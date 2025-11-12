@@ -744,6 +744,12 @@ async def upload(
             return
         class_skin_filter = filter_result
 
+    display_target = (
+        f"{page_name} [filter: {class_skin_filter}]"
+        if class_skin_filter
+        else page_name
+    )
+
     # Check cooldown
     now = time.time()
     last = last_used.get(interaction.user.id, 0)
@@ -767,7 +773,7 @@ async def upload(
     async with upload_lock:
         dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
         await interaction.response.send_message(
-            f"{dry_run_prefix}Upload started for `{page_name}` ({page_type.value}). This may take a while..."
+            f"{dry_run_prefix}Upload started for `{display_target}` ({page_type.value}). This may take a while..."
         )
         msg = await interaction.original_response()
 
@@ -783,18 +789,18 @@ async def upload(
                 elapsed = int(time.time() - start_time)
                 
                 if status["stage"] == "downloading":
-                    content = f"{dry_run_prefix}Downloading images for `{page_name}` ({page_type.value})... ({elapsed}s elapsed)"
+                    content = f"{dry_run_prefix}Downloading images for `{display_target}` ({page_type.value})... ({elapsed}s elapsed)"
                 elif status["stage"] == "processing":
                     processed = status.get("processed", 0)
                     total = status.get("total", 0)
                     current_image = status.get("current_image", "")
-                    content = f"{dry_run_prefix}Processing {processed}/{total} images for `{page_name}` ({page_type.value}). Current: {current_image} ({elapsed}s elapsed)"
+                    content = f"{dry_run_prefix}Processing {processed}/{total} images for `{display_target}` ({page_type.value}). Current: {current_image} ({elapsed}s elapsed)"
                 elif status["stage"] == "downloaded":
                     successful = status.get("successful", 0)
                     failed = status.get("failed", 0)
-                    content = f"{dry_run_prefix}Downloaded {successful} images, {failed} failed for `{page_name}` ({page_type.value}). Starting processing... ({elapsed}s elapsed)"
+                    content = f"{dry_run_prefix}Downloaded {successful} images, {failed} failed for `{display_target}` ({page_type.value}). Starting processing... ({elapsed}s elapsed)"
                 else:
-                    content = f"{dry_run_prefix}Upload for `{page_name}` ({page_type.value}) still running... ({elapsed}s elapsed)"
+                    content = f"{dry_run_prefix}Upload for `{display_target}` ({page_type.value}) still running... ({elapsed}s elapsed)"
                 
                 await msg.edit(content=content)
 
@@ -821,7 +827,7 @@ async def upload(
             failed = status.get("failed", 0)
             total_checked = status.get("total_urls", 0)
             
-            summary = f"{dry_run_prefix}Upload completed for `{page_name}` ({page_type.value}) in {elapsed}s!\n"
+            summary = f"{dry_run_prefix}Upload completed for `{display_target}` ({page_type.value}) in {elapsed}s!\n"
             summary += f"**Summary:**\n"
             summary += f"• Images downloaded: {downloaded}\n"
             summary += f"• Images uploaded: {uploaded}\n"
@@ -832,7 +838,7 @@ async def upload(
             
             await msg.edit(content=summary)
         else:
-            await msg.edit(content=f"{dry_run_prefix}Upload failed for `{page_name}` ({page_type.value}) in {elapsed}s!")
+            await msg.edit(content=f"{dry_run_prefix}Upload failed for `{display_target}` ({page_type.value}) in {elapsed}s!")
             # Show error details in Discord if there were errors
             if stderr.strip():
                 error_preview = stderr.strip()[:500]  # First 500 chars
