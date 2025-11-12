@@ -2229,6 +2229,381 @@ class WikiImages(object):
                 total_urls=total
             )
 
+
+    def check_class_skin(self, page, filter_id):
+        print(f'Checking ClassSkin template id {filter_id} on page {page.name}...')
+
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+
+        def clean_param(template, param_name):
+            if not template.has(param_name):
+                return ''
+            raw_value = str(template.get(param_name).value)
+            return mwparserfromhell.parse(raw_value).strip_code().strip()
+
+        target_template = None
+        for template in templates:
+            if template.name.strip().lower() != 'classskin':
+                continue
+            template_id = clean_param(template, 'id')
+            if template_id == filter_id:
+                target_template = template
+                break
+
+        if target_template is None:
+            print(f'No ClassSkin template with id {filter_id} found; aborting.')
+            emit_status('completed', processed=0, uploaded=0, duplicates=0, failed=1, total_urls=0)
+            return
+
+        skin_name = clean_param(target_template, 'desc') or page.name
+        weapon_id = clean_param(target_template, 'id_weapon')
+
+        if skin_name:
+            redirect_from = f"{skin_name} (MC)"
+            redirect_target = f"Main Character#{skin_name}"
+            try:
+                print(f"Ensuring page redirect: {redirect_from} -> {redirect_target}")
+                self.check_redirect(redirect_target, redirect_from)
+            except Exception as redirect_error:  # pragma: no cover - best-effort logging
+                print(f"Failed to create {redirect_from} redirect: {redirect_error}")
+
+        base_categories = ['Outfit Images', 'Skin Outfit Images']
+        icon_categories = ['Outfit Images', 'Icon Outfit Images']
+        square_categories = ['Outfit Images', 'Square Outfit Images']
+        raid_categories = ['Outfit Images', 'Raid Outfit Images']
+        p_categories = ['Outfit Images', 'P Outfit Images']
+        t_categories = ['Outfit Images', 'Babyl Outfit Images']
+        talk_categories = ['Outfit Images', 'Talk Outfit Images']
+        btn_categories = ['Outfit Images', 'Btn Outfit Images']
+        result_ml_categories = ['Outfit Images', 'Result ML Outfit Images']
+        result_categories = ['Outfit Images', 'Result Outfit Images']
+        jobon_z_categories = ['Outfit Images', 'Jobon z Outfit Images']
+        quest_categories = ['Outfit Images', 'Quest Outfit Images']
+        sd_categories = ['Outfit Images', 'Sprite Outfit Images']
+        pm_categories = ['Outfit Images', 'PM Outfit Images']
+        sky_compass_categories = ['Outfit Images''Sky Compass Images', 'Sky Compass Outfit Images']
+        skin_name_categories = ['Outfit Images', 'Skin Name Outfit Images']
+
+        download_tasks = []
+
+        def add_task(label, url, canonical, others, categories):
+            download_tasks.append({
+                'label': label,
+                'url': url,
+                'canonical': canonical,
+                'other_names': others,
+                'categories': categories,
+            })
+
+        base_url = (
+            'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+            f'img/sp/assets/leader/skin/{filter_id}_01.png'
+        )
+        base_redirects = [f'{skin_name} skin.png'] if skin_name else []
+        add_task('skin artwork', base_url, f'Leader_skin_{filter_id}_01.png', base_redirects, base_categories)
+
+        icon_url = (
+            'https://prd-game-a3-granbluefantasy.akamaized.net/assets_en/'
+            f'img/sp/assets/leader/m/{filter_id}_01.jpg'
+        )
+        icon_redirects = [f'{skin_name} (MC) icon.jpg'] if skin_name else []
+        add_task('mc icon', icon_url, f'Leader_m_{filter_id}_01.jpg', icon_redirects, icon_categories)
+
+        square_url = (
+            'https://prd-game-a4-granbluefantasy.akamaized.net/assets_en/'
+            f'img/sp/assets/leader/s/{filter_id}_01.jpg'
+        )
+        square_redirects = [f'{skin_name} (MC) square.jpg'] if skin_name else []
+        add_task('square (MC)', square_url, f'Leader_s_{filter_id}_01.jpg', square_redirects, square_categories)
+
+        gender_specs = [
+            {'value': 0, 'display': 'Gran'},
+            {'value': 1, 'display': 'Djeeta'},
+        ]
+
+        square_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a5-granbluefantasy.akamaized.net'}
+        p_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
+        t_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
+        talk_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        btn_hosts = {0: 'prd-game-a2-granbluefantasy.akamaized.net', 1: 'prd-game-a2-granbluefantasy.akamaized.net'}
+        result_ml_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
+        result_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
+        jobon_z_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        quest_hosts = {0: 'prd-game-a2-granbluefantasy.akamaized.net', 1: 'prd-game-a2-granbluefantasy.akamaized.net'}
+        sd_hosts = {0: 'prd-game-a2-granbluefantasy.akamaized.net', 1: 'prd-game-a2-granbluefantasy.akamaized.net'}
+        sky_hosts = {0: 'media.skycompass.io', 1: 'media.skycompass.io'}
+        pm_hosts = {0: 'prd-game-a1-granbluefantasy.akamaized.net', 1: 'prd-game-a1-granbluefantasy.akamaized.net'}
+
+        if weapon_id:
+            for spec in gender_specs:
+                gender_value = spec['value']
+                alias = spec['display']
+
+                raid_url = (
+                    'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/raid_normal/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
+                )
+                raid_other = [f'Leader_raid_normal_{filter_id}_{gender_value}_01.jpg']
+                if skin_name:
+                    raid_other.append(f'{skin_name} ({alias}) raid.jpg')
+                add_task(
+                    f'raid_normal ({alias})',
+                    raid_url,
+                    f'Leader_raid_normal_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
+                    raid_other,
+                    raid_categories,
+                )
+
+                square_host = square_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                square_variant_url = (
+                    f'https://{square_host}/assets_en/img/sp/assets/leader/s/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
+                )
+                square_variant_other = [f'Leader_s_{filter_id}_{gender_value}_01.jpg']
+                if skin_name:
+                    square_variant_other.append(f'{skin_name} ({alias}) square.jpg')
+                add_task(
+                    f'square ({alias})',
+                    square_variant_url,
+                    f'Leader_s_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
+                    square_variant_other,
+                    square_categories,
+                )
+
+                p_host = p_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                p_url = (
+                    f'https://{p_host}/assets_en/img/sp/assets/leader/p/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                p_other = [f'{skin_name} ({alias}) p.png'] if skin_name else []
+                add_task(
+                    f'p asset ({alias})',
+                    p_url,
+                    f'Leader_p_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    p_other,
+                    p_categories,
+                )
+
+                t_host = t_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                t_url = (
+                    f'https://{t_host}/assets_en/img/sp/assets/leader/t/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                t_other = [f'{skin_name} ({alias}) t.png'] if skin_name else []
+                add_task(
+                    f't asset ({alias})',
+                    t_url,
+                    f'Leader_t_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    t_other,
+                    t_categories,
+                )
+
+                talk_host = talk_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
+                talk_url = (
+                    f'https://{talk_host}/assets_en/img/sp/assets/leader/talk/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                talk_other = [f'{skin_name} ({alias}) talk.png'] if skin_name else []
+                add_task(
+                    f'talk asset ({alias})',
+                    talk_url,
+                    f'Leader_talk_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    talk_other,
+                    talk_categories,
+                )
+
+                btn_host = btn_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                btn_url = (
+                    f'https://{btn_host}/assets_en/img/sp/assets/leader/btn/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                btn_other = [f'{skin_name} ({alias}) btn.png'] if skin_name else []
+                add_task(
+                    f'btn asset ({alias})',
+                    btn_url,
+                    f'Leader_btn_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    btn_other,
+                    btn_categories,
+                )
+
+                result_ml_host = result_ml_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                result_ml_url = (
+                    f'https://{result_ml_host}/assets_en/img/sp/assets/leader/result_ml/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
+                )
+                result_ml_other = [f'{skin_name} ({alias}) result ml.jpg'] if skin_name else []
+                add_task(
+                    f'result_ml asset ({alias})',
+                    result_ml_url,
+                    f'Leader_result_ml_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
+                    result_ml_other,
+                    result_ml_categories,
+                )
+
+                result_host = result_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                result_url = (
+                    f'https://{result_host}/assets_en/img/sp/assets/leader/result/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
+                )
+                result_other = [f'{skin_name} ({alias}) result.jpg'] if skin_name else []
+                add_task(
+                    f'result asset ({alias})',
+                    result_url,
+                    f'Leader_result_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
+                    result_other,
+                    result_categories,
+                )
+
+                jobon_host = jobon_z_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
+                jobon_url = (
+                    f'https://{jobon_host}/assets_en/img/sp/assets/leader/jobon_z/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                jobon_other = [f'{skin_name} ({alias}) jobon z.png'] if skin_name else []
+                add_task(
+                    f'jobon_z asset ({alias})',
+                    jobon_url,
+                    f'Leader_jobon_z_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    jobon_other,
+                    jobon_z_categories,
+                )
+
+                quest_host = quest_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                quest_url = (
+                    f'https://{quest_host}/assets_en/img/sp/assets/leader/quest/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
+                )
+                quest_other = [f'{skin_name} ({alias}) quest.jpg'] if skin_name else []
+                add_task(
+                    f'quest asset ({alias})',
+                    quest_url,
+                    f'Leader_quest_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
+                    quest_other,
+                    quest_categories,
+                )
+
+                sd_host = sd_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                sd_url = (
+                    f'https://{sd_host}/assets_en/img/sp/assets/leader/sd/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                sd_other = [f'{skin_name} ({alias}) SD.png'] if skin_name else []
+                add_task(
+                    f'sd asset ({alias})',
+                    sd_url,
+                    f'Leader_sd_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    sd_other,
+                    sd_categories,
+                )
+
+                sky_host = sky_hosts.get(gender_value, 'media.skycompass.io')
+                sky_url = (
+                    f'https://{sky_host}/assets/customizes/jobs/1138x1138/{filter_id}_{gender_value}.png'
+                )
+                sky_other = []
+                if skin_name:
+                    sky_other.append(f'{skin_name} ({alias}).png')
+                    sky_other.append(f'{skin_name} ({alias}) HD.png')
+                add_task(
+                    f'sky compass asset ({alias})',
+                    sky_url,
+                    f'jobs_1138x1138_{filter_id}_{gender_value}.png',
+                    sky_other,
+                    sky_compass_categories,
+                )
+
+                pm_host = pm_hosts.get(gender_value, 'prd-game-a1-granbluefantasy.akamaized.net')
+                pm_url = (
+                    f'https://{pm_host}/assets_en/img/sp/assets/leader/pm/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                pm_other = [f'{skin_name} ({alias}) pm.png'] if skin_name else []
+                add_task(
+                    f'pm asset ({alias})',
+                    pm_url,
+                    f'Leader_pm_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    pm_other,
+                    pm_categories,
+                )
+        else:
+            print('No id_weapon parameter in template; skipping gendered assets.')
+
+        skin_name_url = (
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/common/teamraid/assets/skin_name/'
+            f'{filter_id}.png'
+        )
+        skin_name_other = [f'{skin_name} skin_name.png'] if skin_name else []
+        add_task('skin name asset', skin_name_url, f'Assets_skin_name_{filter_id}.png', skin_name_other, skin_name_categories)
+
+        if not download_tasks:
+            print('No ClassSkin assets queued; aborting.')
+            emit_status('completed', processed=0, uploaded=0, duplicates=0, failed=0, total_urls=0)
+            return
+
+        emit_status('downloading', successful=0, failed=0, total=len(download_tasks))
+
+        successful_downloads = []
+        failed_downloads = 0
+        for task in download_tasks:
+            print(f"Downloading {task['label']}: {task['url']}")
+            success, sha1, size, io_obj = self.get_image(task['url'])
+            if success:
+                successful_downloads.append((task, sha1, size, io_obj))
+            else:
+                failed_downloads += 1
+            emit_status('downloading', successful=len(successful_downloads), failed=failed_downloads, total=len(download_tasks))
+
+        if not successful_downloads:
+            print('All ClassSkin downloads failed; aborting.')
+            emit_status('completed', processed=0, uploaded=0, duplicates=0, failed=failed_downloads, total_urls=len(download_tasks))
+            return
+
+        emit_status('downloaded', successful=len(successful_downloads), failed=failed_downloads, total=len(download_tasks))
+
+        uploaded = 0
+        duplicates = 0
+        upload_failures = 0
+        processed = 0
+
+        for task, sha1, size, io_obj in successful_downloads:
+            check_result = self.check_image(task['canonical'], sha1, size, io_obj, task['other_names'])
+            processed += 1
+
+            if check_result is False:
+                upload_failures += 1
+                emit_status('processing', processed=processed, total=len(successful_downloads), current_image=task['canonical'])
+                continue
+
+            final_name = task['canonical'] if check_result is True else check_result
+            if check_result is True:
+                uploaded += 1
+            else:
+                duplicates += 1
+
+            self.check_image_categories(final_name, task['categories'])
+            for other_name in task['other_names']:
+                self.check_file_redirect(final_name, other_name)
+
+            time.sleep(self.delay)
+            self.check_file_double_redirect(final_name)
+
+            emit_status('processing', processed=processed, total=len(successful_downloads), current_image=final_name)
+
+        total_failed = failed_downloads + upload_failures
+
+        print(
+            'ClassSkin processing summary — '
+            f'uploaded: {uploaded}, '
+            f'duplicates: {duplicates}, '
+            f'failed: {total_failed}, '
+            f'total requested: {len(download_tasks)}.'
+        )
+
+        emit_status(
+            'completed',
+            processed=processed,
+            uploaded=uploaded,
+            duplicates=duplicates,
+            failed=total_failed,
+            total_urls=len(download_tasks),
+        )
+
+
     def check_npc(self, page):
         print('Checking page {0}...'.format(page.name))
         specs = self._get_npc_asset_specs()

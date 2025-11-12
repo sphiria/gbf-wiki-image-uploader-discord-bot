@@ -5,14 +5,20 @@ __General Rules__
 - Every user has a 5s cooldown per upload-style command, and the bot only runs one upload at a time, so kick off the next request after the previous status message completes.
 - Progress pings land every ~15s; final summaries include key counts and wiki links. If the bot runs in dry-run mode you will see a `[DRY RUN]` prefix.
 
+__Reference Lists (from `main.py`)__
+- `PAGE_TYPES`: `character`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `skill_icons`, `npc`, `artifact`, `item`, `manatura`, `shield`, `bullet`.
+- `ITEM_TYPES`: `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`.
+
 **/imgupload**
-Usage: `/imgupload page_type:<character|weapon|summon|class|skin|npc|artifact|item|manatura|shield|skill_icons|bullet> page_name:<Wiki Page Title>`
+Usage: `/imgupload page_type:<character|weapon|summon|class|class_skin|skin|npc|artifact|item|manatura|shield|skill_icons|bullet> page_name:<Wiki Page Title> filter:<id>`
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
 - Inputs:
   - `page_type` - pick the asset family; determines which CDN paths are scanned.
+    - `class_skin` - **requires** the `filter` input (numeric `id` from the `{{ClassSkin}}` template). The bot uploads the shared skin artwork plus every configured variant (MC icon/square, gendered raid/quest/talk/etc., PM, Sky Compass, skin_name, and more) under canonical `Leader_*` / `jobs_*` filenames and redirect titles such as `{name} (Gran) raid.jpg`.
     - `bullet` - searches for every `{{Bullet}}` template, reads the `id` and `name`, downloads `https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/img/sp/assets/bullet/m/<id>.jpg` and `/s/<id>.jpg`, uploads them as `Bullet_m_<id>.jpg` / `Bullet_s_<id>.jpg`, and builds redirects `<Name>_icon.jpg` / `<Name>_square.jpg`.
     - `skill_icons` - extracts ability icon parameters from the Character template (`a1_icon`, `a2_icon`, `a3_icon`, `a4_icon`, `a1a_icon`, `a2a_icon`, `a3a_icon`, `a4a_icon`, `a1b_icon`, `a2b_icon`, `a3b_icon`, `a4b_icon`) and uploads the corresponding icons from the CDN. Supports comma-separated values in icon parameters (e.g., `Ability_m_2232_3.png,Ability_m_2233_3.png`). Icons are uploaded with canonical names matching the parameter values (e.g., `Ability_m_2731_3.png`). If no icons are found in the parameters, the upload is skipped.
   - `page_name` - target wiki page (1-100 chars; rejects control characters plus #, <, >, [, ], {, }, | so titles with &, !, ?, :, /, etc. are accepted). The bot trims whitespace before running.
+  - `filter` - optional everywhere else, but mandatory for `class_skin`. When provided it’s the precise identifier passed to the upload script so only that asset subset runs.
 - Checks & Limits: role requirement, cooldown, and single-upload lock. Invalid names are rejected before any scripts run.
 - Output: background task reports "Downloading/Processing/Downloaded" states and ends with counts for images downloaded, uploaded, duplicated, failed, plus total URLs scanned. Wiki errors are echoed back in a code block.
 
