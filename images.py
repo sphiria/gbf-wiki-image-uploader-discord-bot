@@ -124,8 +124,10 @@ class WikiImages(object):
             ("s", "square", None),
             ("m", "icon", None),
         ],
+        # Ticket squares live at /ticket/{id}.jpg (no /s/), but icons are still under /m/.
         "ticket": [
             ("s", "square", ""),
+            ("m", "icon", "m"),
         ],
         "campaign": [
             ("s", "square", ""),
@@ -243,8 +245,8 @@ class WikiImages(object):
                     
         return False, "", 0, False
 
-    async def get_images_concurrent(self, urls):
-        """Download multiple images concurrently from GBF CDN using proxy"""
+    async def get_images_concurrent(self, urls, timeout_seconds=None, progress_interval=25):
+        """Download multiple images concurrently from GBF CDN using proxy with optional timeout handling."""
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
         }
@@ -309,8 +311,65 @@ class WikiImages(object):
         timeout = aiohttp.ClientTimeout(total=30)
         connector = aiohttp.TCPConnector()
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-            tasks = [download_single(session, url) for url in urls]
-            return await asyncio.gather(*tasks)
+            task_map = {asyncio.create_task(download_single(session, url)): url for url in urls}
+            completed_results = []
+            completed_count = 0
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout_seconds if timeout_seconds else None
+            
+            while task_map:
+                wait_timeout = None
+                if deadline is not None:
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        break
+                    wait_timeout = remaining
+                
+                done, _ = await asyncio.wait(
+                    task_map.keys(),
+                    timeout=wait_timeout,
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                if not done:
+                    # Timed out without any completed tasks
+                    break
+                
+                for finished in done:
+                    url = task_map.pop(finished, None)
+                    if url is None:
+                        continue
+                    
+                    try:
+                        result = finished.result()
+                    except Exception as exc:
+                        print(f"Concurrent download task error for {url}: {exc}")
+                        result = (url, False, "", 0, False)
+                    
+                    completed_results.append(result)
+                    completed_count += 1
+                    if (
+                        progress_interval
+                        and completed_count % progress_interval == 0
+                    ):
+                        print(f"Progress: {completed_count}/{len(urls)} downloads completed...")
+            
+            pending_urls = list(task_map.values())
+            if pending_urls and timeout_seconds:
+                print(
+                    f"Concurrent download timeout reached; "
+                    f"{len(pending_urls)} URLs remain for sequential fallback."
+                )
+            
+            # Cancel any pending tasks and allow them to clean up
+            for pending_task in list(task_map.keys()):
+                pending_task.cancel()
+                try:
+                    await pending_task
+                except asyncio.CancelledError:
+                    pass
+            
+            return completed_results, pending_urls
 
     def check_image(self, name, sha1, size, io, other_names, description_text=None):
         print(f"[WIKI] Starting check_image for: {name}")
@@ -2870,82 +2929,56 @@ class WikiImages(object):
             print(f"Sample URLs: {urls[:2]}...")
             
             download_results = []
+            pending_urls = []
+            concurrent_timeout = 900  # 15-minute safeguard
             
             try:
                 # Run async function in current thread
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    # Use a longer timeout to ensure all downloads complete
-                    # gather preserves order, so results[i] corresponds to urls[i]
-                    download_task = self.get_images_concurrent(urls)
-                    try:
-                        download_results = loop.run_until_complete(asyncio.wait_for(download_task, timeout=900))  # 15 minute timeout
-                    except asyncio.TimeoutError:
-                        print(f"Concurrent download timed out after 15 minutes")
-                        print("Falling back to sequential downloads for remaining URLs...")
-                        # gather was cancelled, so we have no results
-                        # We'll fall through to sequential download below
-                        download_results = None
+                    download_task = self.get_images_concurrent(
+                        urls,
+                        timeout_seconds=concurrent_timeout,
+                        progress_interval=25,
+                    )
+                    download_results, pending_urls = loop.run_until_complete(download_task)
                 finally:
                     loop.close()
                 
-                # If we got results from concurrent download, verify we have all of them
-                if download_results and len(download_results) == len(download_tasks):
-                    print(f"Download results received: {len(download_results)} results (all {len(download_tasks)} tasks)")
-                    
-                    # Results are in same order as tasks (gather preserves order)
-                    # Verify by checking URLs match
-                    for i, (url, *result) in enumerate(download_results):
-                        if url != download_tasks[i]['url']:
-                            print(f"WARNING: URL mismatch at index {i}: expected {download_tasks[i]['url']}, got {url}")
-                    
-                    successful = sum(1 for _, success, _, _, _ in download_results if success)
-                    failed = len(download_results) - successful
-                    print(f"Download Status Report:")
-                    print(f"  Successful (200): {successful}")
-                    print(f"  Failed (404/errors): {failed}")
-                    print(f"  Total attempted: {len(download_results)}")
-                    
-                    if hasattr(self, '_status_callback'):
-                        self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
-                else:
-                    # Partial results or timeout - fall back to sequential to ensure all URLs are processed
-                    if download_results:
-                        print(f"Received partial results ({len(download_results)}/{len(download_tasks)}), completing with sequential downloads...")
-                    else:
-                        print("No concurrent download results, falling back to sequential downloads...")
-                    
-                    # Build a set of URLs we already have results for
-                    completed_urls = set()
-                    if download_results:
-                        for url, *result in download_results:
-                            completed_urls.add(url)
-                    
-                    # Keep all results we have (both successful and failed)
-                    temp_results = []
-                    if download_results:
-                        for url, success, sha1, size, io_obj in download_results:
-                            temp_results.append((url, success, sha1, size, io_obj))
-                    
-                    # Then download remaining URLs sequentially to ensure ALL are processed
-                    for task in download_tasks:
-                        if task['url'] not in completed_urls:
-                            print(f"Sequentially downloading: {task['url']}")
-                            success, sha1, size, io_obj = self.get_image(task['url'])
-                            temp_results.append((task['url'], success, sha1, size, io_obj))
-                    
-                    download_results = temp_results
-                    
-                    successful = sum(1 for _, success, _, _, _ in download_results if success)
-                    failed = len(download_results) - successful
-                    print(f"Final Download Status Report:")
-                    print(f"  Successful (200): {successful}")
-                    print(f"  Failed (404/errors): {failed}")
-                    print(f"  Total attempted: {len(download_results)}")
-                    
-                    if hasattr(self, '_status_callback'):
-                        self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
+                completed_url_set = {url for url, _, _, _, _ in download_results}
+                
+                if pending_urls:
+                    print(f"Sequentially downloading remaining {len(pending_urls)} URLs after timeout...")
+                    for url in pending_urls:
+                        if url in completed_url_set:
+                            continue
+                        success, sha1, size, io_obj = self.get_image(url)
+                        download_results.append((url, success, sha1, size, io_obj))
+                
+                total_requested = len(download_tasks)
+                total_received = len(download_results)
+                
+                if total_received < total_requested:
+                    # Fill any missing URLs with explicit failures to keep counts honest
+                    task_urls = {task['url'] for task in download_tasks}
+                    missing_urls = task_urls - {url for url, *_ in download_results}
+                    if missing_urls:
+                        print(f"WARNING: Missing results for {len(missing_urls)} URLs; marking as failed.")
+                        for url in missing_urls:
+                            download_results.append((url, False, "", 0, False))
+                
+                successful = sum(1 for _, success, _, _, _ in download_results if success)
+                failed = len(download_results) - successful
+                
+                print("Download Status Report:")
+                print(f"  Successful (200): {successful}")
+                print(f"  Failed (404/errors): {failed}")
+                print(f"  Total attempted: {len(download_results)}")
+                print(f"  Total URLs requested: {len(download_tasks)}")
+                
+                if hasattr(self, '_status_callback'):
+                    self._status_callback("downloaded", successful=successful, failed=failed, total=len(download_results))
                         
             except Exception as e:
                 print(f"Concurrent download failed: {e}")
