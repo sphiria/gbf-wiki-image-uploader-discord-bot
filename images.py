@@ -124,8 +124,10 @@ class WikiImages(object):
             ("s", "square", None),
             ("m", "icon", None),
         ],
+        # Ticket squares live at /ticket/{id}.jpg (no /s/), but icons are still under /m/.
         "ticket": [
             ("s", "square", ""),
+            ("m", "icon", "m"),
         ],
         "campaign": [
             ("s", "square", ""),
