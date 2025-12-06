@@ -1109,6 +1109,7 @@ async def bannerupload(
             uploaded = status_info.get("uploaded", 0)
             failed = status_info.get("failed", 0)
             downloaded_files = status_info.get("downloaded_files") or []
+            banner_duplicates = status_info.get("banner_duplicates") or []
 
             summary_lines = [
                 f"{dry_run_prefix}Banner upload completed for `{cleaned_banner_id}` in {elapsed}s!",
@@ -1127,6 +1128,30 @@ async def bannerupload(
                     for file_name in unique_files
                 )
                 summary_lines.extend(link_lines)
+
+            if banner_duplicates:
+                base_url = "https://gbf.wiki/File:"
+                summary_lines.append("")
+                summary_lines.append("**Duplicates handled:**")
+                for entry in banner_duplicates:
+                    requested = entry.get("requested")
+                    canonical = entry.get("canonical")
+                    duplicates = entry.get("duplicates") or []
+                    redirect_link = (
+                        f"<{base_url}{requested.replace(' ', '_')}>"
+                        if requested
+                        else "N/A"
+                    )
+                    dupe_links = ", ".join(
+                        f"<{base_url}{name.replace(' ', '_')}>"
+                        for name in duplicates
+                    ) if duplicates else "None listed"
+                    summary_lines.append(
+                        f"- `{requested}` redirected to `{canonical}`"
+                    )
+                    summary_lines.append(
+                        f"  Redirect: {redirect_link}; Dupes: {dupe_links}"
+                    )
 
             await msg.edit(content="\n".join(summary_lines))
         else:

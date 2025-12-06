@@ -7,6 +7,7 @@ import mwparserfromhell
 import urllib.request
 import re
 import time
+from datetime import datetime
 import hashlib
 import asyncio
 import aiohttp
@@ -461,6 +462,83 @@ class WikiImages(object):
                 return False
             return True
 
+    def _find_image_duplicates_by_hash(self, sha1, size):
+        """Return non-archived File: pages that match the given sha1/size."""
+        try:
+            wiki_duplicates = list(self.wiki.allimages(minsize=size, maxsize=size, sha1=sha1))
+            print(f"Found {len(wiki_duplicates)} potential duplicates (raw) for hash {sha1}")
+        except Exception as e:
+            print(f"Wiki API call failed while checking duplicates: {e}")
+            return []
+
+        duplicates = []
+        for wiki_duplicate in wiki_duplicates:
+            imageinfo = getattr(wiki_duplicate, 'imageinfo', {}) or {}
+            image_url = imageinfo.get('url')
+            if image_url and ('/archive/' in image_url):
+                continue
+            duplicates.append(wiki_duplicate)
+
+        print(f"{len(duplicates)} non-archived duplicates remain after filtering")
+        return duplicates
+
+    @staticmethod
+    def _parse_image_timestamp(imageinfo):
+        """Parse an imageinfo timestamp into a sortable value; fallback to name ordering."""
+        timestamp = (imageinfo or {}).get('timestamp')
+        if not timestamp:
+            return None
+        try:
+            # MediaWiki returns ISO 8601 with Z; normalize for datetime parsing.
+            normalized = timestamp.replace('Z', '+00:00')
+            return datetime.fromisoformat(normalized)
+        except Exception:
+            return None
+
+    def _redirect_banner_to_earliest_duplicate(self, requested_name, duplicates):
+        """
+        When multiple duplicates already exist, pick the earliest upload and
+        create a redirect from the requested banner name to that canonical file.
+        """
+        if not duplicates:
+            return None, []
+
+        def sort_key(dup):
+            info = getattr(dup, 'imageinfo', {}) or {}
+            parsed_ts = self._parse_image_timestamp(info)
+            # If timestamp is missing, place it at end but keep deterministic ordering by name.
+            return (parsed_ts or datetime.max, dup.name.lower())
+
+        sorted_dupes = sorted(duplicates, key=sort_key)
+        canonical_page = sorted_dupes[0]
+        canonical_name = canonical_page.name
+        if canonical_name.lower().startswith('file:'):
+            canonical_name = canonical_name[5:]
+
+        requested_clean = requested_name.replace("_", " ").strip()
+        canonical_clean = canonical_name.replace("_", " ").strip()
+
+        if requested_clean.lower() != canonical_clean.lower():
+            print(
+                f"Multiple duplicates found for {requested_name}. "
+                f"Redirecting to earliest upload: {canonical_name}"
+            )
+            self.check_file_redirect(canonical_name, requested_name)
+        else:
+            print(
+                f"Multiple duplicates found for {requested_name}, "
+                f"requested name already matches earliest upload."
+            )
+
+        all_duplicate_names = []
+        for dup in sorted_dupes:
+            dup_name = dup.name
+            if dup_name.lower().startswith('file:'):
+                dup_name = dup_name[5:]
+            all_duplicate_names.append(dup_name)
+
+        return canonical_name, all_duplicate_names
+
     def investigate_backlinks(self, backlinks, source, target):
         print('Investigating "{0}" backlinks...'.format(source))
         source = source.replace("_", " ")
@@ -738,6 +816,7 @@ class WikiImages(object):
         processed = 0
         uploaded = 0
         failed = 0
+        banner_duplicates = []
 
         emit_status(
             "processing",
@@ -746,6 +825,7 @@ class WikiImages(object):
             failed=failed,
             total=total,
             current_identifier=None,
+            banner_duplicates=banner_duplicates,
         )
 
         for index in range(1, max_index + 1):
@@ -760,18 +840,38 @@ class WikiImages(object):
                 print(f'No gacha banner found for index {index} ({file_name}).')
                 failed += 1
             else:
-                other_names = []
-                check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
-                if check_result is False:
-                    print(f'Checking image {file_name} failed! Skipping...')
-                    failed += 1
+                duplicates = self._find_image_duplicates_by_hash(sha1, size)
+                if len(duplicates) >= 1:
+                    final_name, duplicate_names = self._redirect_banner_to_earliest_duplicate(
+                        file_name, duplicates
+                    )
+                    if final_name:
+                        banner_duplicates.append(
+                            {
+                                "requested": file_name,
+                                "canonical": final_name,
+                                "duplicates": duplicate_names,
+                            }
+                        )
+                        uploaded += 1
+                        time.sleep(self.delay)
+                        self.check_file_double_redirect(final_name)
+                    else:
+                        print(f'Failed to resolve duplicates for {file_name}.')
+                        failed += 1
                 else:
-                    final_name = file_name if check_result is True else check_result
-                    for other_name in other_names:
-                        self.check_file_redirect(final_name, other_name)
-                    time.sleep(self.delay)
-                    self.check_file_double_redirect(final_name)
-                    uploaded += 1
+                    other_names = []
+                    check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
+                    if check_result is False:
+                        print(f'Checking image {file_name} failed! Skipping...')
+                        failed += 1
+                    else:
+                        final_name = file_name if check_result is True else check_result
+                        for other_name in other_names:
+                            self.check_file_redirect(final_name, other_name)
+                        time.sleep(self.delay)
+                        self.check_file_double_redirect(final_name)
+                        uploaded += 1
 
             processed += 1
 
@@ -781,6 +881,7 @@ class WikiImages(object):
                 "failed": failed,
                 "total": total,
                 "current_identifier": current_identifier,
+                "banner_duplicates": banner_duplicates,
             }
             if final_name:
                 emit_kwargs["downloaded_file"] = final_name
@@ -794,6 +895,7 @@ class WikiImages(object):
             failed=failed,
             total=total,
             current_identifier=None,
+            banner_duplicates=banner_duplicates,
         )
 
     def _process_item_variant(self, item_type, item_id, item_name, variant, redirect_suffix, cdn_variant=None):
