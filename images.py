@@ -523,7 +523,11 @@ class WikiImages(object):
                 f"Multiple duplicates found for {requested_name}. "
                 f"Redirecting to earliest upload: {canonical_name}"
             )
-            self.check_file_redirect(canonical_name, requested_name)
+            try:
+                self.check_file_redirect(canonical_name, requested_name)
+            except Exception as exc:
+                print(f"Failed to create redirect {requested_name} -> {canonical_name}: {exc}")
+                return None, []
         else:
             print(
                 f"Multiple duplicates found for {requested_name}, "
@@ -840,38 +844,42 @@ class WikiImages(object):
                 print(f'No gacha banner found for index {index} ({file_name}).')
                 failed += 1
             else:
-                duplicates = self._find_image_duplicates_by_hash(sha1, size)
-                if len(duplicates) >= 1:
-                    final_name, duplicate_names = self._redirect_banner_to_earliest_duplicate(
-                        file_name, duplicates
-                    )
-                    if final_name:
-                        banner_duplicates.append(
-                            {
-                                "requested": file_name,
-                                "canonical": final_name,
-                                "duplicates": duplicate_names,
-                            }
+                try:
+                    duplicates = self._find_image_duplicates_by_hash(sha1, size)
+                    if len(duplicates) > 1:
+                        final_name, duplicate_names = self._redirect_banner_to_earliest_duplicate(
+                            file_name, duplicates
                         )
-                        uploaded += 1
-                        time.sleep(self.delay)
-                        self.check_file_double_redirect(final_name)
+                        if final_name:
+                            banner_duplicates.append(
+                                {
+                                    "requested": file_name,
+                                    "canonical": final_name,
+                                    "duplicates": duplicate_names,
+                                }
+                            )
+                            uploaded += 1
+                            time.sleep(self.delay)
+                            self.check_file_double_redirect(final_name)
+                        else:
+                            print(f'Failed to resolve duplicates for {file_name}.')
+                            failed += 1
                     else:
-                        print(f'Failed to resolve duplicates for {file_name}.')
-                        failed += 1
-                else:
-                    other_names = []
-                    check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
-                    if check_result is False:
-                        print(f'Checking image {file_name} failed! Skipping...')
-                        failed += 1
-                    else:
-                        final_name = file_name if check_result is True else check_result
-                        for other_name in other_names:
-                            self.check_file_redirect(final_name, other_name)
-                        time.sleep(self.delay)
-                        self.check_file_double_redirect(final_name)
-                        uploaded += 1
+                        other_names = []
+                        check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
+                        if check_result is False:
+                            print(f'Checking image {file_name} failed! Skipping...')
+                            failed += 1
+                        else:
+                            final_name = file_name if check_result is True else check_result
+                            for other_name in other_names:
+                                self.check_file_redirect(final_name, other_name)
+                            time.sleep(self.delay)
+                            self.check_file_double_redirect(final_name)
+                            uploaded += 1
+                except Exception as exc:
+                    print(f'Error while processing {file_name}: {exc}')
+                    failed += 1
 
             processed += 1
 
