@@ -841,7 +841,7 @@ class WikiImages(object):
                 failed += 1
             else:
                 duplicates = self._find_image_duplicates_by_hash(sha1, size)
-                if len(duplicates) > 1:
+                if len(duplicates) >= 1:
                     final_name, duplicate_names = self._redirect_banner_to_earliest_duplicate(
                         file_name, duplicates
                     )
@@ -857,7 +857,7 @@ class WikiImages(object):
                         time.sleep(self.delay)
                         self.check_file_double_redirect(final_name)
                     else:
-                        print(f'Failed to resolve multiple duplicates for {file_name}.')
+                        print(f'Failed to resolve duplicates for {file_name}.')
                         failed += 1
                 else:
                     other_names = []
