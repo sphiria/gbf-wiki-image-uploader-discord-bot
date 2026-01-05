@@ -2836,37 +2836,13 @@ class WikiImages(object):
             'quest':         ['jpg', '_quest',  ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Quest Outfit Character Images']],
             'qm':            ['png', '_qm',     ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'QM Outfit Character Images']],
 
-            # 'f_skin': [
-            #     'jpg', 
-            #     '_tall',
-            #     [
-            #         # Shorthand variants (uncap → elements 1–6)
-            #         '_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
-            #         '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
-
-            #         # Expanded variants for _01 (male then female, fire–dark order)
-            #         '_01_0_s1', '_01_0_s2', '_01_0_s3', '_01_0_s4', '_01_0_s5', '_01_0_s6',
-            #         '_01_1_s1', '_01_1_s2', '_01_1_s3', '_01_1_s4', '_01_1_s5', '_01_1_s6',
-
-            #         # Expanded variants for _81 (male then female, fire–dark order)
-            #         '_81_0_s1', '_81_0_s2', '_81_0_s3', '_81_0_s4', '_81_0_s5', '_81_0_s6',
-            #         '_81_1_s1', '_81_1_s2', '_81_1_s3', '_81_1_s4', '_81_1_s5', '_81_1_s6'
-            #     ],
-            #     [
-            #         # Shorthand element tags for _01 and _81
-            #         '_fire', '_water', '_earth', '_wind', '_light', '_dark',
-            #         '_alt_fire', '_alt_water', '_alt_earth', '_alt_wind', '_alt_light', '_alt_dark',
-                    
-            #         # Gendered element tags for _01
-            #         '_alt0_fire', '_alt0_water', '_alt0_earth', '_alt0_wind', '_alt0_light', '_alt0_dark',
-            #         '_alt1_fire', '_alt1_water', '_alt1_earth', '_alt1_wind', '_alt1_light', '_alt1_dark',
-
-            #         # Gendered element tags for _81
-            #         '_alt0_fire_81', '_alt0_water_81', '_alt0_earth_81', '_alt0_wind_81', '_alt0_light_81', '_alt0_dark_81',
-            #         '_alt1_fire_81', '_alt1_water_81', '_alt1_earth_81', '_alt1_wind_81', '_alt1_light_81', '_alt1_dark_81'
-            #     ],
-            #     ['Outfit Images', 'Full F_Skin Images']
-            # ],
+            'f_skin': [
+                'jpg',
+                '_tall',
+                ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6'],
+                ['fire', 'water', 'earth', 'wind', 'light', 'dark'],
+                ['Outfit Images', 'Tall Skin Character Images']
+            ],
 
             #                                      ['Outfit Images', 'Tall Outfit Images' ]],
             # 'sd_ability':    ['png', '',   ['_01_ability', '_01_stbwait', '_01_attack', '_01_double', '_01_vs_motion_1', '_01_vs_motion_2', '_01_vs_motion_3', '_ab_motion'], [' SD_ability', ' SD_stbwait', ' SD_attack', ' SD_double', ' SD_vs_motion_1', ' SD_vs_motion_2', ' SD_vs_motion_3', ' SD_ab_motion'], ['Outfit Images', 'Skin Outfit Images'  ]],
@@ -3331,7 +3307,7 @@ class WikiImages(object):
                             section = 'sp'
                         elif section == 'f_skin': # for tall element skins
                             url = (
-                                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                                'https://prd-game-a2-granbluefantasy.akamaized.net/assets_en/'
                                 'img/sp/assets/{0}/f/skin/{1}{2}.{3}'
                             ).format(
                                 asset_type,
@@ -3353,35 +3329,56 @@ class WikiImages(object):
 
                         success, sha1, size, io = self.get_image(url)
                         if success:
-                            true_name = "{0} {1} {2}{3}.{4}".format(
-                                asset_type.capitalize(),
-                                section,
-                                asset_id,
-                                params[2][version],
-                                params[0]
-                            )
+                            if section == 'f_skin':
+                                true_name = "{0}_f_skin_{1}{2}.{3}".format(
+                                    asset_type.lower(),
+                                    asset_id,
+                                    params[2][version],
+                                    params[0]
+                                )
+                            else:
+                                true_name = "{0} {1} {2}{3}.{4}".format(
+                                    asset_type.capitalize(),
+                                    section,
+                                    asset_id,
+                                    params[2][version],
+                                    params[0]
+                                )
                             other_names = []
 
-                            if (versions < 2) or (params[3][version] == 'A'):
-                                other_names.append(
-                                    '{0}_({1}){2}.{3}'.format(
-                                        asset_name,
-                                        base_name,
-                                        params[1],
-                                        params[0]
+                            if section == 'f_skin':
+                                element_label = params[3][version] if version < len(params[3]) else ''
+                                if element_label:
+                                    other_names.append(
+                                        '{0}_({1}){2}_{3}.{4}'.format(
+                                            asset_name,
+                                            base_name,
+                                            params[1],
+                                            element_label,
+                                            params[0]
+                                        )
                                     )
-                                )
-                            #  'skin':          ['png', '_skin',   ['_01'], ['A'], ['Outfit Images', 'Skin Outfit Images'  ]],
-                            if (versions > 1):
-                                other_names.append(
-                                    '{0}_({1}){2}{3}.{4}'.format(
-                                        asset_name,
-                                        base_name,
-                                        params[1],
-                                        (' ' if params[1] == '' else '') + params[3][version], # removed space from first quote
-                                        params[0]
+                            else:
+                                if (versions < 2) or (params[3][version] == 'A'):
+                                    other_names.append(
+                                        '{0}_({1}){2}.{3}'.format(
+                                            asset_name,
+                                            base_name,
+                                            params[1],
+                                            params[0]
+                                        )
                                     )
-                                )
+                                #  'skin':          ['png', '_skin',   ['_01'], ['A'], ['Outfit Images', 'Skin Outfit Images'  ]],
+                                if (versions > 1):
+                                    other_names.append(
+                                        '{0}_({1}){2}{3}.{4}'.format(
+                                            asset_name,
+                                            base_name,
+                                            params[1],
+                                            (' ' if params[1] == '' else '') + params[3][version], # removed space from first quote
+                                            params[0]
+                                        )
+                                    )
 
                             # true_name may be changed by
                             check_image_result = self.check_image(true_name, sha1, size, io, other_names)
