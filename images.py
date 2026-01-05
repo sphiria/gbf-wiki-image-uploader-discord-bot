@@ -523,7 +523,11 @@ class WikiImages(object):
                 f"Multiple duplicates found for {requested_name}. "
                 f"Redirecting to earliest upload: {canonical_name}"
             )
-            self.check_file_redirect(canonical_name, requested_name)
+            try:
+                self.check_file_redirect(canonical_name, requested_name)
+            except Exception as exc:
+                print(f"Failed to create redirect {requested_name} -> {canonical_name}: {exc}")
+                return None, []
         else:
             print(
                 f"Multiple duplicates found for {requested_name}, "
@@ -840,38 +844,42 @@ class WikiImages(object):
                 print(f'No gacha banner found for index {index} ({file_name}).')
                 failed += 1
             else:
-                duplicates = self._find_image_duplicates_by_hash(sha1, size)
-                if len(duplicates) >= 1:
-                    final_name, duplicate_names = self._redirect_banner_to_earliest_duplicate(
-                        file_name, duplicates
-                    )
-                    if final_name:
-                        banner_duplicates.append(
-                            {
-                                "requested": file_name,
-                                "canonical": final_name,
-                                "duplicates": duplicate_names,
-                            }
+                try:
+                    duplicates = self._find_image_duplicates_by_hash(sha1, size)
+                    if len(duplicates) > 1:
+                        final_name, duplicate_names = self._redirect_banner_to_earliest_duplicate(
+                            file_name, duplicates
                         )
-                        uploaded += 1
-                        time.sleep(self.delay)
-                        self.check_file_double_redirect(final_name)
+                        if final_name:
+                            banner_duplicates.append(
+                                {
+                                    "requested": file_name,
+                                    "canonical": final_name,
+                                    "duplicates": duplicate_names,
+                                }
+                            )
+                            uploaded += 1
+                            time.sleep(self.delay)
+                            self.check_file_double_redirect(final_name)
+                        else:
+                            print(f'Failed to resolve duplicates for {file_name}.')
+                            failed += 1
                     else:
-                        print(f'Failed to resolve duplicates for {file_name}.')
-                        failed += 1
-                else:
-                    other_names = []
-                    check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
-                    if check_result is False:
-                        print(f'Checking image {file_name} failed! Skipping...')
-                        failed += 1
-                    else:
-                        final_name = file_name if check_result is True else check_result
-                        for other_name in other_names:
-                            self.check_file_redirect(final_name, other_name)
-                        time.sleep(self.delay)
-                        self.check_file_double_redirect(final_name)
-                        uploaded += 1
+                        other_names = []
+                        check_result = self.check_image(file_name, sha1, size, io_obj, other_names)
+                        if check_result is False:
+                            print(f'Checking image {file_name} failed! Skipping...')
+                            failed += 1
+                        else:
+                            final_name = file_name if check_result is True else check_result
+                            for other_name in other_names:
+                                self.check_file_redirect(final_name, other_name)
+                            time.sleep(self.delay)
+                            self.check_file_double_redirect(final_name)
+                            uploaded += 1
+                except Exception as exc:
+                    print(f'Error while processing {file_name}: {exc}')
+                    failed += 1
 
             processed += 1
 
@@ -2828,37 +2836,13 @@ class WikiImages(object):
             'quest':         ['jpg', '_quest',  ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Quest Outfit Character Images']],
             'qm':            ['png', '_qm',     ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'QM Outfit Character Images']],
 
-            # 'f_skin': [
-            #     'jpg', 
-            #     '_tall',
-            #     [
-            #         # Shorthand variants (uncap → elements 1–6)
-            #         '_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
-            #         '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
-
-            #         # Expanded variants for _01 (male then female, fire–dark order)
-            #         '_01_0_s1', '_01_0_s2', '_01_0_s3', '_01_0_s4', '_01_0_s5', '_01_0_s6',
-            #         '_01_1_s1', '_01_1_s2', '_01_1_s3', '_01_1_s4', '_01_1_s5', '_01_1_s6',
-
-            #         # Expanded variants for _81 (male then female, fire–dark order)
-            #         '_81_0_s1', '_81_0_s2', '_81_0_s3', '_81_0_s4', '_81_0_s5', '_81_0_s6',
-            #         '_81_1_s1', '_81_1_s2', '_81_1_s3', '_81_1_s4', '_81_1_s5', '_81_1_s6'
-            #     ],
-            #     [
-            #         # Shorthand element tags for _01 and _81
-            #         '_fire', '_water', '_earth', '_wind', '_light', '_dark',
-            #         '_alt_fire', '_alt_water', '_alt_earth', '_alt_wind', '_alt_light', '_alt_dark',
-                    
-            #         # Gendered element tags for _01
-            #         '_alt0_fire', '_alt0_water', '_alt0_earth', '_alt0_wind', '_alt0_light', '_alt0_dark',
-            #         '_alt1_fire', '_alt1_water', '_alt1_earth', '_alt1_wind', '_alt1_light', '_alt1_dark',
-
-            #         # Gendered element tags for _81
-            #         '_alt0_fire_81', '_alt0_water_81', '_alt0_earth_81', '_alt0_wind_81', '_alt0_light_81', '_alt0_dark_81',
-            #         '_alt1_fire_81', '_alt1_water_81', '_alt1_earth_81', '_alt1_wind_81', '_alt1_light_81', '_alt1_dark_81'
-            #     ],
-            #     ['Outfit Images', 'Full F_Skin Images']
-            # ],
+            'f_skin': [
+                'jpg',
+                '_tall',
+                ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6'],
+                ['fire', 'water', 'earth', 'wind', 'light', 'dark'],
+                ['Outfit Images', 'Tall Skin Character Images']
+            ],
 
             #                                      ['Outfit Images', 'Tall Outfit Images' ]],
             # 'sd_ability':    ['png', '',   ['_01_ability', '_01_stbwait', '_01_attack', '_01_double', '_01_vs_motion_1', '_01_vs_motion_2', '_01_vs_motion_3', '_ab_motion'], [' SD_ability', ' SD_stbwait', ' SD_attack', ' SD_double', ' SD_vs_motion_1', ' SD_vs_motion_2', ' SD_vs_motion_3', ' SD_ab_motion'], ['Outfit Images', 'Skin Outfit Images'  ]],
@@ -3284,6 +3268,18 @@ class WikiImages(object):
         pagetext = page.text()
         wikicode = mwparserfromhell.parse(pagetext)
         templates = wikicode.filter_templates()
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        successful_downloads = 0
+        download_failures = 0
+        upload_failures = 0
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        total_urls = 0
+        emit_status('downloading', successful=0, failed=0, total=0)
         for template in templates:
             template_name = template.name.strip()
 
@@ -3323,7 +3319,7 @@ class WikiImages(object):
                             section = 'sp'
                         elif section == 'f_skin': # for tall element skins
                             url = (
-                                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                                'https://prd-game-a2-granbluefantasy.akamaized.net/assets_en/'
                                 'img/sp/assets/{0}/f/skin/{1}{2}.{3}'
                             ).format(
                                 asset_type,
@@ -3343,48 +3339,89 @@ class WikiImages(object):
                                 params[0]
                             )
 
+                        total_urls += 1
                         success, sha1, size, io = self.get_image(url)
                         if success:
-                            true_name = "{0} {1} {2}{3}.{4}".format(
-                                asset_type.capitalize(),
-                                section,
-                                asset_id,
-                                params[2][version],
-                                params[0]
-                            )
+                            successful_downloads += 1
+                        else:
+                            download_failures += 1
+                        emit_status(
+                            'downloading',
+                            successful=successful_downloads,
+                            failed=download_failures,
+                            total=total_urls
+                        )
+                        if success:
+                            if section == 'f_skin':
+                                true_name = "{0}_f_skin_{1}{2}.{3}".format(
+                                    asset_type.lower(),
+                                    asset_id,
+                                    params[2][version],
+                                    params[0]
+                                )
+                            else:
+                                true_name = "{0} {1} {2}{3}.{4}".format(
+                                    asset_type.capitalize(),
+                                    section,
+                                    asset_id,
+                                    params[2][version],
+                                    params[0]
+                                )
                             other_names = []
 
-                            if (versions < 2) or (params[3][version] == 'A'):
-                                other_names.append(
-                                    '{0}_({1}){2}.{3}'.format(
-                                        asset_name,
-                                        base_name,
-                                        params[1],
-                                        params[0]
+                            if section == 'f_skin':
+                                element_label = params[3][version] if version < len(params[3]) else ''
+                                if element_label:
+                                    other_names.append(
+                                        '{0}_({1}){2}_{3}.{4}'.format(
+                                            asset_name,
+                                            base_name,
+                                            params[1],
+                                            element_label,
+                                            params[0]
+                                        )
                                     )
-                                )
-                            #  'skin':          ['png', '_skin',   ['_01'], ['A'], ['Outfit Images', 'Skin Outfit Images'  ]],
-                            if (versions > 1):
-                                other_names.append(
-                                    '{0}_({1}){2}{3}.{4}'.format(
-                                        asset_name,
-                                        base_name,
-                                        params[1],
-                                        (' ' if params[1] == '' else '') + params[3][version], # removed space from first quote
-                                        params[0]
+                            else:
+                                if (versions < 2) or (params[3][version] == 'A'):
+                                    other_names.append(
+                                        '{0}_({1}){2}.{3}'.format(
+                                            asset_name,
+                                            base_name,
+                                            params[1],
+                                            params[0]
+                                        )
                                     )
-                                )
+                                #  'skin':          ['png', '_skin',   ['_01'], ['A'], ['Outfit Images', 'Skin Outfit Images'  ]],
+                                if (versions > 1):
+                                    other_names.append(
+                                        '{0}_({1}){2}{3}.{4}'.format(
+                                            asset_name,
+                                            base_name,
+                                            params[1],
+                                            (' ' if params[1] == '' else '') + params[3][version], # removed space from first quote
+                                            params[0]
+                                        )
+                                    )
 
                             # true_name may be changed by
                             check_image_result = self.check_image(true_name, sha1, size, io, other_names)
                             if check_image_result == True:
-                                pass
+                                uploaded += 1
                             elif check_image_result == False:
+                                upload_failures += 1
                                 print('Checking image {0} failed! Skipping...'.format(true_name))
                                 version += 1
+                                processed += 1
+                                emit_status(
+                                    'processing',
+                                    processed=processed,
+                                    total=successful_downloads,
+                                    current_image=true_name
+                                )
                                 continue
                             else:
                                 true_name = check_image_result
+                                duplicates += 1
                             self.check_image_categories(true_name, params[4])
                             for other_name in other_names:
                                 self.check_file_redirect(true_name, other_name)
@@ -3393,8 +3430,25 @@ class WikiImages(object):
 
                             self.check_file_double_redirect(true_name)
 
+                            processed += 1
+                            emit_status(
+                                'processing',
+                                processed=processed,
+                                total=successful_downloads,
+                                current_image=true_name
+                            )
 
                         version += 1
+        total_failed = download_failures + upload_failures
+        emit_status(
+            'completed',
+            processed=processed,
+            uploaded=uploaded,
+            duplicates=duplicates,
+            failed=total_failed,
+            total_urls=total_urls,
+            successful=successful_downloads
+        )
 
     def check_characters(self, category, resume_from=''):
         resume = len(resume_from) > 0
