@@ -3268,6 +3268,18 @@ class WikiImages(object):
         pagetext = page.text()
         wikicode = mwparserfromhell.parse(pagetext)
         templates = wikicode.filter_templates()
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        successful_downloads = 0
+        download_failures = 0
+        upload_failures = 0
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        total_urls = 0
+        emit_status('downloading', successful=0, failed=0, total=0)
         for template in templates:
             template_name = template.name.strip()
 
@@ -3327,7 +3339,18 @@ class WikiImages(object):
                                 params[0]
                             )
 
+                        total_urls += 1
                         success, sha1, size, io = self.get_image(url)
+                        if success:
+                            successful_downloads += 1
+                        else:
+                            download_failures += 1
+                        emit_status(
+                            'downloading',
+                            successful=successful_downloads,
+                            failed=download_failures,
+                            total=total_urls
+                        )
                         if success:
                             if section == 'f_skin':
                                 true_name = "{0}_f_skin_{1}{2}.{3}".format(
@@ -3383,13 +3406,22 @@ class WikiImages(object):
                             # true_name may be changed by
                             check_image_result = self.check_image(true_name, sha1, size, io, other_names)
                             if check_image_result == True:
-                                pass
+                                uploaded += 1
                             elif check_image_result == False:
+                                upload_failures += 1
                                 print('Checking image {0} failed! Skipping...'.format(true_name))
                                 version += 1
+                                processed += 1
+                                emit_status(
+                                    'processing',
+                                    processed=processed,
+                                    total=successful_downloads,
+                                    current_image=true_name
+                                )
                                 continue
                             else:
                                 true_name = check_image_result
+                                duplicates += 1
                             self.check_image_categories(true_name, params[4])
                             for other_name in other_names:
                                 self.check_file_redirect(true_name, other_name)
@@ -3398,8 +3430,25 @@ class WikiImages(object):
 
                             self.check_file_double_redirect(true_name)
 
+                            processed += 1
+                            emit_status(
+                                'processing',
+                                processed=processed,
+                                total=successful_downloads,
+                                current_image=true_name
+                            )
 
                         version += 1
+        total_failed = download_failures + upload_failures
+        emit_status(
+            'completed',
+            processed=processed,
+            uploaded=uploaded,
+            duplicates=duplicates,
+            failed=total_failed,
+            total_urls=total_urls,
+            successful=successful_downloads
+        )
 
     def check_characters(self, category, resume_from=''):
         resume = len(resume_from) > 0
