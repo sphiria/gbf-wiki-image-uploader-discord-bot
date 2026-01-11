@@ -3303,6 +3303,14 @@ class WikiImages(object):
                     base_name = param.value.strip()
                 elif param_name == 'desc':
                     asset_name = param.value.strip()
+            if asset_name and base_name:
+                redirect_from = f"{asset_name} ({base_name})"
+                redirect_target = f"{base_name}#{asset_name}"
+                try:
+                    print(f"Ensuring page redirect: {redirect_from} -> {redirect_target}")
+                    self.check_redirect(redirect_target, redirect_from)
+                except Exception as redirect_error:  # pragma: no cover - best-effort logging
+                    print(f"Failed to create {redirect_from} redirect: {redirect_error}")
             for asset_id in asset_ids:
                 for section, params in paths.items():
                     versions = len(params[2])
