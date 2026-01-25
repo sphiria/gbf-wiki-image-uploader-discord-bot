@@ -157,7 +157,7 @@ async def edit_or_followup_long_message(
     chunks = chunk_text_for_discord(content, limit=2000)
     await msg.edit(content=chunks[0] if chunks else "")
     for chunk in chunks[1:]:
-        await interaction.followup.send(content=chunk)
+        await msg.channel.send(content=chunk)
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
