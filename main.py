@@ -121,6 +121,44 @@ def normalize_item_type_input(raw_value: str | None) -> str:
     """
     return (raw_value or "").strip().lower()
 
+def chunk_text_for_discord(content: str, limit: int = 2000) -> list[str]:
+    """Split content into Discord-safe chunks, preserving line breaks when possible."""
+    if len(content) <= limit:
+        return [content]
+
+    chunks: list[str] = []
+    current = ""
+
+    for line in content.split("\n"):
+        candidate = line if not current else f"{current}\n{line}"
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+
+        if current:
+            chunks.append(current)
+            current = ""
+
+        while len(line) > limit:
+            chunks.append(line[:limit])
+            line = line[limit:]
+
+        current = line
+
+    if current or not chunks:
+        chunks.append(current)
+
+    return chunks
+
+async def edit_or_followup_long_message(
+    msg: discord.Message, interaction: discord.Interaction, content: str
+) -> None:
+    """Edit the original message, then send follow-ups if content exceeds 2000 chars."""
+    chunks = chunk_text_for_discord(content, limit=2000)
+    await msg.edit(content=chunks[0] if chunks else "")
+    for chunk in chunks[1:]:
+        await interaction.followup.send(content=chunk)
+
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
     Validate a wiki page name string.
@@ -981,7 +1019,7 @@ async def statusupload(
                 )
                 summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines))
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
             await msg.edit(
                 content=(
@@ -1153,7 +1191,7 @@ async def bannerupload(
                         f"  Redirect: {redirect_link}; Dupes: {dupe_links}"
                     )
 
-            await msg.edit(content="\n".join(summary_lines))
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
             await msg.edit(
                 content=f"{dry_run_prefix}Banner upload failed for `{cleaned_banner_id}` in {elapsed}s!"
@@ -1353,7 +1391,7 @@ async def itemupload(
 
             summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines))
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
             await msg.edit(
                 content=(
@@ -1522,7 +1560,7 @@ if ENABLE_EVENT_UPLOAD:
                         )
                     summary_lines.extend(link_lines)
 
-                await msg.edit(content="\n".join(summary_lines))
+                await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
             else:
                 await msg.edit(
                     content=(
@@ -1687,7 +1725,7 @@ async def enemyupload(
                 if len(link_lines) > 2:
                     summary_lines.extend(link_lines)
 
-            await msg.edit(content="\n".join(summary_lines))
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
             await msg.edit(
                 content=(
