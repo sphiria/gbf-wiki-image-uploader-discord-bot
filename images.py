@@ -136,6 +136,7 @@ class WikiImages(object):
     }
 
     EVENT_BANNER_MAX_INDEX = 20
+    EVENT_TEASER_MAX_INDEX = 15
 
     def __init__(self):
         """
@@ -1891,6 +1892,135 @@ class WikiImages(object):
             redirect_template="banner_{event_name}_notice_{index}.png",
             max_index=max_index,
         )
+
+    def upload_event_teaser_notice(self, event_id, event_name, list_name, max_index=None):
+        """
+        Upload event teaser notice banners from the CDN.
+        Currently supports list_name="notice" only.
+        """
+        event_id = str(event_id).strip().lower()
+        if not event_id:
+            raise ValueError("Event id is required for event teaser uploads.")
+
+        list_key = (list_name or "").strip().lower()
+        if not list_key:
+            raise ValueError("List name is required for event teaser uploads.")
+        if list_key != "notice":
+            raise ValueError(f'Unsupported list name "{list_name}" for event teaser uploads.')
+
+        event_name = mwparserfromhell.parse(event_name).strip_code().strip()
+
+        if max_index is None:
+            max_index = self.EVENT_TEASER_MAX_INDEX
+        try:
+            max_index = int(max_index)
+        except (TypeError, ValueError):
+            raise ValueError(f'Invalid maximum index "{max_index}" provided.')
+        if max_index < 1:
+            raise ValueError("Maximum index must be at least 1.")
+
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+        file_entries = []
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=max_index,
+                current_image=None,
+                event_id=event_id,
+                list_name=list_key,
+            )
+
+        url_template = (
+            "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+            "img/sp/banner/events/event_teaser_{event_id}/banner_event_notice_{index}.png"
+        )
+        canonical_template = "event_teaser_{event_id}_banner_event_notice_{index}.png"
+        redirect_template = "banner_{event_name}_notice_{index}.png"
+
+        for index in range(1, max_index + 1):
+            url = url_template.format(event_id=event_id, index=index)
+            canonical_name = canonical_template.format(event_id=event_id, index=index)
+            redirect_name = redirect_template.format(event_name=event_name, index=index)
+
+            print(
+                f'Downloading event teaser notice #{index} for "{event_name}" '
+                f'(event id: {event_id}) -> {url}'
+            )
+
+            success, sha1, size, io_obj = self.get_image(url)
+            if not success:
+                if index == 1:
+                    print(f'No event teaser notice banners found for event id "{event_id}".')
+                break
+
+            processed += 1
+
+            if hasattr(self, "_status_callback"):
+                self._status_callback(
+                    "processing",
+                    processed=processed,
+                    total=max_index,
+                    current_image=canonical_name,
+                    event_id=event_id,
+                    list_name=list_key,
+                )
+
+            other_names = [redirect_name]
+            check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
+            if check_image_result is True:
+                uploaded += 1
+            elif check_image_result is False:
+                failed += 1
+                print(f'Upload validation failed for {canonical_name}.')
+                continue
+            else:
+                duplicates += 1
+                canonical_name = check_image_result
+
+            file_entries.append(
+                {
+                    "index": index,
+                    "canonical": canonical_name,
+                    "redirect": redirect_name,
+                }
+            )
+
+            self.check_file_redirect(canonical_name, redirect_name)
+            time.sleep(self.delay)
+            self.check_file_double_redirect(canonical_name)
+
+        if processed == 0:
+            raise ValueError(f'No event teaser notice banners found for event id "{event_id}".')
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "completed",
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total=max_index,
+                total_urls=processed,
+                event_id=event_id,
+                list_name=list_key,
+            )
+
+        return {
+            "processed": processed,
+            "uploaded": uploaded,
+            "duplicates": duplicates,
+            "failed": failed,
+            "total_urls": processed,
+            "total": max_index,
+            "files": file_entries,
+            "event_id": event_id,
+            "list_name": list_key,
+        }
 
     def check_character(self, page):
         paths = {

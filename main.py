@@ -66,6 +66,7 @@ MAX_EVENT_ID_LEN = 64
 MAX_ENEMY_ID_LEN = 64
 MAX_CLASS_SKIN_ID_LEN = 64
 PAGE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|\x00-\x1F]")
+FILE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|:\x00-\x1F]")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 VALID_STATUS_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+#?$")
 VALID_BANNER_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+$")
@@ -100,19 +101,10 @@ PAGE_TYPES = [
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
 
-EVENT_IMAGE_TYPE_CHOICES = [
-    app_commands.Choice(name="Event Start Banners", value="banner_start"),
-    app_commands.Choice(name="Event Notice Banners", value="banner_notice"),
+EVENT_TEASER_LIST_CHOICES = [
+    app_commands.Choice(name="Notice", value="notice"),
 ]
-EVENT_IMAGE_TYPE_SET = {choice.value for choice in EVENT_IMAGE_TYPE_CHOICES}
-
-EVENT_RUN_CHOICES = [
-    app_commands.Choice(name="Default", value="default"),
-    app_commands.Choice(name="Redux", value="redux"),
-    app_commands.Choice(name="Redux 2", value="redux2"),
-    app_commands.Choice(name="Side Story", value="side_story"),
-]
-EVENT_RUN_VALUE_SET = {choice.value for choice in EVENT_RUN_CHOICES}
+EVENT_TEASER_LIST_SET = {choice.value for choice in EVENT_TEASER_LIST_CHOICES}
 
 def normalize_item_type_input(raw_value: str | None) -> str:
     """
@@ -205,6 +197,21 @@ def validate_item_name(item_name: str) -> tuple[bool, str]:
         return False, "Invalid item name. Characters #, <, >, [, ], {, }, |, or control characters are not allowed."
 
     return True, item_name
+
+def validate_event_file_name(event_name: str) -> tuple[bool, str]:
+    """
+    Validate an event display name used for wiki file redirects.
+    Returns (is_valid, cleaned_value/error_message).
+    """
+    event_name = event_name.strip()
+
+    if len(event_name) == 0 or len(event_name) > MAX_ITEM_NAME_LEN:
+        return False, f"Invalid event name. Must be between 1 and {MAX_ITEM_NAME_LEN} characters."
+
+    if FILE_NAME_INVALID_PATTERN.search(event_name):
+        return False, "Invalid event name. Characters #, <, >, [, ], {, }, |, :, or control characters are not allowed."
+
+    return True, event_name
 
 def validate_event_id(event_id: str) -> tuple[bool, str]:
     """
@@ -423,8 +430,8 @@ async def run_item_upload(item_type: str, item_id: str, item_name: str, status: 
 async def run_event_upload(
     event_id: str,
     event_name: str,
-    image_type: str,
-    event_run: str,
+    list_name: str,
+    max_index: int,
     status: dict | None = None,
 ) -> tuple[int, str, str]:
     """
@@ -444,6 +451,7 @@ async def run_event_upload(
                 status.setdefault("failed", 0)
                 status.setdefault("total_urls", 0)
                 status.setdefault("files", [])
+                status.setdefault("list_name", list_name)
 
             wi = DryRunWikiImages() if DRY_RUN else WikiImages()
             wi.delay = 5
@@ -455,12 +463,7 @@ async def run_event_upload(
             else:
                 wi._status_callback = lambda stage, **kwargs: None
 
-            if image_type == "banner_start":
-                result = wi.upload_event_banners(event_id, event_name, event_run)
-            elif image_type == "banner_notice":
-                result = wi.upload_event_notice_banners(event_id, event_name, event_run)
-            else:
-                raise ValueError(f"Unsupported event image type '{image_type}'.")
+            result = wi.upload_event_teaser_notice(event_id, event_name, list_name, max_index)
             if status is not None:
                 status.update(result)
                 status["stage"] = "completed"
@@ -474,7 +477,7 @@ async def run_event_upload(
         tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
 
         print(
-            f"Starting event upload for {event_name} (event id: {event_id}, type: {image_type}, run: {event_run})"
+            f"Starting event upload for {event_name} (event id: {event_id}, list: {list_name})"
         )
         if DRY_RUN:
             print("DRY RUN MODE - No actual uploads will be performed")
@@ -1412,22 +1415,22 @@ if ENABLE_EVENT_UPLOAD:
 
     @bot.tree.command(
         name="eventupload",
-        description="Upload event-specific assets such as banner images",
+        description="Upload event teaser notice assets",
     )
     @app_commands.checks.has_any_role(*ALLOWED_ROLES)
     @app_commands.describe(
-        event_id="CDN folder identifier (e.g. biography042)",
+        event_id="Event identifier (e.g. 1168)",
         event_name="Event display name (used for redirects)",
-        image_type="Select which image set to upload (banner_start or banner_notice).",
-        event_run="Select which run (default/redux/side story) this upload targets.",
+        list_name="Select which image list to upload.",
+        max_index="Max index to attempt (default 15).",
     )
-    @app_commands.choices(image_type=EVENT_IMAGE_TYPE_CHOICES, event_run=EVENT_RUN_CHOICES)
+    @app_commands.choices(list_name=EVENT_TEASER_LIST_CHOICES)
     async def eventupload(
         interaction: discord.Interaction,
         event_id: str,
         event_name: str,
-        image_type: app_commands.Choice[str],
-        event_run: app_commands.Choice[str],
+        list_name: app_commands.Choice[str],
+        max_index: int | None = None,
     ):
         member = interaction.guild.get_member(interaction.user.id)
         if not member or not (
@@ -1445,19 +1448,23 @@ if ENABLE_EVENT_UPLOAD:
             await interaction.response.send_message(cleaned_event_id, ephemeral=True)
             return
 
-        is_valid_event_name, cleaned_event_name = validate_item_name(event_name)
+        is_valid_event_name, cleaned_event_name = validate_event_file_name(event_name)
         if not is_valid_event_name:
             await interaction.response.send_message(cleaned_event_name, ephemeral=True)
             return
 
-        image_type_value = image_type.value
-        if image_type_value not in EVENT_IMAGE_TYPE_SET:
-            await interaction.response.send_message("Invalid image type option.", ephemeral=True)
+        list_name_value = list_name.value
+        if list_name_value not in EVENT_TEASER_LIST_SET:
+            await interaction.response.send_message("Invalid list option.", ephemeral=True)
             return
 
-        event_run_value = event_run.value
-        if event_run_value not in EVENT_RUN_VALUE_SET:
-            await interaction.response.send_message("Invalid event run option.", ephemeral=True)
+        if max_index is None:
+            max_index = WikiImages.EVENT_TEASER_MAX_INDEX
+        if max_index < 1:
+            await interaction.response.send_message(
+                "Invalid max index. It must be at least 1.",
+                ephemeral=True,
+            )
             return
 
         now = time.time()
@@ -1482,7 +1489,7 @@ if ENABLE_EVENT_UPLOAD:
             dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
             await interaction.response.send_message(
                 f"{dry_run_prefix}Event upload started for `{cleaned_event_name}` "
-                f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`). "
+                f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`, max index: `{max_index}`). "
                 "This may take a while..."
             )
             msg = await interaction.original_response()
@@ -1492,9 +1499,8 @@ if ENABLE_EVENT_UPLOAD:
             status = {
                 "stage": "starting",
                 "event_id": cleaned_event_id,
-                "image_type": image_type_value,
-                "event_run": event_run_value,
-                "total": WikiImages.EVENT_BANNER_MAX_INDEX,
+                "list_name": list_name_value,
+                "total": max_index,
             }
 
             async def progress_updater():
@@ -1504,20 +1510,20 @@ if ENABLE_EVENT_UPLOAD:
 
                     stage = status.get("stage", "processing")
                     processed = status.get("processed", 0)
-                    total = status.get("total") or WikiImages.EVENT_BANNER_MAX_INDEX
+                    total = status.get("total") or max_index
                     current_image = status.get("current_image")
                     current_segment = f" Current: {current_image}" if current_image else ""
 
                     if stage == "processing":
                         content = (
                             f"{dry_run_prefix}Processing {processed}/{total} event assets for "
-                            f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`)."
+                            f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, list: `{list_name_value}`)."
                             f"{current_segment} ({elapsed}s elapsed)"
                         )
                     else:
                         content = (
                             f"{dry_run_prefix}Event upload for `{cleaned_event_name}` "
-                            f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`) "
+                            f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`) "
                             f"is running... ({elapsed}s elapsed)"
                         )
 
@@ -1525,7 +1531,7 @@ if ENABLE_EVENT_UPLOAD:
 
             updater_task = asyncio.create_task(progress_updater())
             return_code, stdout, stderr = await run_event_upload(
-                cleaned_event_id, cleaned_event_name, image_type_value, event_run_value, status
+                cleaned_event_id, cleaned_event_name, list_name_value, max_index, status
             )
             updater_task.cancel()
             elapsed = int(time.time() - start_time)
@@ -1539,9 +1545,9 @@ if ENABLE_EVENT_UPLOAD:
 
                 summary_lines = [
                     f"{dry_run_prefix}Event upload completed for `{cleaned_event_name}` "
-                    f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`) in {elapsed}s!",
+                    f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`) in {elapsed}s!",
                     "**Summary:**",
-                    f"- Banners processed: {processed}",
+                    f"- Images processed: {processed}",
                     f"- Images uploaded: {uploaded}",
                     f"- Images found as duplicates: {duplicates}",
                     f"- Images failed validation: {failed}",
@@ -1565,7 +1571,7 @@ if ENABLE_EVENT_UPLOAD:
                 await msg.edit(
                     content=(
                         f"{dry_run_prefix}Event upload failed for `{cleaned_event_name}` "
-                        f"(event id: `{cleaned_event_id}`, type: `{image_type_value}`, run: `{event_run_value}`) in {elapsed}s!"
+                        f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`) in {elapsed}s!"
                     )
                 )
                 if stderr.strip():
