@@ -6,6 +6,7 @@ import asyncio
 import time
 import re
 import sys
+from datetime import datetime
 from contextlib import redirect_stdout, redirect_stderr
 from images import WikiImages
 
@@ -105,6 +106,19 @@ EVENT_TEASER_LIST_CHOICES = [
     app_commands.Choice(name="Notice", value="notice"),
 ]
 EVENT_TEASER_LIST_SET = {choice.value for choice in EVENT_TEASER_LIST_CHOICES}
+
+DRAW_MODE_CHOICES = [
+    app_commands.Choice(name="single", value="single"),
+    app_commands.Choice(name="double", value="double"),
+]
+DRAW_MODE_SET = {choice.value for choice in DRAW_MODE_CHOICES}
+DRAW_MAX_PROBE_DEFAULT = 12
+DRAW_PAGE_PROMO_MODE = "Template:MainPageDraw/PromoMode"
+DRAW_PAGE_END_DATE = "Template:MainPageDraw/EndDate"
+DRAW_PAGE_SINGLE = "Template:MainPageDraw/SinglePromo"
+DRAW_PAGE_DOUBLE_LEFT = "Template:MainPageDraw/DoublePromoLeft"
+DRAW_PAGE_DOUBLE_RIGHT = "Template:MainPageDraw/DoublePromoRight"
+MAIN_PAGE_PURGE_URL = "<https://gbf.wiki/Main_Page/purge>"
 
 def normalize_item_type_input(raw_value: str | None) -> str:
     """
@@ -284,6 +298,181 @@ def validate_banner_id(banner_id: str) -> tuple[bool, str]:
         return False, "Invalid banner id. Only letters, numbers, and underscores are allowed."
 
     return True, banner_id
+
+def validate_draw_end_date(end_date: str) -> tuple[bool, str]:
+    """
+    Validate draw update end date in strict JST format (YYYY-MM-DD HH:MM).
+    """
+    cleaned = (end_date or "").strip()
+    try:
+        datetime.strptime(cleaned, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return False, "Invalid end_date. Use YYYY-MM-DD HH:MM in JST, e.g. 2026-03-01 18:59."
+    return True, cleaned
+
+def validate_draw_link_target(link_target: str) -> tuple[bool, str]:
+    """
+    Validate the wiki link target used in generated File links.
+    """
+    cleaned = (link_target or "").strip()
+    if len(cleaned) == 0 or len(cleaned) > MAX_PAGE_NAME_LEN:
+        return False, f"Invalid link target. Must be between 1 and {MAX_PAGE_NAME_LEN} characters."
+    if PAGE_NAME_INVALID_PATTERN.search(cleaned):
+        return False, "Invalid link target. Characters #, <, >, [, ], {, }, |, or control characters are not allowed."
+    return True, cleaned
+
+def build_draw_gallery_swap_images(file_names: list[str], link_target: str) -> str:
+    """
+    Build GallerySwapImages wikitext for 230x110 draw banners.
+    """
+    lines = ["{{GallerySwapImages|w=230|h=110"]
+    for file_name in file_names:
+        lines.append(f"|[[File:{file_name}|230px|link={link_target}]]")
+    lines.append("}}")
+    return "\n".join(lines)
+
+def _file_exists_or_redirects_to_file(site, file_name: str) -> bool:
+    """
+    Check if a file title exists or redirects to a real file page with imageinfo.
+    """
+    title = f"File:{file_name}"
+    result = site.api(
+        "query",
+        titles=title,
+        redirects=1,
+        prop="info|imageinfo",
+        iiprop="timestamp",
+    )
+    pages = result.get("query", {}).get("pages", {})
+    if not pages:
+        return False
+
+    page = next(iter(pages.values()))
+    if "missing" in page:
+        return False
+    imageinfo = page.get("imageinfo")
+    return bool(imageinfo)
+
+def _resolve_draw_file_list(site, banner_id: str, count: int | None, max_probe: int) -> list[str]:
+    """
+    Resolve draw file list either by explicit count or probing until first miss.
+    """
+    found_files: list[str] = []
+    if count is not None:
+        for index in range(1, count + 1):
+            file_name = f"banner_{banner_id}_{index}.png"
+            if not _file_exists_or_redirects_to_file(site, file_name):
+                raise ValueError(
+                    f'Missing banner at index {index} for "{banner_id}" while validating required contiguous range 1-{count}.'
+                )
+            found_files.append(file_name)
+        return found_files
+
+    for index in range(1, max_probe + 1):
+        file_name = f"banner_{banner_id}_{index}.png"
+        if not _file_exists_or_redirects_to_file(site, file_name):
+            break
+        found_files.append(file_name)
+
+    if not found_files:
+        raise ValueError(f'No banners found for "{banner_id}" (missing banner_{banner_id}_1.png).')
+    return found_files
+
+async def run_draw_update(
+    mode: str,
+    end_date: str,
+    left_banner_id: str,
+    right_banner_id: str | None,
+    left_count: int | None,
+    right_count: int | None,
+    max_probe: int,
+    link_target: str,
+    status: dict | None = None,
+) -> tuple[int, str, str]:
+    """
+    Update MainPageDraw draw subtemplates in a thread and capture stdout/stderr.
+    Returns (return_code, stdout, stderr)
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def update_status(stage: str, **kwargs):
+        if status is not None:
+            status.update({"stage": stage, **kwargs})
+
+    def upload_task():
+        try:
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            site = wi.wiki
+
+            update_status("resolving_files")
+            left_files = _resolve_draw_file_list(site, left_banner_id, left_count, max_probe)
+            right_files: list[str] = []
+            if mode == "double" and right_banner_id:
+                right_files = _resolve_draw_file_list(site, right_banner_id, right_count, max_probe)
+
+            page_updates: list[tuple[str, str]] = []
+            if mode == "single":
+                page_updates.append(
+                    (DRAW_PAGE_SINGLE, build_draw_gallery_swap_images(left_files, link_target))
+                )
+            else:
+                page_updates.append(
+                    (DRAW_PAGE_DOUBLE_LEFT, build_draw_gallery_swap_images(left_files, link_target))
+                )
+                page_updates.append(
+                    (DRAW_PAGE_DOUBLE_RIGHT, build_draw_gallery_swap_images(right_files, link_target))
+                )
+
+            # Safety order: content first, then end date, then mode switch.
+            page_updates.append((DRAW_PAGE_END_DATE, end_date))
+            page_updates.append((DRAW_PAGE_PROMO_MODE, mode))
+
+            update_status(
+                "saving_pages",
+                left_files=left_files,
+                right_files=right_files,
+                pages=[title for title, _ in page_updates],
+            )
+
+            save_summary = "Bot: update MainPageDraw draw promotion"
+            saved_pages: list[str] = []
+            for page_title, page_text in page_updates:
+                page = site.pages[page_title]
+                if DRY_RUN and hasattr(wi, "_patch_page_save"):
+                    wi._patch_page_save(page)
+                page.save(page_text, summary=save_summary, minor=False, bot=True)
+                saved_pages.append(page_title)
+
+            update_status(
+                "completed",
+                saved_pages=saved_pages,
+                left_files=left_files,
+                right_files=right_files,
+            )
+            return 0
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(
+            f"Starting draw update (mode: {mode}, left: {left_banner_id}, right: {right_banner_id}, max_probe: {max_probe})"
+        )
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual saves will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as exc:
+        error_msg = f"Draw update task failed: {exc}"
+        print(error_msg)
+        return 1, "", str(exc)
 
 async def run_wiki_upload(
     page_type: str,
@@ -1199,6 +1388,229 @@ async def bannerupload(
             await msg.edit(
                 content=f"{dry_run_prefix}Banner upload failed for `{cleaned_banner_id}` in {elapsed}s!"
             )
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@bot.tree.command(
+    name="drawupdate",
+    description="Update MainPageDraw single/double draw promotion subtemplates",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    mode="Which main draw layout to publish",
+    end_date="Banner end date/time in JST (YYYY-MM-DD HH:MM)",
+    left_banner_id="Left/only banner id (between banner_ and _index)",
+    right_banner_id="Right banner id (double mode only)",
+    left_count="Manual count for left/only banners (optional override)",
+    right_count="Manual count for right banners (double mode only)",
+    max_probe="Auto-detect max index to check when count is not provided",
+    link_target="Wiki link target for banner clicks",
+)
+@app_commands.choices(mode=DRAW_MODE_CHOICES)
+async def drawupdate(
+    interaction: discord.Interaction,
+    mode: app_commands.Choice[str],
+    end_date: str,
+    left_banner_id: str,
+    right_banner_id: str | None = None,
+    left_count: app_commands.Range[int, 1, 50] | None = None,
+    right_count: app_commands.Range[int, 1, 50] | None = None,
+    max_probe: app_commands.Range[int, 1, 50] = DRAW_MAX_PROBE_DEFAULT,
+    link_target: str = "Draw",
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
+
+    mode_value = mode.value
+    if mode_value not in DRAW_MODE_SET:
+        await interaction.response.send_message("Invalid mode option.", ephemeral=True)
+        return
+
+    is_valid_date, cleaned_end_date = validate_draw_end_date(end_date)
+    if not is_valid_date:
+        await interaction.response.send_message(cleaned_end_date, ephemeral=True)
+        return
+
+    is_valid_left_banner, cleaned_left_banner = validate_banner_id(left_banner_id)
+    if not is_valid_left_banner:
+        await interaction.response.send_message(cleaned_left_banner, ephemeral=True)
+        return
+
+    cleaned_right_banner: str | None = None
+    if right_banner_id:
+        is_valid_right_banner, right_banner_result = validate_banner_id(right_banner_id)
+        if not is_valid_right_banner:
+            await interaction.response.send_message(right_banner_result, ephemeral=True)
+            return
+        cleaned_right_banner = right_banner_result
+
+    if mode_value == "single":
+        if cleaned_right_banner:
+            await interaction.response.send_message(
+                'right_banner_id must not be set when mode is "single".',
+                ephemeral=True,
+            )
+            return
+        if right_count is not None:
+            await interaction.response.send_message(
+                'right_count must not be set when mode is "single".',
+                ephemeral=True,
+            )
+            return
+    elif mode_value == "double":
+        if not cleaned_right_banner:
+            await interaction.response.send_message(
+                'right_banner_id is required when mode is "double".',
+                ephemeral=True,
+            )
+            return
+
+    is_valid_link, cleaned_link_target = validate_draw_link_target(link_target)
+    if not is_valid_link:
+        await interaction.response.send_message(cleaned_link_target, ephemeral=True)
+        return
+
+    max_probe_value = int(max_probe or DRAW_MAX_PROBE_DEFAULT)
+    left_count_value = int(left_count) if left_count is not None else None
+    right_count_value = int(right_count) if right_count is not None else None
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/drawupdate` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Draw update started for mode `{mode_value}` (left: `{cleaned_left_banner}`). This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+        status_info = {
+            "stage": "starting",
+            "left_files": [],
+            "right_files": [],
+            "saved_pages": [],
+        }
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+                stage = status_info.get("stage", "processing")
+                if stage == "resolving_files":
+                    content = (
+                        f"{dry_run_prefix}Resolving banner files for `{mode_value}` mode "
+                        f"({elapsed}s elapsed)"
+                    )
+                elif stage == "saving_pages":
+                    pages = status_info.get("pages") or []
+                    content = (
+                        f"{dry_run_prefix}Saving draw subtemplates ({len(pages)} pages) "
+                        f"({elapsed}s elapsed)"
+                    )
+                elif stage == "completed":
+                    content = (
+                        f"{dry_run_prefix}Draw update is wrapping up ({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}Draw update is {stage} ({elapsed}s elapsed)"
+                    )
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_draw_update(
+            mode_value,
+            cleaned_end_date,
+            cleaned_left_banner,
+            cleaned_right_banner,
+            left_count_value,
+            right_count_value,
+            max_probe_value,
+            cleaned_link_target,
+            status_info,
+        )
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            left_files = status_info.get("left_files") or []
+            right_files = status_info.get("right_files") or []
+            saved_pages = status_info.get("saved_pages") or []
+
+            left_count_used = len(left_files)
+            right_count_used = len(right_files)
+            left_count_source = (
+                f"manual={left_count_value}" if left_count_value is not None else f"auto={left_count_used}"
+            )
+            right_count_source = (
+                f"manual={right_count_value}" if right_count_value is not None else f"auto={right_count_used}"
+            )
+
+            summary_lines = [
+                f"{dry_run_prefix}Draw update completed in {elapsed}s.",
+                "**Inputs used:**",
+                f"- mode: `{mode_value}`",
+                f"- end_date: `{cleaned_end_date} JST`",
+                f"- left_banner_id: `{cleaned_left_banner}`",
+                f"- left_count: `{left_count_source}`",
+                f"- max_probe: `{max_probe_value}`",
+                f"- link_target: `{cleaned_link_target}`",
+            ]
+
+            if mode_value == "double":
+                summary_lines.append(f"- right_banner_id: `{cleaned_right_banner}`")
+                summary_lines.append(f"- right_count: `{right_count_source}`")
+
+            summary_lines.append("")
+            summary_lines.append("**Updated pages:**")
+            for page in saved_pages:
+                summary_lines.append(f"- `{page}`")
+
+            summary_lines.append("")
+            summary_lines.append("**Banner files used:**")
+            summary_lines.extend(f"- Left: `{name}`" for name in left_files)
+            if mode_value == "double":
+                summary_lines.extend(f"- Right: `{name}`" for name in right_files)
+
+            summary_lines.append("")
+            summary_lines.append(
+                f"Please purge Main Page to show changes immediately: {MAIN_PAGE_PURGE_URL}"
+            )
+
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
+        else:
+            await msg.edit(content=f"{dry_run_prefix}Draw update failed in {elapsed}s.")
             if stderr.strip():
                 error_preview = stderr.strip()[:500]
                 await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
