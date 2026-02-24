@@ -418,33 +418,29 @@ def build_draw_element_mode_content(
         if is_double:
             right_pair = pair_for_day(right_files, idx)
             day_content = (
-                '<div class="double-promotion" style="max-width: 470px; display:flex; justify-content: space-between;">'
-                '<div style="max-width: 230px; width:100%;">'
-                f'{build_draw_gallery_swap_images(left_pair, link_target)}'
-                '</div><div style="max-width: 230px; width:100%;">'
-                f'{build_draw_gallery_swap_images(right_pair, link_target)}'
-                '</div></div>'
+                '<div class="double-promotion" style="max-width: 470px; display:flex; justify-content: space-between;">\n'
+                '<div style="max-width: 230px; width:100%;">\n'
+                f'{build_draw_gallery_swap_images(left_pair, link_target)}\n'
+                '</div>\n'
+                '<div style="max-width: 230px; width:100%;">\n'
+                f'{build_draw_gallery_swap_images(right_pair, link_target)}\n'
+                '</div>\n'
+                '</div>'
             )
         else:
             day_content = build_draw_gallery_swap_images(left_pair, link_target)
         day_contents.append(day_content)
 
-    banner_lines: list[str] = [day_contents[0]]
-    for idx in range(1, element_count):
+    # Every day is wrapped in ScheduledContent to prevent overlaps.
+    banner_lines: list[str] = []
+    for idx in range(element_count):
         start_text = _format_jst_datetime(slot_starts[idx])
-        if idx < element_count - 1:
-            end_text = _format_jst_datetime(slot_ends[idx])
-            banner_lines.append(
-                "{{ScheduledContent|"
-                + f"{start_text}|{end_text}|content={day_contents[idx]}"
-                + "}}"
-            )
-        else:
-            banner_lines.append(
-                "{{ScheduledContent|"
-                + f"{start_text}|content={day_contents[idx]}"
-                + "}}"
-            )
+        end_text = _format_jst_datetime(slot_ends[idx])
+        banner_lines.append(
+            "{{ScheduledContent|"
+            + f"{start_text}|{end_text}|content={day_contents[idx]}"
+            + "}}"
+        )
 
     # Icon content: active element at 36px, others at 20px.
     icon_lines = ["Element changes every day as follows:<br />"]
