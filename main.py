@@ -418,14 +418,12 @@ def build_draw_element_mode_content(
         if is_double:
             right_pair = pair_for_day(right_files, idx)
             day_content = (
-                '<div class="double-promotion" style="max-width: 470px; display:flex; justify-content: space-between;">\n'
                 '<div style="max-width: 230px; width:100%;">\n'
                 f'{build_draw_gallery_swap_images(left_pair, link_target)}\n'
                 '</div>\n'
                 '<div style="max-width: 230px; width:100%;">\n'
                 f'{build_draw_gallery_swap_images(right_pair, link_target)}\n'
                 '</div>\n'
-                '</div>'
             )
         else:
             day_content = build_draw_gallery_swap_images(left_pair, link_target)
@@ -436,6 +434,8 @@ def build_draw_element_mode_content(
     for idx in range(element_count):
         start_text = _format_jst_datetime(slot_starts[idx])
         end_text = _format_jst_datetime(slot_ends[idx])
+        if idx == element_count - 1:
+            end_text = f"{end_text} + 3 days"
         banner_lines.append(
             "{{ScheduledContent|"
             + f"{start_text}|{end_text}|content={day_contents[idx]}"
@@ -456,6 +456,12 @@ def build_draw_element_mode_content(
 
     # Prevent whitespace/newline rendering gaps between scheduled blocks.
     banner_text = "<!--\n-->".join(banner_lines)
+    if is_double:
+        banner_text = (
+            '<div class="double-promotion" style="max-width: 470px; display:flex; justify-content: space-between;">\n'
+            f"{banner_text}\n"
+            "</div>"
+        )
     return banner_text, "\n".join(icon_lines)
 
 def _file_exists_or_redirects_to_file(site, file_name: str) -> bool:
@@ -588,12 +594,17 @@ async def run_draw_update(
                 pages=[title for title, _ in page_updates],
             )
 
-            save_summary = "Bot: update MainPageDraw draw promotion"
             saved_pages: list[str] = []
             for page_title, page_text in page_updates:
                 page = site.pages[page_title]
                 if DRY_RUN and hasattr(wi, "_patch_page_save"):
                     wi._patch_page_save(page)
+                if page_title == DRAW_PAGE_END_DATE:
+                    save_summary = f"Bot: update MainPageDraw EndDate to {end_datetime_text} JST"
+                elif page_title == DRAW_PAGE_PROMO_MODE:
+                    save_summary = f"Bot: update MainPageDraw PromoMode to {promo_mode_value}"
+                else:
+                    save_summary = "Bot: update MainPageDraw draw promotion"
                 page.save(page_text, summary=save_summary, minor=False, bot=True)
                 saved_pages.append(page_title)
 
@@ -1785,7 +1796,8 @@ async def drawupdate(
             summary_lines.append("")
             summary_lines.append("**Updated pages:**")
             for page in saved_pages:
-                summary_lines.append(f"- `{page}`")
+                page_url = f"https://gbf.wiki/{page.replace(' ', '_')}"
+                summary_lines.append(f"- `{page}`: <{page_url}>")
 
             summary_lines.append("")
             summary_lines.append("**Banner files used:**")
