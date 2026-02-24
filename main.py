@@ -368,9 +368,9 @@ def build_draw_element_mode_content(
 ) -> tuple[str, str]:
     """
     Build element-mode banner schedule and icon schedule wikitext.
-    For element-single, right_files is omitted and one banner is shown per day.
-    For element-double, counts may differ, but at least one side must provide 12 banners.
-    Shorter sides reuse their last banner for remaining days.
+    For element-single, day content uses left slug banner pairs (1,2), (3,4), etc.
+    For element-double, each side uses its own slug pairs and renders in a left/right layout.
+    Counts may differ, but at least one side must provide 12 banners.
     """
     if not left_files:
         raise ValueError("Element mode requires at least 1 banner.")
@@ -387,7 +387,19 @@ def build_draw_element_mode_content(
     if start_element not in DRAW_ELEMENT_ORDER:
         raise ValueError("Invalid start element for element mode.")
 
-    element_count = max(len(left_files), len(right_files) if right_files else 0)
+    def pair_count(files: list[str]) -> int:
+        return (len(files) + 1) // 2
+
+    def pair_for_day(files: list[str], day_index: int) -> list[str]:
+        first_index = day_index * 2
+        if first_index >= len(files):
+            return [files[-1], files[-1]]
+        second_index = min(first_index + 1, len(files) - 1)
+        return [files[first_index], files[second_index]]
+
+    left_days = pair_count(left_files)
+    right_days = pair_count(right_files) if right_files else 0
+    element_count = max(left_days, right_days if is_double else 0)
     # Element windows begin at end_time+1 minute and step backward one day per element.
     first_start = (end_datetime + timedelta(minutes=1)) - timedelta(days=element_count)
     slot_starts = [first_start + timedelta(days=i) for i in range(element_count)]
@@ -399,28 +411,39 @@ def build_draw_element_mode_content(
         for idx in range(element_count)
     ]
 
-    # Banner content: initial pair always visible, then swap daily with ScheduledContent.
-    banner_lines: list[str] = []
-    first_pair = [left_files[0], right_files[0]] if is_double else [left_files[0]]
-    banner_lines.append(build_draw_gallery_swap_images(first_pair, link_target))
-    for idx in range(1, element_count):
+    # Banner content: initial day always visible, then swap daily with ScheduledContent.
+    day_contents: list[str] = []
+    for idx in range(element_count):
+        left_pair = pair_for_day(left_files, idx)
         if is_double:
-            left_name = left_files[idx] if idx < len(left_files) else left_files[-1]
-            right_name = right_files[idx] if idx < len(right_files) else right_files[-1]
-            pair = [left_name, right_name]
+            right_pair = pair_for_day(right_files, idx)
+            day_content = (
+                '<div class="double-promotion" style="max-width: 470px; display:flex; justify-content: space-between;">'
+                '<div style="max-width: 230px; width:100%;">'
+                f'{build_draw_gallery_swap_images(left_pair, link_target)}'
+                '</div><div style="max-width: 230px; width:100%;">'
+                f'{build_draw_gallery_swap_images(right_pair, link_target)}'
+                '</div></div>'
+            )
         else:
-            pair = [left_files[idx]]
+            day_content = build_draw_gallery_swap_images(left_pair, link_target)
+        day_contents.append(day_content)
+
+    banner_lines: list[str] = [day_contents[0]]
+    for idx in range(1, element_count):
         start_text = _format_jst_datetime(slot_starts[idx])
         if idx < element_count - 1:
             end_text = _format_jst_datetime(slot_ends[idx])
             banner_lines.append(
                 "{{ScheduledContent|"
-                f"{start_text}|{end_text}|content={build_draw_gallery_swap_images(pair, link_target)} }}"
+                + f"{start_text}|{end_text}|content={day_contents[idx]}"
+                + "}}"
             )
         else:
             banner_lines.append(
                 "{{ScheduledContent|"
-                f"{start_text}|content={build_draw_gallery_swap_images(pair, link_target)} }}"
+                + f"{start_text}|content={day_contents[idx]}"
+                + "}}"
             )
 
     # Icon content: active element at 36px, others at 20px.

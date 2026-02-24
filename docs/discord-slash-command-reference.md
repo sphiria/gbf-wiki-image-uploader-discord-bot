@@ -60,8 +60,8 @@ Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:
   - Redirects are accepted if they resolve to a real file page.
   - If index `1` is missing, the command aborts for that side.
 - Element mode behavior:
-  - `mode=element-single`: uses `left_banner_id` only (one banner per day).
-  - `mode=element-double`: uses both `left_banner_id` and `right_banner_id` as paired daily banner slugs.
+  - `mode=element-single`: uses `left_banner_id` only; each day uses banner index pairs from that slug (`1,2` then `3,4`, ...).
+  - `mode=element-double`: uses both `left_banner_id` and `right_banner_id`; each side builds its own daily index pairs (`1,2` then `3,4`, ...) and renders as separate left/right blocks.
   - `mode=element-double` does not require matching counts, but at least one side must have 12 banners.
   - When one side has fewer banners, the last banner on that side is reused for remaining days.
   - Builds the daily swap schedule automatically and rotates elements from `element_start` in the order:
