@@ -454,7 +454,9 @@ def build_draw_element_mode_content(
             scheduled_size = f"{{{{ScheduledContent|{start_text}|content=36|alt_content=20}}}}"
             icon_lines.append(f"{{{{Icon|{element}|size={scheduled_size}}}}}")
 
-    return "\n".join(banner_lines), "\n".join(icon_lines)
+    # Prevent whitespace/newline rendering gaps between scheduled blocks.
+    banner_text = "<!--\n-->".join(banner_lines)
+    return banner_text, "\n".join(icon_lines)
 
 def _file_exists_or_redirects_to_file(site, file_name: str) -> bool:
     """
