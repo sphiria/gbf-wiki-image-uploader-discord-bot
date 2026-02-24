@@ -62,7 +62,8 @@ Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:
 - Element mode behavior:
   - `mode=element-single`: uses `left_banner_id` only (one banner per day).
   - `mode=element-double`: uses both `left_banner_id` and `right_banner_id` as paired daily banner slugs.
-  - `mode=element-double` requires matching left/right banner counts (one pair per element-day).
+  - `mode=element-double` does not require matching counts, but at least one side must have 12 banners.
+  - When one side has fewer banners, the last banner on that side is reused for remaining days.
   - Builds the daily swap schedule automatically and rotates elements from `element_start` in the order:
     `fire -> water -> earth -> wind -> light -> dark`.
 - Wiki pages updated:

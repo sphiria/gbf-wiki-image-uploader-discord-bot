@@ -369,7 +369,8 @@ def build_draw_element_mode_content(
     """
     Build element-mode banner schedule and icon schedule wikitext.
     For element-single, right_files is omitted and one banner is shown per day.
-    For element-double, left/right counts must match and one pair is shown per day.
+    For element-double, counts may differ, but at least one side must provide 12 banners.
+    Shorter sides reuse their last banner for remaining days.
     """
     if not left_files:
         raise ValueError("Element mode requires at least 1 banner.")
@@ -378,15 +379,15 @@ def build_draw_element_mode_content(
     if is_double:
         if not right_files:
             raise ValueError("Element-double mode requires at least 1 banner on each side.")
-        if len(left_files) != len(right_files):
+        if len(left_files) != 12 and len(right_files) != 12:
             raise ValueError(
-                f"Element-double mode requires matching left/right banner counts. Left={len(left_files)}, Right={len(right_files)}."
+                f"Element-double mode requires at least one side to have 12 banners. Left={len(left_files)}, Right={len(right_files)}."
             )
 
     if start_element not in DRAW_ELEMENT_ORDER:
         raise ValueError("Invalid start element for element mode.")
 
-    element_count = len(left_files)
+    element_count = max(len(left_files), len(right_files) if right_files else 0)
     # Element windows begin at end_time+1 minute and step backward one day per element.
     first_start = (end_datetime + timedelta(minutes=1)) - timedelta(days=element_count)
     slot_starts = [first_start + timedelta(days=i) for i in range(element_count)]
@@ -403,7 +404,12 @@ def build_draw_element_mode_content(
     first_pair = [left_files[0], right_files[0]] if is_double else [left_files[0]]
     banner_lines.append(build_draw_gallery_swap_images(first_pair, link_target))
     for idx in range(1, element_count):
-        pair = [left_files[idx], right_files[idx]] if is_double else [left_files[idx]]
+        if is_double:
+            left_name = left_files[idx] if idx < len(left_files) else left_files[-1]
+            right_name = right_files[idx] if idx < len(right_files) else right_files[-1]
+            pair = [left_name, right_name]
+        else:
+            pair = [left_files[idx]]
         start_text = _format_jst_datetime(slot_starts[idx])
         if idx < element_count - 1:
             end_text = _format_jst_datetime(slot_ends[idx])
