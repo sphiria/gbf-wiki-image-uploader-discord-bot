@@ -40,6 +40,40 @@ Usage: `/bannerupload banner_id:<campaign id> max_index:<1-50 (defaults 12)>`
 - Checks & Limits: role/cooldown/lock apply; invalid IDs are rejected up front.
 - Output: shows which banner slug/index it is processing, then reports processed/uploaded/failed counts and wiki links for every successful upload.
 
+**/drawupdate**
+Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:<YYYY-MM-DD> end_time:<HH:MM> left_banner_id:<id> right_banner_id:<id?> left_count:<1-50?> right_count:<1-50?> max_probe:<1-50 (defaults 12)> link_target:<wiki page (defaults Draw)> element_start:<fire|water|earth|wind|light|dark>`
+- Purpose: Update MainPageDraw draw promotion subtemplates (single/double section) without editing `Template:MainPageDraw` directly.
+- Inputs:
+  - `mode` - `single`, `double`, `element-single`, or `element-double`.
+  - `end_date` - required, strict JST date string in `YYYY-MM-DD`.
+  - `end_time` - required, strict JST time string in `HH:MM` (24-hour). The command suggests common values (`18:59`, `11:59`, `23:59`) via autocomplete and still allows custom input.
+  - `left_banner_id` - required banner id for the single banner set or left side (same format as `/bannerupload`).
+  - `right_banner_id` - required when `mode=double` or `mode=element-double`; must be omitted for `mode=single` and `mode=element-single`.
+  - `element_start` - optional starting element for element modes; defaults to `fire`.
+  - `left_count` - optional explicit count override for left/only side.
+  - `right_count` - optional explicit count override for right side (`mode=double` and `mode=element-double`).
+  - `max_probe` - optional probe cap for auto-detection, default `12`.
+  - `link_target` - optional wiki page target for banner clicks, default `Draw`.
+- File existence detection:
+  - If `*_count` is provided, the bot validates a contiguous range from index `1..count`.
+  - If `*_count` is omitted, the bot probes from index `1` and stops at the first miss.
+  - Redirects are accepted if they resolve to a real file page.
+  - If index `1` is missing, the command aborts for that side.
+- Element mode behavior:
+  - `mode=element-single`: uses `left_banner_id` only (one banner per day).
+  - `mode=element-double`: uses both `left_banner_id` and `right_banner_id` as paired daily banner slugs.
+  - `mode=element-double` requires matching left/right banner counts (one pair per element-day).
+  - Builds the daily swap schedule automatically and rotates elements from `element_start` in the order:
+    `fire -> water -> earth -> wind -> light -> dark`.
+- Wiki pages updated:
+  - Always: `Template:MainPageDraw/EndDate`, `Template:MainPageDraw/PromoMode`.
+  - `mode=single`: `Template:MainPageDraw/SinglePromo`.
+  - `mode=double`: `Template:MainPageDraw/DoublePromoLeft`, `Template:MainPageDraw/DoublePromoRight`.
+  - `mode=element`: `Template:MainPageDraw/ElementPromoBanners`, `Template:MainPageDraw/ElementPromoIcons`.
+  - Save order is content pages -> `EndDate` -> `PromoMode` (mode switch happens last).
+- Checks & Limits: same role/cooldown/lock behavior as other upload-style commands.
+- Output: progress updates while resolving/saving, then a summary that echoes command inputs, shows updated pages and banner files used, and includes a purge reminder link: `<https://gbf.wiki/Main_Page/purge>` (embed suppressed).
+
 **/itemupload**
 Usage: `/itemupload item_type:<CDN folder (e.g. Article, Normal)> item_id:<CDN id> item_name:<Display Name>`
 - Purpose: Upload the square/icon pair for a single item along with canonical redirects for the supplied display name.

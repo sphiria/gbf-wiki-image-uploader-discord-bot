@@ -6,7 +6,7 @@ import asyncio
 import time
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import redirect_stdout, redirect_stderr
 from images import WikiImages
 
@@ -110,14 +110,28 @@ EVENT_TEASER_LIST_SET = {choice.value for choice in EVENT_TEASER_LIST_CHOICES}
 DRAW_MODE_CHOICES = [
     app_commands.Choice(name="single", value="single"),
     app_commands.Choice(name="double", value="double"),
+    app_commands.Choice(name="element-single", value="element-single"),
+    app_commands.Choice(name="element-double", value="element-double"),
 ]
 DRAW_MODE_SET = {choice.value for choice in DRAW_MODE_CHOICES}
+DRAW_COMMON_END_TIMES = ["18:59", "11:59", "23:59"]
+DRAW_ELEMENT_CHOICES = [
+    app_commands.Choice(name="fire", value="fire"),
+    app_commands.Choice(name="water", value="water"),
+    app_commands.Choice(name="earth", value="earth"),
+    app_commands.Choice(name="wind", value="wind"),
+    app_commands.Choice(name="light", value="light"),
+    app_commands.Choice(name="dark", value="dark"),
+]
+DRAW_ELEMENT_ORDER = [choice.value for choice in DRAW_ELEMENT_CHOICES]
 DRAW_MAX_PROBE_DEFAULT = 12
 DRAW_PAGE_PROMO_MODE = "Template:MainPageDraw/PromoMode"
 DRAW_PAGE_END_DATE = "Template:MainPageDraw/EndDate"
 DRAW_PAGE_SINGLE = "Template:MainPageDraw/SinglePromo"
 DRAW_PAGE_DOUBLE_LEFT = "Template:MainPageDraw/DoublePromoLeft"
 DRAW_PAGE_DOUBLE_RIGHT = "Template:MainPageDraw/DoublePromoRight"
+DRAW_PAGE_ELEMENT_BANNERS = "Template:MainPageDraw/ElementPromoBanners"
+DRAW_PAGE_ELEMENT_ICONS = "Template:MainPageDraw/ElementPromoIcons"
 MAIN_PAGE_PURGE_URL = "<https://gbf.wiki/Main_Page/purge>"
 
 def normalize_item_type_input(raw_value: str | None) -> str:
@@ -301,13 +315,24 @@ def validate_banner_id(banner_id: str) -> tuple[bool, str]:
 
 def validate_draw_end_date(end_date: str) -> tuple[bool, str]:
     """
-    Validate draw update end date in strict JST format (YYYY-MM-DD HH:MM).
+    Validate draw update end date in strict JST date format (YYYY-MM-DD).
     """
     cleaned = (end_date or "").strip()
     try:
-        datetime.strptime(cleaned, "%Y-%m-%d %H:%M")
+        datetime.strptime(cleaned, "%Y-%m-%d")
     except ValueError:
-        return False, "Invalid end_date. Use YYYY-MM-DD HH:MM in JST, e.g. 2026-03-01 18:59."
+        return False, "Invalid end_date. Use YYYY-MM-DD in JST, e.g. 2026-03-01."
+    return True, cleaned
+
+def validate_draw_end_time(end_time: str) -> tuple[bool, str]:
+    """
+    Validate draw update end time in strict HH:MM 24-hour format.
+    """
+    cleaned = (end_time or "").strip()
+    try:
+        datetime.strptime(cleaned, "%H:%M")
+    except ValueError:
+        return False, "Invalid end_time. Use HH:MM (24-hour), e.g. 18:59."
     return True, cleaned
 
 def validate_draw_link_target(link_target: str) -> tuple[bool, str]:
@@ -330,6 +355,81 @@ def build_draw_gallery_swap_images(file_names: list[str], link_target: str) -> s
         lines.append(f"|[[File:{file_name}|230px|link={link_target}]]")
     lines.append("}}")
     return "\n".join(lines)
+
+def _format_jst_datetime(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%d %H:%M JST")
+
+def build_draw_element_mode_content(
+    left_files: list[str],
+    end_datetime: datetime,
+    link_target: str,
+    start_element: str,
+    right_files: list[str] | None = None,
+) -> tuple[str, str]:
+    """
+    Build element-mode banner schedule and icon schedule wikitext.
+    For element-single, right_files is omitted and one banner is shown per day.
+    For element-double, left/right counts must match and one pair is shown per day.
+    """
+    if not left_files:
+        raise ValueError("Element mode requires at least 1 banner.")
+
+    is_double = right_files is not None
+    if is_double:
+        if not right_files:
+            raise ValueError("Element-double mode requires at least 1 banner on each side.")
+        if len(left_files) != len(right_files):
+            raise ValueError(
+                f"Element-double mode requires matching left/right banner counts. Left={len(left_files)}, Right={len(right_files)}."
+            )
+
+    if start_element not in DRAW_ELEMENT_ORDER:
+        raise ValueError("Invalid start element for element mode.")
+
+    element_count = len(left_files)
+    # Element windows begin at end_time+1 minute and step backward one day per element.
+    first_start = (end_datetime + timedelta(minutes=1)) - timedelta(days=element_count)
+    slot_starts = [first_start + timedelta(days=i) for i in range(element_count)]
+    slot_ends = [start + timedelta(days=1) - timedelta(minutes=1) for start in slot_starts]
+
+    start_index = DRAW_ELEMENT_ORDER.index(start_element)
+    ordered_elements = [
+        DRAW_ELEMENT_ORDER[(start_index + idx) % len(DRAW_ELEMENT_ORDER)]
+        for idx in range(element_count)
+    ]
+
+    # Banner content: initial pair always visible, then swap daily with ScheduledContent.
+    banner_lines: list[str] = []
+    first_pair = [left_files[0], right_files[0]] if is_double else [left_files[0]]
+    banner_lines.append(build_draw_gallery_swap_images(first_pair, link_target))
+    for idx in range(1, element_count):
+        pair = [left_files[idx], right_files[idx]] if is_double else [left_files[idx]]
+        start_text = _format_jst_datetime(slot_starts[idx])
+        if idx < element_count - 1:
+            end_text = _format_jst_datetime(slot_ends[idx])
+            banner_lines.append(
+                "{{ScheduledContent|"
+                f"{start_text}|{end_text}|content={build_draw_gallery_swap_images(pair, link_target)} }}"
+            )
+        else:
+            banner_lines.append(
+                "{{ScheduledContent|"
+                f"{start_text}|content={build_draw_gallery_swap_images(pair, link_target)} }}"
+            )
+
+    # Icon content: active element at 36px, others at 20px.
+    icon_lines = ["Element changes every day as follows:<br />"]
+    for idx, element in enumerate(ordered_elements):
+        start_text = _format_jst_datetime(slot_starts[idx])
+        if idx < element_count - 1:
+            end_text = _format_jst_datetime(slot_ends[idx])
+            scheduled_size = f"{{{{ScheduledContent|{start_text}|{end_text}|36|20}}}}"
+            icon_lines.append(f"{{{{Icon|{element}|size={scheduled_size}}}}}")
+        else:
+            scheduled_size = f"{{{{ScheduledContent|{start_text}|content=36|alt_content=20}}}}"
+            icon_lines.append(f"{{{{Icon|{element}|size={scheduled_size}}}}}")
+
+    return "\n".join(banner_lines), "\n".join(icon_lines)
 
 def _file_exists_or_redirects_to_file(site, file_name: str) -> bool:
     """
@@ -380,13 +480,14 @@ def _resolve_draw_file_list(site, banner_id: str, count: int | None, max_probe: 
 
 async def run_draw_update(
     mode: str,
-    end_date: str,
+    end_datetime_text: str,
     left_banner_id: str,
     right_banner_id: str | None,
     left_count: int | None,
     right_count: int | None,
     max_probe: int,
     link_target: str,
+    element_start: str,
     status: dict | None = None,
 ) -> tuple[int, str, str]:
     """
@@ -408,7 +509,7 @@ async def run_draw_update(
             update_status("resolving_files")
             left_files = _resolve_draw_file_list(site, left_banner_id, left_count, max_probe)
             right_files: list[str] = []
-            if mode == "double" and right_banner_id:
+            if mode in ("double", "element-double") and right_banner_id:
                 right_files = _resolve_draw_file_list(site, right_banner_id, right_count, max_probe)
 
             page_updates: list[tuple[str, str]] = []
@@ -416,17 +517,42 @@ async def run_draw_update(
                 page_updates.append(
                     (DRAW_PAGE_SINGLE, build_draw_gallery_swap_images(left_files, link_target))
                 )
-            else:
+            elif mode == "double":
                 page_updates.append(
                     (DRAW_PAGE_DOUBLE_LEFT, build_draw_gallery_swap_images(left_files, link_target))
                 )
                 page_updates.append(
                     (DRAW_PAGE_DOUBLE_RIGHT, build_draw_gallery_swap_images(right_files, link_target))
                 )
+            elif mode == "element-single":
+                end_datetime = datetime.strptime(end_datetime_text, "%Y-%m-%d %H:%M")
+                element_banners, element_icons = build_draw_element_mode_content(
+                    left_files,
+                    end_datetime,
+                    link_target,
+                    element_start,
+                )
+                page_updates.append((DRAW_PAGE_ELEMENT_BANNERS, element_banners))
+                page_updates.append((DRAW_PAGE_ELEMENT_ICONS, element_icons))
+            elif mode == "element-double":
+                end_datetime = datetime.strptime(end_datetime_text, "%Y-%m-%d %H:%M")
+                element_banners, element_icons = build_draw_element_mode_content(
+                    left_files,
+                    end_datetime,
+                    link_target,
+                    element_start,
+                    right_files=right_files,
+                )
+                page_updates.append((DRAW_PAGE_ELEMENT_BANNERS, element_banners))
+                page_updates.append((DRAW_PAGE_ELEMENT_ICONS, element_icons))
+            else:
+                raise ValueError(f"Unsupported draw mode: {mode}")
+
+            promo_mode_value = "element" if mode in ("element-single", "element-double") else mode
 
             # Safety order: content first, then end date, then mode switch.
-            page_updates.append((DRAW_PAGE_END_DATE, end_date))
-            page_updates.append((DRAW_PAGE_PROMO_MODE, mode))
+            page_updates.append((DRAW_PAGE_END_DATE, end_datetime_text))
+            page_updates.append((DRAW_PAGE_PROMO_MODE, promo_mode_value))
 
             update_status(
                 "saving_pages",
@@ -460,7 +586,8 @@ async def run_draw_update(
         tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
 
         print(
-            f"Starting draw update (mode: {mode}, left: {left_banner_id}, right: {right_banner_id}, max_probe: {max_probe})"
+            f"Starting draw update (mode: {mode}, left: {left_banner_id}, right: {right_banner_id}, "
+            f"max_probe: {max_probe}, element_start: {element_start})"
         )
         if DRY_RUN:
             print("DRY RUN MODE - No actual saves will be performed")
@@ -1399,30 +1526,34 @@ async def bannerupload(
 
 @bot.tree.command(
     name="drawupdate",
-    description="Update MainPageDraw single/double draw promotion subtemplates",
+    description="Update MainPageDraw single/double/element draw promotion subtemplates",
 )
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)
 @app_commands.describe(
     mode="Which main draw layout to publish",
-    end_date="Banner end date/time in JST (YYYY-MM-DD HH:MM)",
+    end_date="Banner end date in JST (YYYY-MM-DD)",
+    end_time="Banner end time in JST (HH:MM). Common values: 18:59, 11:59, 23:59",
     left_banner_id="Left/only banner id (between banner_ and _index)",
-    right_banner_id="Right banner id (double mode only)",
+    right_banner_id="Right banner id (required for double/element-double modes)",
     left_count="Manual count for left/only banners (optional override)",
-    right_count="Manual count for right banners (double mode only)",
+    right_count="Manual count for right banners (double/element-double modes)",
     max_probe="Auto-detect max index to check when count is not provided",
     link_target="Wiki link target for banner clicks",
+    element_start="Starting element for element mode (default: fire)",
 )
-@app_commands.choices(mode=DRAW_MODE_CHOICES)
+@app_commands.choices(mode=DRAW_MODE_CHOICES, element_start=DRAW_ELEMENT_CHOICES)
 async def drawupdate(
     interaction: discord.Interaction,
     mode: app_commands.Choice[str],
     end_date: str,
+    end_time: str,
     left_banner_id: str,
     right_banner_id: str | None = None,
     left_count: app_commands.Range[int, 1, 50] | None = None,
     right_count: app_commands.Range[int, 1, 50] | None = None,
     max_probe: app_commands.Range[int, 1, 50] = DRAW_MAX_PROBE_DEFAULT,
     link_target: str = "Draw",
+    element_start: app_commands.Choice[str] | None = None,
 ):
     member = interaction.guild.get_member(interaction.user.id)
     if not member or not (
@@ -1439,11 +1570,19 @@ async def drawupdate(
     if mode_value not in DRAW_MODE_SET:
         await interaction.response.send_message("Invalid mode option.", ephemeral=True)
         return
+    element_start_value = element_start.value if element_start else DRAW_ELEMENT_ORDER[0]
 
     is_valid_date, cleaned_end_date = validate_draw_end_date(end_date)
     if not is_valid_date:
         await interaction.response.send_message(cleaned_end_date, ephemeral=True)
         return
+
+    is_valid_time, cleaned_end_time = validate_draw_end_time(end_time)
+    if not is_valid_time:
+        await interaction.response.send_message(cleaned_end_time, ephemeral=True)
+        return
+
+    cleaned_end_datetime = f"{cleaned_end_date} {cleaned_end_time}"
 
     is_valid_left_banner, cleaned_left_banner = validate_banner_id(left_banner_id)
     if not is_valid_left_banner:
@@ -1478,6 +1617,26 @@ async def drawupdate(
                 ephemeral=True,
             )
             return
+    elif mode_value == "element-single":
+        if cleaned_right_banner:
+            await interaction.response.send_message(
+                'right_banner_id must not be set when mode is "element-single".',
+                ephemeral=True,
+            )
+            return
+        if right_count is not None:
+            await interaction.response.send_message(
+                'right_count must not be set when mode is "element-single".',
+                ephemeral=True,
+            )
+            return
+    elif mode_value == "element-double":
+        if not cleaned_right_banner:
+            await interaction.response.send_message(
+                'right_banner_id is required when mode is "element-double".',
+                ephemeral=True,
+            )
+            return
 
     is_valid_link, cleaned_link_target = validate_draw_link_target(link_target)
     if not is_valid_link:
@@ -1509,7 +1668,8 @@ async def drawupdate(
     async with upload_lock:
         dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
         await interaction.response.send_message(
-            f"{dry_run_prefix}Draw update started for mode `{mode_value}` (left: `{cleaned_left_banner}`). This may take a while..."
+            f"{dry_run_prefix}Draw update started for mode `{mode_value}` "
+            f"(left: `{cleaned_left_banner}`, element_start: `{element_start_value}`). This may take a while..."
         )
         msg = await interaction.original_response()
 
@@ -1551,13 +1711,14 @@ async def drawupdate(
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_draw_update(
             mode_value,
-            cleaned_end_date,
+            cleaned_end_datetime,
             cleaned_left_banner,
             cleaned_right_banner,
             left_count_value,
             right_count_value,
             max_probe_value,
             cleaned_link_target,
+            element_start_value,
             status_info,
         )
         updater_task.cancel()
@@ -1581,14 +1742,16 @@ async def drawupdate(
                 f"{dry_run_prefix}Draw update completed in {elapsed}s.",
                 "**Inputs used:**",
                 f"- mode: `{mode_value}`",
-                f"- end_date: `{cleaned_end_date} JST`",
+                f"- end_date: `{cleaned_end_date}`",
+                f"- end_time: `{cleaned_end_time}`",
                 f"- left_banner_id: `{cleaned_left_banner}`",
                 f"- left_count: `{left_count_source}`",
                 f"- max_probe: `{max_probe_value}`",
                 f"- link_target: `{cleaned_link_target}`",
+                f"- element_start: `{element_start_value}`",
             ]
 
-            if mode_value == "double":
+            if mode_value in ("double", "element-double"):
                 summary_lines.append(f"- right_banner_id: `{cleaned_right_banner}`")
                 summary_lines.append(f"- right_count: `{right_count_source}`")
 
@@ -1600,7 +1763,7 @@ async def drawupdate(
             summary_lines.append("")
             summary_lines.append("**Banner files used:**")
             summary_lines.extend(f"- Left: `{name}`" for name in left_files)
-            if mode_value == "double":
+            if mode_value in ("double", "element-double"):
                 summary_lines.extend(f"- Right: `{name}`" for name in right_files)
 
             summary_lines.append("")
@@ -1618,6 +1781,20 @@ async def drawupdate(
     except Exception as e:
         elapsed = int(time.time() - start_time)
         await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@drawupdate.autocomplete("end_time")
+async def drawupdate_end_time_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> list[app_commands.Choice[str]]:
+    """Suggest common draw end times while allowing custom HH:MM input."""
+    current_clean = (current or "").strip()
+    filtered = [
+        t for t in DRAW_COMMON_END_TIMES
+        if not current_clean or current_clean in t
+    ]
+    return [app_commands.Choice(name=t, value=t) for t in filtered[:25]]
 
 
 @bot.tree.command(
