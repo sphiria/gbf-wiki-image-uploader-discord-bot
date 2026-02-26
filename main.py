@@ -1797,7 +1797,7 @@ async def drawupdate(
             summary_lines.append("**Updated pages:**")
             for page in saved_pages:
                 page_url = f"https://gbf.wiki/{page.replace(' ', '_')}"
-                summary_lines.append(f"- `{page}`: <{page_url}>")
+                summary_lines.append(f"- <{page_url}>")
 
             summary_lines.append("")
             summary_lines.append("**Banner files used:**")
