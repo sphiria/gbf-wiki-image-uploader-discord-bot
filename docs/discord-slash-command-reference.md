@@ -42,7 +42,7 @@ Usage: `/bannerupload banner_id:<campaign id> max_index:<1-50 (defaults 12)>`
 
 **/drawupdate**
 Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:<YYYY-MM-DD> end_time:<HH:MM> left_banner_id:<id> right_banner_id:<id?> left_count:<1-50?> right_count:<1-50?> max_probe:<1-50 (defaults 12)> link_target:<wiki page (defaults Draw)> element_start:<fire|water|earth|wind|light|dark>`
-- Purpose: Update MainPageDraw draw promotion subtemplates (single/double section) without editing `Template:MainPageDraw` directly.
+- Purpose: Update MainPageDraw draw promotion subtemplates (single/double/element modes) without editing `Template:MainPageDraw` directly.
 - Inputs:
   - `mode` - `single`, `double`, `element-single`, or `element-double`.
   - `end_date` - required, strict JST date string in `YYYY-MM-DD`.
@@ -61,6 +61,7 @@ Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:
   - If index `1` is missing, the command aborts for that side.
 - Element mode behavior:
   - `mode=element-single`: uses `left_banner_id` only; each day uses banner index pairs from that slug (`1,2` then `3,4`, ...).
+  - When `element-single` has an odd number of banners, the final day's pair reuses the last banner.
   - `mode=element-double`: uses both `left_banner_id` and `right_banner_id`; each side builds its own daily index pairs (`1,2` then `3,4`, ...) and renders as separate left/right blocks.
   - `mode=element-double` does not require matching counts, but at least one side must have 12 banners.
   - When one side has fewer banners, the last banner on that side is reused for remaining days.
@@ -71,10 +72,11 @@ Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:
   - Always: `Template:MainPageDraw/EndDate`, `Template:MainPageDraw/PromoMode`.
   - `mode=single`: `Template:MainPageDraw/SinglePromo`.
   - `mode=double`: `Template:MainPageDraw/DoublePromoLeft`, `Template:MainPageDraw/DoublePromoRight`.
-  - `mode=element`: `Template:MainPageDraw/ElementPromoBanners`, `Template:MainPageDraw/ElementPromoIcons`.
+  - `mode=element-single` and `mode=element-double`: `Template:MainPageDraw/ElementPromoBanners`, `Template:MainPageDraw/ElementPromoIcons`.
+  - Both element modes set `Template:MainPageDraw/PromoMode` to `element` for template compatibility.
   - Save order is content pages -> `EndDate` -> `PromoMode` (mode switch happens last).
 - Checks & Limits: same role/cooldown/lock behavior as other upload-style commands.
-- Output: progress updates while resolving/saving, then a summary that echoes command inputs, shows updated pages and banner files used, and includes a purge reminder link: `<https://gbf.wiki/Main_Page/purge>` (embed suppressed).
+- Output: progress updates while resolving/saving, then a summary that echoes command inputs, shows updated page links (URL-only bullets), banner files used, and includes a purge reminder link: `<https://gbf.wiki/Main_Page/purge>` (embed suppressed).
 
 **/itemupload**
 Usage: `/itemupload item_type:<CDN folder (e.g. Article, Normal)> item_id:<CDN id> item_name:<Display Name>`
