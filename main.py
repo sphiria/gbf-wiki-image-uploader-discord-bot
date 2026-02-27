@@ -80,7 +80,6 @@ GUILD_ID = int(os.environ["GUILD_ID"])
 ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor,Wiki Admin,Wiki Discord Moderator,Verified Editor").split(",")]
 # Enable dry-run mode (no actual uploads, just logging)
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
-ENABLE_EVENT_UPLOAD = os.getenv("ENABLE_EVENTUPLOAD", "false").lower() in ("true", "1", "yes")
 
 # Valid page types
 PAGE_TYPES = [
@@ -2040,179 +2039,178 @@ async def itemupload(
         await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
 
 
-if ENABLE_EVENT_UPLOAD:
 
-    @bot.tree.command(
-        name="eventupload",
-        description="Upload indexed event banner assets",
-    )
-    @app_commands.checks.has_any_role(*ALLOWED_ROLES)
-    @app_commands.describe(
-        event_id="Event identifier (e.g. 1168)",
-        event_name="Event display name (used for redirects)",
-        asset_type="Select which event asset type to upload.",
-        max_index="Max index to attempt (default 15 for notice, 20 for start).",
-    )
-    @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
-    async def eventupload(
-        interaction: discord.Interaction,
-        event_id: str,
-        event_name: str,
-        asset_type: app_commands.Choice[str],
-        max_index: int | None = None,
+@bot.tree.command(
+    name="eventupload",
+    description="Upload indexed event banner assets",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    event_id="Event identifier (e.g. 1168)",
+    event_name="Event display name (used for redirects)",
+    asset_type="Select which event asset type to upload.",
+    max_index="Max index to attempt (default 15 for notice, 20 for start).",
+)
+@app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
+async def eventupload(
+    interaction: discord.Interaction,
+    event_id: str,
+    event_name: str,
+    asset_type: app_commands.Choice[str],
+    max_index: int | None = None,
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
     ):
-        member = interaction.guild.get_member(interaction.user.id)
-        if not member or not (
-            any(role.name in ALLOWED_ROLES for role in member.roles)
-            or member.guild.owner_id == interaction.user.id
-        ):
-            await interaction.response.send_message(
-                f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
-                ephemeral=True,
-            )
-            return
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
 
-        is_valid_event_id, cleaned_event_id = validate_event_id(event_id)
-        if not is_valid_event_id:
-            await interaction.response.send_message(cleaned_event_id, ephemeral=True)
-            return
+    is_valid_event_id, cleaned_event_id = validate_event_id(event_id)
+    if not is_valid_event_id:
+        await interaction.response.send_message(cleaned_event_id, ephemeral=True)
+        return
 
-        is_valid_event_name, cleaned_event_name = validate_event_file_name(event_name)
-        if not is_valid_event_name:
-            await interaction.response.send_message(cleaned_event_name, ephemeral=True)
-            return
+    is_valid_event_name, cleaned_event_name = validate_event_file_name(event_name)
+    if not is_valid_event_name:
+        await interaction.response.send_message(cleaned_event_name, ephemeral=True)
+        return
 
-        asset_type_value = asset_type.value
-        if asset_type_value not in EVENT_TEASER_ASSET_TYPE_SET:
-            await interaction.response.send_message("Invalid asset type option.", ephemeral=True)
-            return
+    asset_type_value = asset_type.value
+    if asset_type_value not in EVENT_TEASER_ASSET_TYPE_SET:
+        await interaction.response.send_message("Invalid asset type option.", ephemeral=True)
+        return
 
-        if max_index is None:
-            if asset_type_value == "start":
-                max_index = WikiImages.EVENT_BANNER_MAX_INDEX
-            else:
-                max_index = WikiImages.EVENT_TEASER_MAX_INDEX
-        if max_index < 1:
-            await interaction.response.send_message(
-                "Invalid max index. It must be at least 1.",
-                ephemeral=True,
-            )
-            return
+    if max_index is None:
+        if asset_type_value == "start":
+            max_index = WikiImages.EVENT_BANNER_MAX_INDEX
+        else:
+            max_index = WikiImages.EVENT_TEASER_MAX_INDEX
+    if max_index < 1:
+        await interaction.response.send_message(
+            "Invalid max index. It must be at least 1.",
+            ephemeral=True,
+        )
+        return
 
-        now = time.time()
-        last = last_used.get(interaction.user.id, 0)
-        if now - last < COOLDOWN_SECONDS:
-            remaining = int(COOLDOWN_SECONDS - (now - last))
-            await interaction.response.send_message(
-                f"Please wait {remaining}s before using `/eventupload` again.",
-                ephemeral=True,
-            )
-            return
-        last_used[interaction.user.id] = now
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/eventupload` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
 
-        if upload_lock.locked():
-            await interaction.response.send_message(
-                "Another upload is already running. Please wait until it finishes.",
-                ephemeral=True,
-            )
-            return
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
 
-        async with upload_lock:
-            dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
-            await interaction.response.send_message(
-                f"{dry_run_prefix}Event upload started for `{cleaned_event_name}` "
-                f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`, max index: `{max_index}`). "
-                "This may take a while..."
-            )
-            msg = await interaction.original_response()
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Event upload started for `{cleaned_event_name}` "
+            f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`, max index: `{max_index}`). "
+            "This may take a while..."
+        )
+        msg = await interaction.original_response()
 
-        try:
-            start_time = time.time()
-            status = {
-                "stage": "starting",
-                "event_id": cleaned_event_id,
-                "asset_type": asset_type_value,
-                "total": max_index,
-            }
+    try:
+        start_time = time.time()
+        status = {
+            "stage": "starting",
+            "event_id": cleaned_event_id,
+            "asset_type": asset_type_value,
+            "total": max_index,
+        }
 
-            async def progress_updater():
-                while True:
-                    await asyncio.sleep(15)
-                    elapsed = int(time.time() - start_time)
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
 
-                    stage = status.get("stage", "processing")
-                    processed = status.get("processed", 0)
-                    total = status.get("total") or max_index
-                    current_image = status.get("current_image")
-                    current_segment = f" Current: {current_image}" if current_image else ""
-
-                    if stage == "processing":
-                        content = (
-                            f"{dry_run_prefix}Processing {processed}/{total} event assets for "
-                            f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`)."
-                            f"{current_segment} ({elapsed}s elapsed)"
-                        )
-                    else:
-                        content = (
-                            f"{dry_run_prefix}Event upload for `{cleaned_event_name}` "
-                            f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) "
-                            f"is running... ({elapsed}s elapsed)"
-                        )
-
-                    await msg.edit(content=content)
-
-            updater_task = asyncio.create_task(progress_updater())
-            return_code, stdout, stderr = await run_event_upload(
-                cleaned_event_id, cleaned_event_name, asset_type_value, max_index, status
-            )
-            updater_task.cancel()
-            elapsed = int(time.time() - start_time)
-
-            if return_code == 0:
+                stage = status.get("stage", "processing")
                 processed = status.get("processed", 0)
-                uploaded = status.get("uploaded", 0)
-                duplicates = status.get("duplicates", 0)
-                failed = status.get("failed", 0)
-                files = status.get("files", [])
+                total = status.get("total") or max_index
+                current_image = status.get("current_image")
+                current_segment = f" Current: {current_image}" if current_image else ""
 
-                summary_lines = [
-                    f"{dry_run_prefix}Event upload completed for `{cleaned_event_name}` "
-                    f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!",
-                    "**Summary:**",
-                    f"- Images processed: {processed}",
-                    f"- Images uploaded: {uploaded}",
-                    f"- Images found as duplicates: {duplicates}",
-                    f"- Images failed validation: {failed}",
-                ]
-
-                if files:
-                    base_url = "https://gbf.wiki/File:"
-                    link_lines = ["", "**Links:**"]
-                    for entry in files:
-                        index = entry.get("index")
-                        canonical_name = entry.get("canonical")
-                        redirect_name = entry.get("redirect")
-                        link_lines.append(
-                            f"- #{index}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
-                            f"Redirect <{base_url}{redirect_name.replace(' ', '_')}>"
-                        )
-                    summary_lines.extend(link_lines)
-
-                await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
-            else:
-                await msg.edit(
-                    content=(
-                        f"{dry_run_prefix}Event upload failed for `{cleaned_event_name}` "
-                        f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!"
+                if stage == "processing":
+                    content = (
+                        f"{dry_run_prefix}Processing {processed}/{total} event assets for "
+                        f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`)."
+                        f"{current_segment} ({elapsed}s elapsed)"
                     )
-                )
-                if stderr.strip():
-                    error_preview = stderr.strip()[:500]
-                    await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+                else:
+                    content = (
+                        f"{dry_run_prefix}Event upload for `{cleaned_event_name}` "
+                        f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) "
+                        f"is running... ({elapsed}s elapsed)"
+                    )
 
-        except Exception as e:
-            elapsed = int(time.time() - start_time)
-            await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_event_upload(
+            cleaned_event_id, cleaned_event_name, asset_type_value, max_index, status
+        )
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            processed = status.get("processed", 0)
+            uploaded = status.get("uploaded", 0)
+            duplicates = status.get("duplicates", 0)
+            failed = status.get("failed", 0)
+            files = status.get("files", [])
+
+            summary_lines = [
+                f"{dry_run_prefix}Event upload completed for `{cleaned_event_name}` "
+                f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!",
+                "**Summary:**",
+                f"- Images processed: {processed}",
+                f"- Images uploaded: {uploaded}",
+                f"- Images found as duplicates: {duplicates}",
+                f"- Images failed validation: {failed}",
+            ]
+
+            if files:
+                base_url = "https://gbf.wiki/File:"
+                link_lines = ["", "**Links:**"]
+                for entry in files:
+                    index = entry.get("index")
+                    canonical_name = entry.get("canonical")
+                    redirect_name = entry.get("redirect")
+                    link_lines.append(
+                        f"- #{index}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
+                        f"Redirect <{base_url}{redirect_name.replace(' ', '_')}>"
+                    )
+                summary_lines.extend(link_lines)
+
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
+        else:
+            await msg.edit(
+                content=(
+                    f"{dry_run_prefix}Event upload failed for `{cleaned_event_name}` "
+                    f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!"
+                )
+            )
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @itemupload.autocomplete("item_type")
