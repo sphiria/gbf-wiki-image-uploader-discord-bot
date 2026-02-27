@@ -2049,7 +2049,7 @@ async def itemupload(
     event_id="Event identifier (e.g. 1168)",
     event_name="Event display name (used for redirects)",
     asset_type="Select which event asset type to upload.",
-    max_index="Max index to attempt (default 15 for notice, 20 for start).",
+    max_index="Max index to attempt (default 20).",
 )
 @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
 async def eventupload(
@@ -2086,10 +2086,7 @@ async def eventupload(
         return
 
     if max_index is None:
-        if asset_type_value == "start":
-            max_index = WikiImages.EVENT_BANNER_MAX_INDEX
-        else:
-            max_index = WikiImages.EVENT_TEASER_MAX_INDEX
+        max_index = WikiImages.EVENT_BANNER_MAX_INDEX
     if max_index < 1:
         await interaction.response.send_message(
             "Invalid max index. It must be at least 1.",
@@ -2184,6 +2181,20 @@ async def eventupload(
             ]
 
             if files:
+                template_redirects = [
+                    redirect_name.replace(" ", "_")
+                    for entry in files
+                    if (redirect_name := entry.get("redirect"))
+                ]
+                if template_redirects:
+                    summary_lines.extend([
+                        "",
+                        "**Paste into EventHistory template:**",
+                        "```text",
+                        ";".join(template_redirects),
+                        "```",
+                    ])
+
                 base_url = "https://gbf.wiki/File:"
                 link_lines = ["", "**Links:**"]
                 for entry in files:

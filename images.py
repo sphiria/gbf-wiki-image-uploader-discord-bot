@@ -136,7 +136,7 @@ class WikiImages(object):
     }
 
     EVENT_BANNER_MAX_INDEX = 20
-    EVENT_TEASER_MAX_INDEX = 15
+    EVENT_TEASER_MAX_INDEX = 20
 
     def __init__(self):
         """
@@ -1941,13 +1941,13 @@ class WikiImages(object):
             )
 
         if asset_type_key == "notice":
-            asset_label = "event teaser notice"
-            not_found_message = f'No event teaser notice banners found for event id "{event_id}".'
+            asset_label = "event notice"
+            not_found_message = f'No event notice banners found for event id "{event_id}".'
             url_template = (
                 "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                "img/sp/banner/events/event_teaser_{event_id}/banner_event_notice_{index}.png"
+                "img/sp/banner/events/{event_id}/banner_event_notice_{index}.png"
             )
-            canonical_template = "event_teaser_{event_id}_banner_event_notice_{index}.png"
+            canonical_template = "{event_id}_banner_event_notice_{index}.png"
             redirect_template = "banner_{event_name}_notice_{index}.png"
         else:
             asset_label = "event start"
