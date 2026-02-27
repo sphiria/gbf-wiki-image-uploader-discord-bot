@@ -103,13 +103,14 @@ Usage: `/enemyupload id:<8104243>`
   - `event_id` - CDN folder slug such as `biography042`; must be lowercase letters/numbers/underscores.
   - `event_name` - display name used when building redirect filenames (spaces allowed; keep it exactly how you want it to appear on the wiki).
   - `asset_type` - strict dropdown with:
-    - `notice`: loads `img/sp/banner/events/event_teaser_<event_id>/banner_event_notice_<index>.png`
+    - `notice`: loads `img/sp/banner/events/<event_id>/banner_event_notice_<index>.png`
     - `start`: loads `img/sp/banner/events/<event_id>/banner_event_start_<index>.png`
-  - `max_index` - optional upper bound for index probing (defaults to 15 for `notice`, 20 for `start`; minimum 1).
+  - `max_index` - optional upper bound for index probing (defaults to 20 for both `notice` and `start`; minimum 1).
 - Checks & Limits: same role/cooldown/lock behavior as other uploaders; command stops when an index is missing.
 - Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair:
-  - `notice`: `event_teaser_<event_id>_banner_event_notice_<index>.png` and `banner_<EventName>_notice_<index>.png`
+  - `notice`: `<event_id>_banner_event_notice_<index>.png` and `banner_<EventName>_notice_<index>.png`
   - `start`: `<event_id>_banner_event_start_<index>.png` and `banner_<EventName>_<index>.png`
+  - Includes a copyable code block with semicolon-separated redirect filenames for easy Event template pasting.
 
 **/synccommands**
 Usage: `/synccommands`
