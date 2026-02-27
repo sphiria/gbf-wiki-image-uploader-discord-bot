@@ -102,10 +102,11 @@ PAGE_TYPES = [
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
 
-EVENT_TEASER_LIST_CHOICES = [
+EVENT_TEASER_ASSET_TYPE_CHOICES = [
     app_commands.Choice(name="Notice", value="notice"),
+    app_commands.Choice(name="Start", value="start"),
 ]
-EVENT_TEASER_LIST_SET = {choice.value for choice in EVENT_TEASER_LIST_CHOICES}
+EVENT_TEASER_ASSET_TYPE_SET = {choice.value for choice in EVENT_TEASER_ASSET_TYPE_CHOICES}
 
 DRAW_MODE_CHOICES = [
     app_commands.Choice(name="single", value="single"),
@@ -784,7 +785,7 @@ async def run_item_upload(item_type: str, item_id: str, item_name: str, status: 
 async def run_event_upload(
     event_id: str,
     event_name: str,
-    list_name: str,
+    asset_type: str,
     max_index: int,
     status: dict | None = None,
 ) -> tuple[int, str, str]:
@@ -805,7 +806,7 @@ async def run_event_upload(
                 status.setdefault("failed", 0)
                 status.setdefault("total_urls", 0)
                 status.setdefault("files", [])
-                status.setdefault("list_name", list_name)
+                status.setdefault("asset_type", asset_type)
 
             wi = DryRunWikiImages() if DRY_RUN else WikiImages()
             wi.delay = 5
@@ -817,7 +818,7 @@ async def run_event_upload(
             else:
                 wi._status_callback = lambda stage, **kwargs: None
 
-            result = wi.upload_event_teaser_notice(event_id, event_name, list_name, max_index)
+            result = wi.upload_event_assets(event_id, event_name, asset_type, max_index)
             if status is not None:
                 status.update(result)
                 status["stage"] = "completed"
@@ -831,7 +832,7 @@ async def run_event_upload(
         tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
 
         print(
-            f"Starting event upload for {event_name} (event id: {event_id}, list: {list_name})"
+            f"Starting event upload for {event_name} (event id: {event_id}, asset type: {asset_type})"
         )
         if DRY_RUN:
             print("DRY RUN MODE - No actual uploads will be performed")
@@ -2043,21 +2044,21 @@ if ENABLE_EVENT_UPLOAD:
 
     @bot.tree.command(
         name="eventupload",
-        description="Upload event teaser notice assets",
+        description="Upload indexed event banner assets",
     )
     @app_commands.checks.has_any_role(*ALLOWED_ROLES)
     @app_commands.describe(
         event_id="Event identifier (e.g. 1168)",
         event_name="Event display name (used for redirects)",
-        list_name="Select which image list to upload.",
-        max_index="Max index to attempt (default 15).",
+        asset_type="Select which event asset type to upload.",
+        max_index="Max index to attempt (default 15 for notice, 20 for start).",
     )
-    @app_commands.choices(list_name=EVENT_TEASER_LIST_CHOICES)
+    @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
     async def eventupload(
         interaction: discord.Interaction,
         event_id: str,
         event_name: str,
-        list_name: app_commands.Choice[str],
+        asset_type: app_commands.Choice[str],
         max_index: int | None = None,
     ):
         member = interaction.guild.get_member(interaction.user.id)
@@ -2081,13 +2082,16 @@ if ENABLE_EVENT_UPLOAD:
             await interaction.response.send_message(cleaned_event_name, ephemeral=True)
             return
 
-        list_name_value = list_name.value
-        if list_name_value not in EVENT_TEASER_LIST_SET:
-            await interaction.response.send_message("Invalid list option.", ephemeral=True)
+        asset_type_value = asset_type.value
+        if asset_type_value not in EVENT_TEASER_ASSET_TYPE_SET:
+            await interaction.response.send_message("Invalid asset type option.", ephemeral=True)
             return
 
         if max_index is None:
-            max_index = WikiImages.EVENT_TEASER_MAX_INDEX
+            if asset_type_value == "start":
+                max_index = WikiImages.EVENT_BANNER_MAX_INDEX
+            else:
+                max_index = WikiImages.EVENT_TEASER_MAX_INDEX
         if max_index < 1:
             await interaction.response.send_message(
                 "Invalid max index. It must be at least 1.",
@@ -2117,7 +2121,7 @@ if ENABLE_EVENT_UPLOAD:
             dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
             await interaction.response.send_message(
                 f"{dry_run_prefix}Event upload started for `{cleaned_event_name}` "
-                f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`, max index: `{max_index}`). "
+                f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`, max index: `{max_index}`). "
                 "This may take a while..."
             )
             msg = await interaction.original_response()
@@ -2127,7 +2131,7 @@ if ENABLE_EVENT_UPLOAD:
             status = {
                 "stage": "starting",
                 "event_id": cleaned_event_id,
-                "list_name": list_name_value,
+                "asset_type": asset_type_value,
                 "total": max_index,
             }
 
@@ -2145,13 +2149,13 @@ if ENABLE_EVENT_UPLOAD:
                     if stage == "processing":
                         content = (
                             f"{dry_run_prefix}Processing {processed}/{total} event assets for "
-                            f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, list: `{list_name_value}`)."
+                            f"`{cleaned_event_name}` (event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`)."
                             f"{current_segment} ({elapsed}s elapsed)"
                         )
                     else:
                         content = (
                             f"{dry_run_prefix}Event upload for `{cleaned_event_name}` "
-                            f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`) "
+                            f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) "
                             f"is running... ({elapsed}s elapsed)"
                         )
 
@@ -2159,7 +2163,7 @@ if ENABLE_EVENT_UPLOAD:
 
             updater_task = asyncio.create_task(progress_updater())
             return_code, stdout, stderr = await run_event_upload(
-                cleaned_event_id, cleaned_event_name, list_name_value, max_index, status
+                cleaned_event_id, cleaned_event_name, asset_type_value, max_index, status
             )
             updater_task.cancel()
             elapsed = int(time.time() - start_time)
@@ -2173,7 +2177,7 @@ if ENABLE_EVENT_UPLOAD:
 
                 summary_lines = [
                     f"{dry_run_prefix}Event upload completed for `{cleaned_event_name}` "
-                    f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`) in {elapsed}s!",
+                    f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!",
                     "**Summary:**",
                     f"- Images processed: {processed}",
                     f"- Images uploaded: {uploaded}",
@@ -2199,7 +2203,7 @@ if ENABLE_EVENT_UPLOAD:
                 await msg.edit(
                     content=(
                         f"{dry_run_prefix}Event upload failed for `{cleaned_event_name}` "
-                        f"(event id: `{cleaned_event_id}`, list: `{list_name_value}`) in {elapsed}s!"
+                        f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!"
                     )
                 )
                 if stderr.strip():

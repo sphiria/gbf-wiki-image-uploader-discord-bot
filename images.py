@@ -1893,25 +1893,30 @@ class WikiImages(object):
             max_index=max_index,
         )
 
-    def upload_event_teaser_notice(self, event_id, event_name, list_name, max_index=None):
+    def upload_event_assets(self, event_id, event_name, asset_type, max_index=None):
         """
-        Upload event teaser notice banners from the CDN.
-        Currently supports list_name="notice" only.
+        Upload indexed event banner assets from the CDN.
+        Supported asset_type values:
+        - notice: event teaser notice banners
+        - start: event start banners
         """
         event_id = str(event_id).strip().lower()
         if not event_id:
-            raise ValueError("Event id is required for event teaser uploads.")
+            raise ValueError("Event id is required for event uploads.")
 
-        list_key = (list_name or "").strip().lower()
-        if not list_key:
-            raise ValueError("List name is required for event teaser uploads.")
-        if list_key != "notice":
-            raise ValueError(f'Unsupported list name "{list_name}" for event teaser uploads.')
+        asset_type_key = (asset_type or "").strip().lower()
+        if not asset_type_key:
+            raise ValueError("Asset type is required for event uploads.")
+        if asset_type_key not in {"notice", "start"}:
+            raise ValueError(f'Unsupported asset type "{asset_type}" for event uploads.')
 
         event_name = mwparserfromhell.parse(event_name).strip_code().strip()
 
         if max_index is None:
-            max_index = self.EVENT_TEASER_MAX_INDEX
+            if asset_type_key == "start":
+                max_index = self.EVENT_BANNER_MAX_INDEX
+            else:
+                max_index = self.EVENT_TEASER_MAX_INDEX
         try:
             max_index = int(max_index)
         except (TypeError, ValueError):
@@ -1932,15 +1937,27 @@ class WikiImages(object):
                 total=max_index,
                 current_image=None,
                 event_id=event_id,
-                list_name=list_key,
+                asset_type=asset_type_key,
             )
 
-        url_template = (
-            "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-            "img/sp/banner/events/event_teaser_{event_id}/banner_event_notice_{index}.png"
-        )
-        canonical_template = "event_teaser_{event_id}_banner_event_notice_{index}.png"
-        redirect_template = "banner_{event_name}_notice_{index}.png"
+        if asset_type_key == "notice":
+            asset_label = "event teaser notice"
+            not_found_message = f'No event teaser notice banners found for event id "{event_id}".'
+            url_template = (
+                "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                "img/sp/banner/events/event_teaser_{event_id}/banner_event_notice_{index}.png"
+            )
+            canonical_template = "event_teaser_{event_id}_banner_event_notice_{index}.png"
+            redirect_template = "banner_{event_name}_notice_{index}.png"
+        else:
+            asset_label = "event start"
+            not_found_message = f'No event start banners found for event id "{event_id}".'
+            url_template = (
+                "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                "img/sp/banner/events/{event_id}/banner_event_start_{index}.png"
+            )
+            canonical_template = "{event_id}_banner_event_start_{index}.png"
+            redirect_template = "banner_{event_name}_{index}.png"
 
         for index in range(1, max_index + 1):
             url = url_template.format(event_id=event_id, index=index)
@@ -1948,14 +1965,14 @@ class WikiImages(object):
             redirect_name = redirect_template.format(event_name=event_name, index=index)
 
             print(
-                f'Downloading event teaser notice #{index} for "{event_name}" '
+                f'Downloading {asset_label} #{index} for "{event_name}" '
                 f'(event id: {event_id}) -> {url}'
             )
 
             success, sha1, size, io_obj = self.get_image(url)
             if not success:
                 if index == 1:
-                    print(f'No event teaser notice banners found for event id "{event_id}".')
+                    print(not_found_message)
                 break
 
             processed += 1
@@ -1967,7 +1984,7 @@ class WikiImages(object):
                     total=max_index,
                     current_image=canonical_name,
                     event_id=event_id,
-                    list_name=list_key,
+                    asset_type=asset_type_key,
                 )
 
             other_names = [redirect_name]
@@ -1995,7 +2012,7 @@ class WikiImages(object):
             self.check_file_double_redirect(canonical_name)
 
         if processed == 0:
-            raise ValueError(f'No event teaser notice banners found for event id "{event_id}".')
+            raise ValueError(not_found_message)
 
         if hasattr(self, "_status_callback"):
             self._status_callback(
@@ -2007,7 +2024,7 @@ class WikiImages(object):
                 total=max_index,
                 total_urls=processed,
                 event_id=event_id,
-                list_name=list_key,
+                asset_type=asset_type_key,
             )
 
         return {
@@ -2019,7 +2036,7 @@ class WikiImages(object):
             "total": max_index,
             "files": file_entries,
             "event_id": event_id,
-            "list_name": list_key,
+            "asset_type": asset_type_key,
         }
 
     def check_character(self, page):

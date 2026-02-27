@@ -97,15 +97,19 @@ Usage: `/enemyupload id:<8104243>`
 - Output: summary lists processed/uploaded/duplicates/failed counts plus wiki links for each canonical/redirect pair (`enemy_s_<id>.png`, `enemy_m_<id>.png`, `enemy_icon_<id>_S.png`, `enemy_icon_<id>_M.png`).
 
 **/eventupload**
--Usage: `/eventupload event_id:<biography042> event_name:<Event Name> image_type:<banner_start|banner_notice> event_run:<default|redux|redux2|side_story>`
-- Purpose: Upload the indexed `banner_event_start_<index>.png` (live banners) or `banner_event_notice_<index>.png` (teaser banners) assets for an event and create the matching redirects.
+- Usage: `/eventupload event_id:<biography042> event_name:<Event Name> asset_type:<notice|start> max_index:<optional>`
+- Purpose: Upload indexed event notice/start banner assets and create matching redirects.
 - Inputs:
   - `event_id` - CDN folder slug such as `biography042`; must be lowercase letters/numbers/underscores.
   - `event_name` - display name used when building redirect filenames (spaces allowed; keep it exactly how you want it to appear on the wiki).
-  - `image_type` - strict dropdown (`banner_start`, `banner_notice`) that decides which asset pipeline to run and which canonical/redirect names are generated.
-  - `event_run` - pick one of the fixed options (`default`, `redux`, `redux2`, `side_story`) for bookkeeping.
-- Checks & Limits: same role/cooldown/lock behavior as other uploaders; command stops when a banner index is missing (max 20 attempts).
-- Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair (start banners create `banner_<EventName>_<index>.png`, notice banners create `banner_<EventName>_notice_<index>.png`).
+  - `asset_type` - strict dropdown with:
+    - `notice`: loads `img/sp/banner/events/event_teaser_<event_id>/banner_event_notice_<index>.png`
+    - `start`: loads `img/sp/banner/events/<event_id>/banner_event_start_<index>.png`
+  - `max_index` - optional upper bound for index probing (defaults to 15 for `notice`, 20 for `start`; minimum 1).
+- Checks & Limits: same role/cooldown/lock behavior as other uploaders; command stops when an index is missing.
+- Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair:
+  - `notice`: `event_teaser_<event_id>_banner_event_notice_<index>.png` and `banner_<EventName>_notice_<index>.png`
+  - `start`: `<event_id>_banner_event_start_<index>.png` and `banner_<EventName>_<index>.png`
 
 **/synccommands**
 Usage: `/synccommands`
