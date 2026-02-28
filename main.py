@@ -428,7 +428,7 @@ def build_rateup_content(rateup_names: list[str], sparkable_names: list[str]) ->
     inner_lines.append("</div>")
 
     return (
-        "{{ScheduledContent|end_time={{MainPageDraw/RateUpsEndDate}} JST|\n"
+        "{{ScheduledContent|end_time={{MainPageDraw/RateUpsEndDate}} JST|content=\n"
         + "\n".join(inner_lines)
         + "}}"
     )
@@ -2004,8 +2004,8 @@ async def rateup(
     interaction: discord.Interaction,
     end_date: str,
     end_time: str,
-    rateups: str | None = None,
-    sparkable: str | None = None,
+    rateups: str,
+    sparkable: str,
 ):
     member = interaction.guild.get_member(interaction.user.id)
     if not member or not (
@@ -2035,16 +2035,21 @@ async def rateup(
         await interaction.response.send_message(rateup_result, ephemeral=True)
         return
     rateup_names = rateup_result
+    if not rateup_names:
+        await interaction.response.send_message(
+            "`rateups` is required and must contain at least one character name.",
+            ephemeral=True,
+        )
+        return
 
     are_sparkable_valid, sparkable_result = validate_pipe_separated_page_names(sparkable, "sparkable")
     if not are_sparkable_valid:
         await interaction.response.send_message(sparkable_result, ephemeral=True)
         return
     sparkable_names = sparkable_result
-
-    if not rateup_names and not sparkable_names:
+    if not sparkable_names:
         await interaction.response.send_message(
-            "At least one of `rateups` or `sparkable` must contain a character name.",
+            "`sparkable` is required and must contain at least one character name.",
             ephemeral=True,
         )
         return
