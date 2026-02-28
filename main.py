@@ -66,6 +66,7 @@ MAX_BANNER_ID_LEN = 64
 MAX_EVENT_ID_LEN = 64
 MAX_ENEMY_ID_LEN = 64
 MAX_CLASS_SKIN_ID_LEN = 64
+MAX_RATEUP_INPUT_LEN = 1000
 PAGE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|\x00-\x1F]")
 FILE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|:\x00-\x1F]")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
@@ -132,6 +133,8 @@ DRAW_PAGE_DOUBLE_LEFT = "Template:MainPageDraw/DoublePromoLeft"
 DRAW_PAGE_DOUBLE_RIGHT = "Template:MainPageDraw/DoublePromoRight"
 DRAW_PAGE_ELEMENT_BANNERS = "Template:MainPageDraw/ElementPromoBanners"
 DRAW_PAGE_ELEMENT_ICONS = "Template:MainPageDraw/ElementPromoIcons"
+DRAW_PAGE_RATE_UPS = "Template:MainPageDraw/RateUps"
+DRAW_PAGE_RATE_UPS_END_DATE = "Template:MainPageDraw/RateUpsEndDate"
 MAIN_PAGE_PURGE_URL = "<https://gbf.wiki/Main_Page/purge>"
 
 def normalize_item_type_input(raw_value: str | None) -> str:
@@ -346,6 +349,35 @@ def validate_draw_link_target(link_target: str) -> tuple[bool, str]:
         return False, "Invalid link target. Characters #, <, >, [, ], {, }, |, or control characters are not allowed."
     return True, cleaned
 
+def validate_pipe_separated_page_names(
+    raw_value: str | None,
+    field_name: str,
+) -> tuple[bool, list[str] | str]:
+    """
+    Validate a pipe-separated list of wiki-facing names.
+    Returns (is_valid, parsed_list/error_message).
+    Empty input is allowed and returns an empty list.
+    """
+    cleaned = (raw_value or "").strip()
+    if not cleaned:
+        return True, []
+    if len(cleaned) > MAX_RATEUP_INPUT_LEN:
+        return False, f"Invalid {field_name}. Must be at most {MAX_RATEUP_INPUT_LEN} characters."
+
+    parts = [part.strip() for part in cleaned.split("|")]
+    if any(not part for part in parts):
+        return False, f"Invalid {field_name}. Empty entries are not allowed; use `Name A|Name B|Name C`."
+
+    parsed_names: list[str] = []
+    for index, part in enumerate(parts, start=1):
+        is_valid_name, name_result = validate_page_name(part)
+        if not is_valid_name:
+            error_text = name_result[2:] if name_result.startswith("❌ ") else name_result
+            return False, f"Invalid {field_name} entry #{index}: {error_text}"
+        parsed_names.append(name_result)
+
+    return True, parsed_names
+
 def build_draw_gallery_swap_images(file_names: list[str], link_target: str) -> str:
     """
     Build GallerySwapImages wikitext for 230x110 draw banners.
@@ -355,6 +387,51 @@ def build_draw_gallery_swap_images(file_names: list[str], link_target: str) -> s
         lines.append(f"|[[File:{file_name}|230px|link={link_target}]]")
     lines.append("}}")
     return "\n".join(lines)
+
+def build_character_icons_template(character_names: list[str]) -> str:
+    if not character_names:
+        raise ValueError("At least one character name is required to build CharacterIcons.")
+    return "{{CharacterIcons|format=square|size=50px|tooltip=yes|" + "|".join(character_names) + "}}"
+
+def build_rateup_content(rateup_names: list[str], sparkable_names: list[str]) -> str:
+    """
+    Build MainPageDraw rate-up section wikitext.
+    The section renders up to two groups:
+    - draw rate-up characters
+    - sparkable characters
+    """
+    if not rateup_names and not sparkable_names:
+        raise ValueError("At least one of rateups or sparkable must contain a character.")
+
+    inner_lines = ['<div style="max-width: 470px; display:flex; justify-content: center;">']
+    if rateup_names and sparkable_names:
+        inner_lines.extend([
+            '<div style="margin-right:10px;">',
+            f"{build_character_icons_template(rateup_names)}<br />",
+            "{{icon|drawrateup|size=100}}",
+            "</div>",
+            "<div>",
+            f"{build_character_icons_template(sparkable_names)}<br />",
+            "{{label|sparkable|size=73|link=Spark}}",
+            "</div>",
+        ])
+    elif rateup_names:
+        inner_lines.extend([
+            f"{build_character_icons_template(rateup_names)}<br />",
+            "{{icon|drawrateup|size=100}}",
+        ])
+    else:
+        inner_lines.extend([
+            f"{build_character_icons_template(sparkable_names)}<br />",
+            "{{label|sparkable|size=73|link=Spark}}",
+        ])
+    inner_lines.append("</div>")
+
+    return (
+        "{{ScheduledContent|end_time={{MainPageDraw/RateUpsEndDate}} JST|\n"
+        + "\n".join(inner_lines)
+        + "}}"
+    )
 
 def _format_jst_datetime(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M JST")
@@ -636,6 +713,82 @@ async def run_draw_update(
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
     except Exception as exc:
         error_msg = f"Draw update task failed: {exc}"
+        print(error_msg)
+        return 1, "", str(exc)
+
+async def run_rateup_update(
+    end_datetime_text: str,
+    rateup_names: list[str],
+    sparkable_names: list[str],
+    status: dict | None = None,
+) -> tuple[int, str, str]:
+    """
+    Update MainPageDraw rate-up subtemplates in a thread.
+    Returns (return_code, stdout, stderr)
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def update_status(stage: str, **kwargs):
+        if status is not None:
+            status.update({"stage": stage, **kwargs})
+
+    def upload_task():
+        try:
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            site = wi.wiki
+
+            rateup_text = build_rateup_content(rateup_names, sparkable_names)
+            page_updates = [
+                (DRAW_PAGE_RATE_UPS, rateup_text),
+                (DRAW_PAGE_RATE_UPS_END_DATE, end_datetime_text),
+            ]
+
+            update_status(
+                "saving_pages",
+                pages=[title for title, _ in page_updates],
+            )
+
+            saved_pages: list[str] = []
+            for page_title, page_text in page_updates:
+                page = site.pages[page_title]
+                if DRY_RUN and hasattr(wi, "_patch_page_save"):
+                    wi._patch_page_save(page)
+                if page_title == DRAW_PAGE_RATE_UPS_END_DATE:
+                    save_summary = f"Bot: update MainPageDraw RateUpsEndDate to {end_datetime_text} JST"
+                else:
+                    save_summary = "Bot: update MainPageDraw rate ups"
+                page.save(page_text, summary=save_summary, minor=False, bot=True)
+                saved_pages.append(page_title)
+
+            update_status(
+                "completed",
+                saved_pages=saved_pages,
+                rateups=rateup_names,
+                sparkable=sparkable_names,
+            )
+            return 0
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(
+            f"Starting MainPageDraw rate-up update "
+            f"(rateups: {len(rateup_names)}, sparkable: {len(sparkable_names)}, end: {end_datetime_text})"
+        )
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual saves will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as exc:
+        error_msg = f"Rate-up update task failed: {exc}"
         print(error_msg)
         return 1, "", str(exc)
 
@@ -1828,6 +1981,186 @@ async def drawupdate_end_time_autocomplete(
     current: str
 ) -> list[app_commands.Choice[str]]:
     """Suggest common draw end times while allowing custom HH:MM input."""
+    current_clean = (current or "").strip()
+    filtered = [
+        t for t in DRAW_COMMON_END_TIMES
+        if not current_clean or current_clean in t
+    ]
+    return [app_commands.Choice(name=t, value=t) for t in filtered[:25]]
+
+
+@bot.tree.command(
+    name="rateup",
+    description="Update MainPageDraw rate-up characters subtemplate",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    end_date="Rate-up end date in JST (YYYY-MM-DD)",
+    end_time="Rate-up end time in JST (HH:MM). Common values: 18:59, 11:59, 23:59",
+    rateups="Pipe-separated rate-up character names for CharacterIcons",
+    sparkable="Pipe-separated sparkable character names for CharacterIcons",
+)
+async def rateup(
+    interaction: discord.Interaction,
+    end_date: str,
+    end_time: str,
+    rateups: str | None = None,
+    sparkable: str | None = None,
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
+
+    is_valid_date, cleaned_end_date = validate_draw_end_date(end_date)
+    if not is_valid_date:
+        await interaction.response.send_message(cleaned_end_date, ephemeral=True)
+        return
+
+    is_valid_time, cleaned_end_time = validate_draw_end_time(end_time)
+    if not is_valid_time:
+        await interaction.response.send_message(cleaned_end_time, ephemeral=True)
+        return
+
+    cleaned_end_datetime = f"{cleaned_end_date} {cleaned_end_time}"
+
+    are_rateups_valid, rateup_result = validate_pipe_separated_page_names(rateups, "rateups")
+    if not are_rateups_valid:
+        await interaction.response.send_message(rateup_result, ephemeral=True)
+        return
+    rateup_names = rateup_result
+
+    are_sparkable_valid, sparkable_result = validate_pipe_separated_page_names(sparkable, "sparkable")
+    if not are_sparkable_valid:
+        await interaction.response.send_message(sparkable_result, ephemeral=True)
+        return
+    sparkable_names = sparkable_result
+
+    if not rateup_names and not sparkable_names:
+        await interaction.response.send_message(
+            "At least one of `rateups` or `sparkable` must contain a character name.",
+            ephemeral=True,
+        )
+        return
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/rateup` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Rate-up update started "
+            f"(rateups: `{len(rateup_names)}`, sparkable: `{len(sparkable_names)}`). This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+        status_info = {
+            "stage": "starting",
+            "saved_pages": [],
+            "rateups": rateup_names,
+            "sparkable": sparkable_names,
+        }
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+                stage = status_info.get("stage", "processing")
+                if stage == "saving_pages":
+                    pages = status_info.get("pages") or []
+                    content = (
+                        f"{dry_run_prefix}Saving rate-up subtemplates ({len(pages)} pages) "
+                        f"({elapsed}s elapsed)"
+                    )
+                elif stage == "completed":
+                    content = (
+                        f"{dry_run_prefix}Rate-up update is wrapping up ({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}Rate-up update is {stage} ({elapsed}s elapsed)"
+                    )
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_rateup_update(
+            cleaned_end_datetime,
+            rateup_names,
+            sparkable_names,
+            status_info,
+        )
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            saved_pages = status_info.get("saved_pages") or []
+            rendered_rateup = build_rateup_content(rateup_names, sparkable_names)
+
+            summary_lines = [
+                f"{dry_run_prefix}Rate-up update completed in {elapsed}s.",
+                "**Inputs used:**",
+                f"- end_date: `{cleaned_end_date}`",
+                f"- end_time: `{cleaned_end_time}`",
+                f"- rateups: `{ '|'.join(rateup_names) if rateup_names else '(none)' }`",
+                f"- sparkable: `{ '|'.join(sparkable_names) if sparkable_names else '(none)' }`",
+                "",
+                "**Updated pages:**",
+            ]
+            for page in saved_pages:
+                page_url = f"https://gbf.wiki/{page.replace(' ', '_')}"
+                summary_lines.append(f"- <{page_url}>")
+
+            summary_lines.extend([
+                "",
+                "**Rendered Rate-Ups Subtemplate:**",
+                "```wikitext",
+                rendered_rateup,
+                "```",
+                "",
+                f"Please purge Main Page to show changes immediately: {MAIN_PAGE_PURGE_URL}",
+            ])
+
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
+        else:
+            await msg.edit(content=f"{dry_run_prefix}Rate-up update failed in {elapsed}s.")
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@rateup.autocomplete("end_time")
+async def rateup_end_time_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> list[app_commands.Choice[str]]:
+    """Suggest common rate-up end times while allowing custom HH:MM input."""
     current_clean = (current or "").strip()
     filtered = [
         t for t in DRAW_COMMON_END_TIMES
