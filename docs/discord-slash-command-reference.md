@@ -78,6 +78,25 @@ Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:
 - Checks & Limits: same role/cooldown/lock behavior as other upload-style commands.
 - Output: progress updates while resolving/saving, then a summary that echoes command inputs, shows updated page links (URL-only bullets), banner files used, and includes a purge reminder link: `<https://gbf.wiki/Main_Page/purge>` (embed suppressed).
 
+**/rateup**
+Usage: `/rateup end_date:<YYYY-MM-DD> end_time:<HH:MM> rateups:<Name A|Name B> sparkable:<Name C|Name D>`
+- Purpose: Update the MainPageDraw rate-up subtemplates without touching the shared draw banner end date.
+- Inputs:
+  - `end_date` - required, strict JST date string in `YYYY-MM-DD`.
+  - `end_time` - required, strict JST time string in `HH:MM` (24-hour). The command suggests common values (`18:59`, `11:59`, `23:59`) via autocomplete and still allows custom input.
+  - `rateups` - optional pipe-separated character list for the `{{CharacterIcons}}` rate-up group, e.g. `Gawain (Valentine)|Wamdus (Valentine)|Yatima`.
+  - `sparkable` - optional pipe-separated character list for the sparkable group, e.g. `Catura|Sandira`.
+  - At least one of `rateups` or `sparkable` must be provided.
+- Wiki pages updated:
+  - `Template:MainPageDraw/RateUps`
+  - `Template:MainPageDraw/RateUpsEndDate`
+- Notes:
+  - `/rateup` keeps its end date separate from `Template:MainPageDraw/EndDate`, because rate-ups do not always end with the banner rotation.
+  - When both groups are present, the rate-up icons render on the left with `{{icon|drawrateup|size=100}}` and sparkable icons render on the right with `{{label|sparkable|size=73|link=Spark}}`.
+  - When only one group is provided, the subtemplate renders only that group.
+- Checks & Limits: same role/cooldown/lock behavior as other upload-style commands; names use the same wiki page-name validation as other wiki-facing inputs.
+- Output: progress updates while saving, then a summary that echoes inputs, shows updated page links, includes the exact rendered subtemplate in a copyable `wikitext` code block, and includes a purge reminder link: `<https://gbf.wiki/Main_Page/purge>` (embed suppressed).
+
 **/itemupload**
 Usage: `/itemupload item_type:<CDN folder (e.g. Article, Normal)> item_id:<CDN id> item_name:<Display Name>`
 - Purpose: Upload the square/icon pair for a single item along with canonical redirects for the supplied display name.
