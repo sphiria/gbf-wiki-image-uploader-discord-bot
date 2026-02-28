@@ -99,6 +99,9 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `Template:MainPageDraw/RateUps`
   - `Template:MainPageDraw/RateUpsEndDate`
 - `rateup` must not overwrite `Template:MainPageDraw/EndDate`; its end date is intentionally separate from the banner rotation end date.
+- `/rateup` currently requires both pipe-separated inputs:
+  - `rateups`
+  - `sparkable`
 - Save order matters for draw updates:
   - content pages first
   - `EndDate`
