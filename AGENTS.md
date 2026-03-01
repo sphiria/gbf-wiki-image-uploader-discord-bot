@@ -119,13 +119,52 @@ Most changes should preserve existing command contracts, wiki filename conventio
     - Canonical: `vyrnsampo_character_detail_{id}.png`
   - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/detail/{id}_friendship.png`
     - Canonical: `vyrnsampo_character_detail_{id}_friendship.png`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/special_skill_label/{id}.png`
+    - Canonical: `Label {name}.png`
+    - No redirect
 - When `name` is present, also create:
   - File redirect: `{name} (Advyrnture) icon.jpg`
   - File redirect: `{name} (Friendship) icon.jpg`
   - File redirect: `{name} (Fatigue) icon.jpg`
   - File redirect: `{name} (Advyrnture).png`
   - File redirect: `{name} (Friendship).png`
-- When `name` is blank, skip redirect creation and upload canonicals only.
+- When `name` is blank, skip all name-based uploads and redirects.
+
+## Character Home Image Contract
+
+- `/imgupload page_type:character` also checks `npc/my` assets from the target `{{Character}}` id.
+- CDN pattern:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/my/{id}{index}.png`
+- Canonical naming:
+  - `Npc_my_{id}{index}.png`
+- Redirect naming follows the existing `m` icon mapping style, but uses `_my`:
+  - `{name}_my.png`
+  - variant-suffixed forms such as `{name}_my A2.png`
+
+## Character Result Level Up Image Contract
+
+- `/imgupload page_type:character` also checks `npc/result_lvup` assets from the target `{{Character}}` id.
+- CDN pattern:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/result_lvup/{id}{index}.png`
+- Canonical naming:
+  - `Npc_result_lvup_{id}{index}.png`
+- Redirect naming follows the existing character variant mapping style, but uses `_result_lvup`:
+  - `{name}_result_lvup.png`
+  - variant-suffixed forms such as `{name}_result_lvup A2.png`
+- Category:
+  - `Result Level Up Character Images`
+
+## Character Sky Compass Zoom Contract
+
+- `/imgupload page_type:character` also checks Sky Compass higher-resolution zoom-style assets using the target `{{Character}}` id and the same index set as the standard `zoom` assets.
+- CDN pattern:
+  - `https://media.skycompass.io/assets/customizes/characters/1138x1138/{id}{index}.png`
+- Canonical naming:
+  - `characters_1138x1138_{id}{index}.png`
+- Categories:
+  - `Sky Compass Images`
+  - `Sky Compass Character Images`
+- Redirects are intentionally omitted for now until a naming contract is decided.
 
 ## MainPageDraw Ownership
 

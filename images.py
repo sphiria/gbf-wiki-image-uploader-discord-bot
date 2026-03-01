@@ -1950,6 +1950,8 @@ class WikiImages(object):
           (from /vyrnsampo/assets/character/detail/{id}.png)
         - vyrnsampo_character_detail_{id}_friendship.png
           (from /vyrnsampo/assets/character/detail/{id}_friendship.png)
+        - Label {name}.png
+          (from /vyrnsampo/assets/character/special_skill_label/{id}.png)
 
         When `name` is present, also creates:
         - {name} (Advyrnture) icon.jpg
@@ -2010,7 +2012,7 @@ class WikiImages(object):
             print('No {{Advyrnture/Pal}} templates found with valid id parameters.')
             return
 
-        total_images = len(pals) * 5
+        total_images = len(pals) * 6
         processed = 0
         uploaded = 0
         duplicates = 0
@@ -2078,12 +2080,36 @@ class WikiImages(object):
                         f"{pal_name} (Friendship).png" if pal_name else None
                     ),
                 },
+                {
+                    "canonical": f"Label {pal_name}.png" if pal_name else None,
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/vyrnsampo/assets/character/special_skill_label/{pal_id}.png"
+                    ),
+                    "redirect": None,
+                },
             ]
 
             for variant in variants:
                 canonical_name = variant["canonical"]
                 redirect_name = variant["redirect"]
                 url = variant["url"]
+
+                if not canonical_name:
+                    failed += 1
+                    print(
+                        f'Skipping Advyrnture pal special skill label for id "{pal_id}" '
+                        f'because name is blank.'
+                    )
+                    processed += 1
+                    if hasattr(self, "_status_callback"):
+                        self._status_callback(
+                            "processing",
+                            processed=processed,
+                            total=total_images,
+                            current_image=f"special_skill_label/{pal_id}",
+                        )
+                    continue
 
                 print(f'Downloading Advyrnture pal "{pal_id}" ({url})...')
                 success, sha1, size, io_obj = self.get_image(url)
@@ -2469,6 +2495,18 @@ class WikiImages(object):
             'B01', 'B02', 'B03', 'B04', 'B05', 'B06', 
             'C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 
             ['Character Images', 'Full Character Images'  ]],
+
+            'skycompass_zoom': ['png', '',
+            ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04',
+            '_81', '_82', '_88', '_91', '_91_0', '_91_1',
+            '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
+            '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
+            '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'],
+            ['A', 'A2', 'A101', 'A102', 'A103', 'B', 'B2',  'B101', 'B102', 'B103', 'C', 'C2',  'C101', 'C102', 'C103', 'D', 'ST', 'ST2', 'ST8', 'EX', 'EX1', 'EX2',
+            'A01', 'A02', 'A03', 'A04', 'A05', 'A06',
+            'B01', 'B02', 'B03', 'B04', 'B05', 'B06',
+            'C01', 'C02', 'C03', 'C04', 'C05', 'C06'],
+            ['Sky Compass Images', 'Sky Compass Character Images']],
             
             'f_skin':             ['jpg', '_tall',   
             ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
@@ -2536,6 +2574,31 @@ class WikiImages(object):
             'C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 
             
             ['Character Images', 'Icon Character Images'  ]],
+
+            'my':            ['png', '_my',     ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04',
+            '_81', '_82', '_88', '_91', '_91_0', '_91_1',
+            '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
+            '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
+            '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'],
+            ['A', 'A2', 'A101', 'A102', 'A103', 'B', 'B2',  'B101', 'B102', 'B103', 'C', 'C2',  'C101', 'C102', 'C103', 'D', 'ST', 'ST2', 'ST8', 'EX', 'EX1', 'EX2',
+            'A01', 'A02', 'A03', 'A04', 'A05', 'A06',
+            'B01', 'B02', 'B03', 'B04', 'B05', 'B06',
+            'C01', 'C02', 'C03', 'C04', 'C05', 'C06'],
+
+            ['Character Images', 'Home Character Images'  ]],
+
+            'result_lvup':   ['png', '_result_lvup',
+            ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04',
+            '_81', '_82', '_88', '_91', '_91_0', '_91_1',
+            '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
+            '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
+            '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'],
+            ['A', 'A2', 'A101', 'A102', 'A103', 'B', 'B2',  'B101', 'B102', 'B103', 'C', 'C2',  'C101', 'C102', 'C103', 'D', 'ST', 'ST2', 'ST8', 'EX', 'EX1', 'EX2',
+            'A01', 'A02', 'A03', 'A04', 'A05', 'A06',
+            'B01', 'B02', 'B03', 'B04', 'B05', 'B06',
+            'C01', 'C02', 'C03', 'C04', 'C05', 'C06'],
+
+            ['Character Images', 'Result Level Up Character Images'  ]],
             
             's':             ['jpg', '_square', 
             ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02',  '_02_1', '_02_101', '_02_102', '_02_103',   '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04', '_81', '_82', '_88', '_91', '_91_0', '_91_1',
@@ -3511,6 +3574,16 @@ class WikiImages(object):
                                 params[0]
                             )
                             section_label = 'sp'
+                        elif section == 'skycompass_zoom':
+                            url = (
+                                'https://media.skycompass.io/'
+                                'assets/customizes/characters/1138x1138/{0}{1}.{2}'
+                            ).format(
+                                asset_id,
+                                params[2][version],
+                                params[0]
+                            )
+                            section_label = section
                         elif section == 'f_skin':
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -3536,33 +3609,49 @@ class WikiImages(object):
                             )
                             section_label = section
 
-                        true_name = "{0} {1} {2}{3}.{4}".format(
-                            asset_type.capitalize(),
-                            section_label,
-                            asset_id,
-                            params[2][version],
-                            params[0]
-                        )
+                        if section == 'skycompass_zoom':
+                            true_name = "characters_1138x1138_{0}{1}.{2}".format(
+                                asset_id,
+                                params[2][version],
+                                params[0]
+                            )
+                        elif asset_type == 'npc' and section in ('my', 'result_lvup'):
+                            true_name = "{0}_{1}_{2}{3}.{4}".format(
+                                asset_type.capitalize(),
+                                section,
+                                asset_id,
+                                params[2][version],
+                                params[0]
+                            )
+                        else:
+                            true_name = "{0} {1} {2}{3}.{4}".format(
+                                asset_type.capitalize(),
+                                section_label,
+                                asset_id,
+                                params[2][version],
+                                params[0]
+                            )
                         
                         other_names = []
-                        if (versions < 2) or (params[3][version] == 'A'):
-                            other_names.append(
-                                '{0}{1}.{2}'.format(
-                                    asset_name,
-                                    params[1],
-                                    params[0]
+                        if section != 'skycompass_zoom':
+                            if (versions < 2) or (params[3][version] == 'A'):
+                                other_names.append(
+                                    '{0}{1}.{2}'.format(
+                                        asset_name,
+                                        params[1],
+                                        params[0]
+                                    )
                                 )
-                            )
 
-                        if (versions > 1):
-                            other_names.append(
-                                '{0}{1}{2}.{3}'.format(
-                                    asset_name,
-                                    params[1],
-                                    (' ' if (params[1] == '' and params[3][version] != '') else '') + params[3][version],
-                                    params[0]
+                            if (versions > 1):
+                                other_names.append(
+                                    '{0}{1}{2}.{3}'.format(
+                                        asset_name,
+                                        params[1],
+                                        (' ' if (params[1] == '' and params[3][version] != '') else '') + params[3][version],
+                                        params[0]
+                                    )
                                 )
-                            )
                         
                         download_tasks.append({
                             'url': url,
