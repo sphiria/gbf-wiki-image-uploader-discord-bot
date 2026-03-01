@@ -85,6 +85,23 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - ASCII control characters
 - `event_id` currently allows only lowercase letters, numbers, and underscores.
 
+## Advyrnture Gear Contract
+
+- `/imgupload page_type:advyrnture_gear` scans `{{Advyrnture/Cosmetic/Row}}` templates on the target page.
+- Pertinent parameters:
+  - `id`
+  - `name`
+- Uploads always use the `id` for these CDN paths and canonical filenames:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/cosmetic/s/{id}.jpg`
+    - Canonical: `cosmetic_s_{id}.jpg`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/cosmetic/m/{id}.jpg`
+    - Canonical: `cosmetic_m_{id}.jpg`
+- When `name` is present, also create:
+  - File redirect: `{name} (Advyrnture) square.jpg`
+  - File redirect: `{name} (Advyrnture) icon.jpg`
+  - Page redirect: `{name} (Advyrnture)` -> `Let's Go, Advyrnturers!#{name}`
+- When `name` is blank, skip redirect creation and upload canonicals only.
+
 ## MainPageDraw Ownership
 
 - `drawupdate` currently owns these subtemplates:
@@ -107,11 +124,92 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `EndDate`
   - `PromoMode` last
 
+### DrawUpdate Contract
+
+- `/drawupdate` params currently include:
+  - `mode`
+  - `end_date`
+  - `end_time`
+  - `left_banner_id`
+  - `right_banner_id`
+  - `left_count`
+  - `right_count`
+  - `max_probe`
+  - `link_target`
+  - `element_start`
+- `end_date` and `end_time` are intentionally split:
+  - `end_date` uses `YYYY-MM-DD`
+  - `end_time` uses `HH:MM`
+  - common `end_time` suggestions are `18:59`, `11:59`, and `23:59`
+- `drawupdate` file detection rules:
+  - if count override is provided, validate contiguous `1..count`
+  - if count override is omitted, probe from index `1` and stop on first miss
+  - if index `1` is missing, abort
+
+### DrawUpdate Modes
+
+- Supported `drawupdate` modes:
+  - `single`
+  - `double`
+  - `element-single`
+  - `element-double`
+- Mode-specific constraints:
+  - `single`
+    - `right_banner_id` and `right_count` must be omitted
+  - `double`
+    - `right_banner_id` is required
+  - `element-single`
+    - `right_banner_id` and `right_count` must be omitted
+  - `element-double`
+    - `right_banner_id` is required
+    - `right_count` optional
+- Both element modes intentionally write `Template:MainPageDraw/PromoMode` as `element` for template compatibility.
+
+### Element Mode Rules
+
+- `element_start` defaults to `fire`.
+- Element order is fixed and rotates as:
+  - `fire -> water -> earth -> wind -> light -> dark`
+- `element-single`
+  - uses one slug only
+  - daily banner pairs are built from indices `(1,2)`, `(3,4)`, ...
+  - if there is an odd final banner, the last day reuses the last banner for the pair
+- `element-double`
+  - each side uses its own slug and its own index pairs `(1,2)`, `(3,4)`, ...
+  - left and right are rendered as separate columns inside one outer `double-promotion` wrapper
+  - counts do not need to match
+  - at least one side must have `12` banners
+  - when one side is shorter, it reuses its last pair for remaining days
+- All element banner days are wrapped in `ScheduledContent`; day 1 must not be left unscheduled.
+- Element banner `ScheduledContent` blocks are joined with `<!--` / `-->` separators to avoid whitespace rendering gaps.
+- The final element banner day extends its end time by `+ 3 days` so banners remain visible after the event ends.
+
+### DrawUpdate Output / Edit Summaries
+
+- Successful `/drawupdate` summaries should:
+  - echo the resolved inputs
+  - list updated page links as URL-only bullets
+  - use suppressed-embed links via `<https://...>`
+  - include the Main Page purge reminder as `<https://gbf.wiki/Main_Page/purge>`
+- `Updated pages` bullets should contain only links, not repeated page labels.
+- `drawupdate` page edit summaries:
+  - `Template:MainPageDraw/EndDate` should include the exact datetime
+  - `Template:MainPageDraw/PromoMode` should include the resolved mode value
+  - content subtemplates can keep the generic draw promotion summary
+
 ## Code Health Notes
 
 - The repo has repeated command-runner patterns in `main.py`.
+- Similar commands are currently a mix of shared patterns and session-by-session drift.
+- There is enough duplication between upload-style commands that future confusion is a real risk if new work keeps copying nearby code without consolidation.
 - Prefer extracting shared helpers rather than copying another command block when adding new upload-style commands.
 - Prefer reusing existing wiki upload helpers in `images.py` rather than creating near-duplicate loops.
+- More uniformity is preferred between similar functions, especially:
+  - command flow in `main.py`
+  - status payload shape
+  - progress message structure
+  - summary formatting
+- A future refactor to unify these flows is on the table.
 - If behavior changes, keep summary formatting and status payloads consistent with existing commands unless there is a reason to diverge.
 
 ## Working Norms For Future Sessions
@@ -120,3 +218,16 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Do not silently change wiki page targets or MainPageDraw subtemplate ownership.
 - Do not leave docs stale after changing slash command parameters or outputs.
 - If a behavior is being changed for operator convenience, document the reason here if it affects future maintenance.
+- If a session identifies a worthwhile refactoring opportunity, it may suggest it.
+- Do not perform refactoring just because an opportunity exists; explain the problem, the proposed direction, and the tradeoff first, then get explicit user permission before doing the refactor.
+
+## Session Checklist
+
+- If a slash command contract changed, update:
+  - `README.md`
+  - `docs/discord-slash-command-reference.md`
+- If MainPageDraw behavior changed, confirm the affected subtemplate ownership still matches this file.
+- If canonical names, redirect names, or CDN URL patterns changed, record the new contract here.
+- Run at least:
+  - `python3 -m py_compile main.py images.py`
+- In the final response, mention any required deploy or `/synccommands` step when command registration may be affected.

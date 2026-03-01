@@ -97,6 +97,7 @@ PAGE_TYPES = [
     "shield",
     "skill_icons",
     "bullet",
+    "advyrnture_gear",
 ]
 
 # Supported single-item upload types (CDN path segments)
@@ -857,6 +858,8 @@ async def run_wiki_upload(
                 wi.check_skill_icons(page)
             elif page_type == 'bullet':
                 wi.check_bullet(page)
+            elif page_type == 'advyrnture_gear':
+                wi.check_advyrnture_gear(page)
             else:
                 raise ValueError(f"Unknown page type: {page_type}")
                 
@@ -2122,7 +2125,6 @@ async def rateup(
 
         if return_code == 0:
             saved_pages = status_info.get("saved_pages") or []
-            rendered_rateup = build_rateup_content(rateup_names, sparkable_names)
 
             summary_lines = [
                 f"{dry_run_prefix}Rate-up update completed in {elapsed}s.",
@@ -2139,11 +2141,6 @@ async def rateup(
                 summary_lines.append(f"- <{page_url}>")
 
             summary_lines.extend([
-                "",
-                "**Rendered Rate-Ups Subtemplate:**",
-                "```wikitext",
-                rendered_rateup,
-                "```",
                 "",
                 f"Please purge Main Page to show changes immediately: {MAIN_PAGE_PURGE_URL}",
             ])
