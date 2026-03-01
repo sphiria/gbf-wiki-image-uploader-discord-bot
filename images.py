@@ -1935,6 +1935,227 @@ class WikiImages(object):
             "total": total_variants,
         }
 
+    def check_advyrnture_pal(self, page):
+        """
+        Upload Advyrnture pal icon images for each {{Advyrnture/Pal}} template.
+
+        For each unique `id`, uploads:
+        - vyrnsampo_character_thumb_{id}.jpg
+          (from /vyrnsampo/assets/character/thumb/{id}.jpg)
+        - vyrnsampo_character_thumb_{id}_friendship.jpg
+          (from /vyrnsampo/assets/character/thumb/{id}_friendship.jpg)
+        - vyrnsampo_character_thumb_{id}_fatigue.jpg
+          (from /vyrnsampo/assets/character/thumb/{id}_fatigue.jpg)
+        - vyrnsampo_character_detail_{id}.png
+          (from /vyrnsampo/assets/character/detail/{id}.png)
+        - vyrnsampo_character_detail_{id}_friendship.png
+          (from /vyrnsampo/assets/character/detail/{id}_friendship.png)
+
+        When `name` is present, also creates:
+        - {name} (Advyrnture) icon.jpg
+        - {name} (Friendship) icon.jpg
+        - {name} (Fatigue) icon.jpg
+        - {name} (Advyrnture).png
+        - {name} (Friendship).png
+        """
+        print(f'Processing Advyrnture/Pal templates on page "{page.name}"...')
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+
+        pals_by_id = {}
+
+        for template in templates:
+            template_name = template.name.strip().lower()
+            if template_name != 'advyrnture/pal':
+                continue
+
+            pal_id = None
+            pal_name = None
+
+            for param in template.params:
+                param_name = str(param.name).strip().lower()
+                raw_value = str(param.value).strip()
+                if not raw_value:
+                    continue
+
+                clean_value = mwparserfromhell.parse(raw_value).strip_code().strip()
+
+                if param_name == 'id' and clean_value:
+                    pal_id = clean_value
+                elif param_name == 'name':
+                    pal_name = clean_value
+
+            if not pal_id:
+                print('Skipping {{Advyrnture/Pal}} template without id parameter.')
+                continue
+
+            existing = pals_by_id.get(pal_id)
+            if existing:
+                if not existing['name'] and pal_name:
+                    existing['name'] = pal_name
+                    print(
+                        f'Using later non-blank name "{pal_name}" '
+                        f'for duplicate Advyrnture pal id "{pal_id}".'
+                    )
+                else:
+                    print(f'Skipping duplicate Advyrnture pal id "{pal_id}".')
+                continue
+
+            pals_by_id[pal_id] = {'id': pal_id, 'name': pal_name}
+
+        pals = list(pals_by_id.values())
+
+        if not pals:
+            print('No {{Advyrnture/Pal}} templates found with valid id parameters.')
+            return
+
+        total_images = len(pals) * 5
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=total_images,
+                current_image=None,
+            )
+
+        for pal in pals:
+            pal_id = pal['id']
+            pal_name = pal['name']
+            variants = [
+                {
+                    "canonical": f"vyrnsampo_character_thumb_{pal_id}.jpg",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/vyrnsampo/assets/character/thumb/{pal_id}.jpg"
+                    ),
+                    "redirect": (
+                        f"{pal_name} (Advyrnture) icon.jpg" if pal_name else None
+                    ),
+                },
+                {
+                    "canonical": f"vyrnsampo_character_thumb_{pal_id}_friendship.jpg",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/vyrnsampo/assets/character/thumb/{pal_id}_friendship.jpg"
+                    ),
+                    "redirect": (
+                        f"{pal_name} (Friendship) icon.jpg" if pal_name else None
+                    ),
+                },
+                {
+                    "canonical": f"vyrnsampo_character_thumb_{pal_id}_fatigue.jpg",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/vyrnsampo/assets/character/thumb/{pal_id}_fatigue.jpg"
+                    ),
+                    "redirect": (
+                        f"{pal_name} (Fatigue) icon.jpg" if pal_name else None
+                    ),
+                },
+                {
+                    "canonical": f"vyrnsampo_character_detail_{pal_id}.png",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/vyrnsampo/assets/character/detail/{pal_id}.png"
+                    ),
+                    "redirect": (
+                        f"{pal_name} (Advyrnture).png" if pal_name else None
+                    ),
+                },
+                {
+                    "canonical": f"vyrnsampo_character_detail_{pal_id}_friendship.png",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/vyrnsampo/assets/character/detail/{pal_id}_friendship.png"
+                    ),
+                    "redirect": (
+                        f"{pal_name} (Friendship).png" if pal_name else None
+                    ),
+                },
+            ]
+
+            for variant in variants:
+                canonical_name = variant["canonical"]
+                redirect_name = variant["redirect"]
+                url = variant["url"]
+
+                print(f'Downloading Advyrnture pal "{pal_id}" ({url})...')
+                success, sha1, size, io_obj = self.get_image(url)
+                processed += 1
+
+                if not success:
+                    failed += 1
+                    print(f'Failed to download {canonical_name}.')
+                    if hasattr(self, "_status_callback"):
+                        self._status_callback(
+                            "processing",
+                            processed=processed,
+                            total=total_images,
+                            current_image=canonical_name,
+                        )
+                    continue
+
+                if hasattr(self, "_status_callback"):
+                    self._status_callback(
+                        "processing",
+                        processed=processed,
+                        total=total_images,
+                        current_image=canonical_name,
+                    )
+
+                other_names = [redirect_name] if redirect_name else []
+                check_image_result = self.check_image(
+                    canonical_name,
+                    sha1,
+                    size,
+                    io_obj,
+                    other_names,
+                )
+                if check_image_result is True:
+                    uploaded += 1
+                elif check_image_result is False:
+                    failed += 1
+                    print(f'Upload validation failed for {canonical_name}.')
+                    continue
+                else:
+                    duplicates += 1
+                    canonical_name = check_image_result
+
+                if redirect_name:
+                    self.check_file_redirect(canonical_name, redirect_name)
+                    time.sleep(self.delay)
+                else:
+                    print(f'Skipping Advyrnture pal redirect for id "{pal_id}" because name is blank.')
+
+                self.check_file_double_redirect(canonical_name)
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "completed",
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total=total_images,
+            )
+
+        print(
+            f'\nAdvyrnture pal upload complete: '
+            f'{uploaded} uploaded, {duplicates} duplicates, {failed} failed'
+        )
+        return {
+            "uploaded": uploaded,
+            "duplicates": duplicates,
+            "failed": failed,
+            "total": total_images,
+        }
+
     def _upload_event_banner_series(
         self,
         *,

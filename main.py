@@ -98,6 +98,7 @@ PAGE_TYPES = [
     "skill_icons",
     "bullet",
     "advyrnture_gear",
+    "advyrnture_pal",
 ]
 
 # Supported single-item upload types (CDN path segments)
@@ -860,6 +861,8 @@ async def run_wiki_upload(
                 wi.check_bullet(page)
             elif page_type == 'advyrnture_gear':
                 wi.check_advyrnture_gear(page)
+            elif page_type == 'advyrnture_pal':
+                wi.check_advyrnture_pal(page)
             else:
                 raise ValueError(f"Unknown page type: {page_type}")
                 
