@@ -1739,6 +1739,202 @@ class WikiImages(object):
             "total": total_variants,
         }
 
+    def check_advyrnture_gear(self, page):
+        """
+        Upload Advyrnture gear images for each {{Advyrnture/Cosmetic/Row}} template.
+
+        For each unique `id`, uploads:
+        - cosmetic_m_{id}.jpg (from /cosmetic/m/{id}.jpg)
+        - cosmetic_s_{id}.jpg (from /cosmetic/s/{id}.jpg)
+
+        When `name` is present, also creates:
+        - {name} (Advyrnture) icon.jpg
+        - {name} (Advyrnture) square.jpg
+        - page redirect {name} (Advyrnture) -> Let's Go, Advyrnturers!#{name}
+        """
+        print(f'Processing Advyrnture/Cosmetic/Row templates on page "{page.name}"...')
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        templates = wikicode.filter_templates()
+
+        cosmetics_by_id = {}
+
+        for template in templates:
+            template_name = template.name.strip().lower()
+            if template_name != 'advyrnture/cosmetic/row':
+                continue
+
+            cosmetic_id = None
+            cosmetic_name = None
+
+            for param in template.params:
+                param_name = str(param.name).strip().lower()
+                raw_value = str(param.value).strip()
+                if not raw_value:
+                    continue
+
+                clean_value = mwparserfromhell.parse(raw_value).strip_code().strip()
+
+                if param_name == 'id' and clean_value:
+                    cosmetic_id = clean_value
+                elif param_name == 'name':
+                    cosmetic_name = clean_value
+
+            if not cosmetic_id:
+                print('Skipping {{Advyrnture/Cosmetic/Row}} template without id parameter.')
+                continue
+
+            existing = cosmetics_by_id.get(cosmetic_id)
+            if existing:
+                if not existing['name'] and cosmetic_name:
+                    existing['name'] = cosmetic_name
+                    print(
+                        f'Using later non-blank name "{cosmetic_name}" '
+                        f'for duplicate Advyrnture gear id "{cosmetic_id}".'
+                    )
+                else:
+                    print(f'Skipping duplicate Advyrnture gear id "{cosmetic_id}".')
+                continue
+
+            cosmetics_by_id[cosmetic_id] = {'id': cosmetic_id, 'name': cosmetic_name}
+
+        cosmetics = list(cosmetics_by_id.values())
+
+        if not cosmetics:
+            print('No {{Advyrnture/Cosmetic/Row}} templates found with valid id parameters.')
+            return
+
+        total_rows = len(cosmetics)
+        total_variants = total_rows * 2
+        processed = 0
+        uploaded = 0
+        duplicates = 0
+        failed = 0
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=total_variants,
+                current_image=None,
+            )
+
+        for cosmetic in cosmetics:
+            cosmetic_id = cosmetic['id']
+            cosmetic_name = cosmetic['name']
+
+            if cosmetic_name:
+                redirect_from = f"{cosmetic_name} (Advyrnture)"
+                redirect_target = f"Let's Go, Advyrnturers!#{cosmetic_name}"
+                try:
+                    print(f"Ensuring page redirect: {redirect_from} -> {redirect_target}")
+                    self.check_redirect(redirect_target, redirect_from)
+                except Exception as redirect_error:  # pragma: no cover - best-effort logging
+                    print(f"Failed to create {redirect_from} redirect: {redirect_error}")
+            else:
+                print(f'Skipping redirects for Advyrnture gear id "{cosmetic_id}" because name is blank.')
+
+            variants = [
+                {
+                    "variant": "m",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/assets/item/cosmetic/m/{cosmetic_id}.jpg"
+                    ),
+                    "canonical": f"cosmetic_m_{cosmetic_id}.jpg",
+                    "redirect": (
+                        f"{cosmetic_name} (Advyrnture) icon.jpg" if cosmetic_name else None
+                    ),
+                },
+                {
+                    "variant": "s",
+                    "url": (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/assets/item/cosmetic/s/{cosmetic_id}.jpg"
+                    ),
+                    "canonical": f"cosmetic_s_{cosmetic_id}.jpg",
+                    "redirect": (
+                        f"{cosmetic_name} (Advyrnture) square.jpg" if cosmetic_name else None
+                    ),
+                },
+            ]
+
+            for entry in variants:
+                url = entry["url"]
+                canonical_name = entry["canonical"]
+                redirect_name = entry["redirect"]
+
+                print(
+                    f'Downloading Advyrnture gear "{cosmetic_id}" variant '
+                    f'"{entry["variant"]}" ({url})...'
+                )
+                success, sha1, size, io_obj = self.get_image(url)
+                processed += 1
+
+                if not success:
+                    failed += 1
+                    print(f'Failed to download {canonical_name}.')
+                    if hasattr(self, "_status_callback"):
+                        self._status_callback(
+                            "processing",
+                            processed=processed,
+                            total=total_variants,
+                            current_image=canonical_name,
+                        )
+                    continue
+
+                if hasattr(self, "_status_callback"):
+                    self._status_callback(
+                        "processing",
+                        processed=processed,
+                        total=total_variants,
+                        current_image=canonical_name,
+                    )
+
+                other_names = [redirect_name] if redirect_name else []
+                check_image_result = self.check_image(
+                    canonical_name,
+                    sha1,
+                    size,
+                    io_obj,
+                    other_names,
+                )
+                if check_image_result is True:
+                    uploaded += 1
+                elif check_image_result is False:
+                    failed += 1
+                    print(f'Upload validation failed for {canonical_name}.')
+                    continue
+                else:
+                    duplicates += 1
+                    canonical_name = check_image_result
+
+                if redirect_name:
+                    self.check_file_redirect(canonical_name, redirect_name)
+                    time.sleep(self.delay)
+                self.check_file_double_redirect(canonical_name)
+
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "completed",
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total=total_variants,
+            )
+
+        print(
+            f'\nAdvyrnture gear upload complete: '
+            f'{uploaded} uploaded, {duplicates} duplicates, {failed} failed'
+        )
+        return {
+            "uploaded": uploaded,
+            "duplicates": duplicates,
+            "failed": failed,
+            "total": total_variants,
+        }
+
     def _upload_event_banner_series(
         self,
         *,
