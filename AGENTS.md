@@ -102,6 +102,31 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - Page redirect: `{name} (Advyrnture)` -> `Let's Go, Advyrnturers!#{name}`
 - When `name` is blank, skip redirect creation and upload canonicals only.
 
+## Advyrnture Pal Contract
+
+- `/imgupload page_type:advyrnture_pal` scans `{{Advyrnture/Pal}}` templates on the target page.
+- Pertinent parameters:
+  - `id`
+  - `name`
+- Uploads use the `id` for these CDN paths and canonical filenames:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/thumb/{id}.jpg`
+    - Canonical: `vyrnsampo_character_thumb_{id}.jpg`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/thumb/{id}_friendship.jpg`
+    - Canonical: `vyrnsampo_character_thumb_{id}_friendship.jpg`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/thumb/{id}_fatigue.jpg`
+    - Canonical: `vyrnsampo_character_thumb_{id}_fatigue.jpg`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/detail/{id}.png`
+    - Canonical: `vyrnsampo_character_detail_{id}.png`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/vyrnsampo/assets/character/detail/{id}_friendship.png`
+    - Canonical: `vyrnsampo_character_detail_{id}_friendship.png`
+- When `name` is present, also create:
+  - File redirect: `{name} (Advyrnture) icon.jpg`
+  - File redirect: `{name} (Friendship) icon.jpg`
+  - File redirect: `{name} (Fatigue) icon.jpg`
+  - File redirect: `{name} (Advyrnture).png`
+  - File redirect: `{name} (Friendship).png`
+- When `name` is blank, skip redirect creation and upload canonicals only.
+
 ## MainPageDraw Ownership
 
 - `drawupdate` currently owns these subtemplates:
