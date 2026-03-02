@@ -16,6 +16,8 @@ from gbfwiki import GBFWiki, GBFDB
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
+UPLOAD_COMMENT = 'Uploaded by VyrnBot'
+
 # optional for local development only
 try:
     from dotenv import load_dotenv
@@ -454,6 +456,8 @@ class WikiImages(object):
                 upload_kwargs = {"filename": true_name, "ignore": True}
                 if description_text:
                     upload_kwargs["description"] = description_text
+                if description_text and description_text.startswith('[[Category:'):
+                    upload_kwargs["description"] = UPLOAD_COMMENT
                 response = self.wiki.upload(io, **upload_kwargs)
                 print(response['result'] + ': ' + name)
             except Exception as e:
@@ -690,8 +694,6 @@ class WikiImages(object):
             if hasattr(self, '_status_callback'):
                 self._status_callback(stage, **kwargs)
 
-        status_category_text = '[[Category:Status Icons]]'
-
         def status_download_and_upload(identifier, report_missing=True):
             url = url_template.format(identifier)
             success, sha1, size, io = self.get_image(url)
@@ -708,7 +710,6 @@ class WikiImages(object):
                 size,
                 io,
                 other_names,
-                description_text=status_category_text,
             )
 
             if check_image_result is False:
@@ -716,6 +717,8 @@ class WikiImages(object):
                 return False, None
             elif check_image_result is not True:
                 true_name = check_image_result
+
+            self.check_image_categories(true_name, ['Status Icons'])
 
             for other_name in other_names:
                 self.check_file_redirect(true_name, other_name)
@@ -2778,7 +2781,6 @@ class WikiImages(object):
                 size,
                 io,
                 other_names,
-                description_text=category_text,
             )
             
             if check_image_result is False:
@@ -2789,9 +2791,12 @@ class WikiImages(object):
                 # Image already exists with a different name (SHA1 match found)
                 duplicates += 1
                 print(f'Image {canonical_name} found as duplicate: {check_image_result}')
+                canonical_name = check_image_result
             else:
                 uploaded += 1
                 print(f'Successfully uploaded {canonical_name}')
+
+            self.check_image_categories(canonical_name, ['Ability Icons'])
             
             # Small delay between uploads
             time.sleep(self.delay)
@@ -3664,11 +3669,6 @@ class WikiImages(object):
                             'true_name': true_name,
                             'other_names': other_names,
                             'categories': params[4],
-                            'description_text': (
-                                '\n'.join(f'[[Category:{category}]]' for category in params[4])
-                                if section == 'skycompass_zoom'
-                                else None
-                            ),
                         })
                         total_urls_generated += 1
         
@@ -3784,7 +3784,6 @@ class WikiImages(object):
                         size,
                         io_obj,
                         task['other_names'],
-                        description_text=task.get('description_text'),
                     )
                     
                     if check_image_result == True:
