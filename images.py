@@ -583,7 +583,11 @@ class WikiImages(object):
 
         if pagetext != new_text:
             print(f'Updating categories for {name}...')
-            page.save(new_text, summary='Batch image categories')
+            self._perform_wiki_action_with_retry(
+                page.save,
+                new_text,
+                summary='Batch image categories',
+            )
 
     def check_file_redirect(self, redirect_to, redirect_from):
         redirect_to = redirect_to[0].upper() + redirect_to[1:]
@@ -2496,7 +2500,7 @@ class WikiImages(object):
             'C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 
             ['Character Images', 'Full Character Images'  ]],
 
-            'skycompass_zoom': ['png', '',
+            'skycompass_zoom': ['png', '_HD',
             ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_04',
             '_81', '_82', '_88', '_91', '_91_0', '_91_1',
             '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
@@ -3633,31 +3637,38 @@ class WikiImages(object):
                             )
                         
                         other_names = []
-                        if section != 'skycompass_zoom':
-                            if (versions < 2) or (params[3][version] == 'A'):
-                                other_names.append(
-                                    '{0}{1}.{2}'.format(
-                                        asset_name,
-                                        params[1],
-                                        params[0]
-                                    )
+                        if (versions < 2) or (params[3][version] == 'A'):
+                            other_names.append(
+                                '{0}{1}.{2}'.format(
+                                    asset_name,
+                                    params[1],
+                                    params[0]
                                 )
+                            )
 
-                            if (versions > 1):
-                                other_names.append(
-                                    '{0}{1}{2}.{3}'.format(
-                                        asset_name,
-                                        params[1],
-                                        (' ' if (params[1] == '' and params[3][version] != '') else '') + params[3][version],
-                                        params[0]
-                                    )
+                        if (versions > 1):
+                            joiner = ''
+                            if params[1] == '':
+                                joiner = ' ' if params[3][version] != '' else ''
+                            other_names.append(
+                                '{0}{1}{2}.{3}'.format(
+                                    asset_name,
+                                    params[1],
+                                    joiner + params[3][version],
+                                    params[0]
                                 )
+                            )
                         
                         download_tasks.append({
                             'url': url,
                             'true_name': true_name,
                             'other_names': other_names,
-                            'categories': params[4]
+                            'categories': params[4],
+                            'description_text': (
+                                '\n'.join(f'[[Category:{category}]]' for category in params[4])
+                                if section == 'skycompass_zoom'
+                                else None
+                            ),
                         })
                         total_urls_generated += 1
         
@@ -3767,7 +3778,14 @@ class WikiImages(object):
                     if hasattr(self, '_status_callback'):
                         self._status_callback("processing", processed=images_processed, total=successful, current_image=task['true_name'])
                     
-                    check_image_result = self.check_image(task['true_name'], sha1, size, io_obj, task['other_names'])
+                    check_image_result = self.check_image(
+                        task['true_name'],
+                        sha1,
+                        size,
+                        io_obj,
+                        task['other_names'],
+                        description_text=task.get('description_text'),
+                    )
                     
                     if check_image_result == True:
                         images_uploaded += 1

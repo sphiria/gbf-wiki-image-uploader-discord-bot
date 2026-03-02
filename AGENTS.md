@@ -139,7 +139,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `Npc_my_{id}{index}.png`
 - Redirect naming follows the existing `m` icon mapping style, but uses `_my`:
   - `{name}_my.png`
-  - variant-suffixed forms such as `{name}_my A2.png`
+  - variant-suffixed forms such as `{name}_myA2.png`
 
 ## Character Result Level Up Image Contract
 
@@ -150,7 +150,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `Npc_result_lvup_{id}{index}.png`
 - Redirect naming follows the existing character variant mapping style, but uses `_result_lvup`:
   - `{name}_result_lvup.png`
-  - variant-suffixed forms such as `{name}_result_lvup A2.png`
+  - variant-suffixed forms such as `{name}_result_lvupA2.png`
 - Category:
   - `Result Level Up Character Images`
 
@@ -164,7 +164,9 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Categories:
   - `Sky Compass Images`
   - `Sky Compass Character Images`
-- Redirects are intentionally omitted for now until a naming contract is decided.
+- Redirect naming uses `_HD`, following the existing Sky Compass/class-image style:
+  - `{name}_HD.png`
+  - variant-suffixed forms such as `{name}_HDA2.png`
 
 ## MainPageDraw Ownership
 
