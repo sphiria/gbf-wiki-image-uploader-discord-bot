@@ -54,7 +54,9 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Supported `asset_type` values:
   - `notice`
   - `start`
-- Default `max_index` is `20` for both asset types.
+  - `raid_thumb`
+- Default `max_index` is `20` for `notice` and `start`.
+- `raid_thumb` currently processes the fixed `vhard`, `ex`, `high`, `hell`, and `free_proud` files and defaults to `5`.
 
 ### Event Upload Naming
 
@@ -66,16 +68,41 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/banner/events/{event_id}/banner_event_start_{index}.png`
   - Canonical: `{event_id}_banner_event_start_{index}.png`
   - Redirect: `banner_{event_name}_{index}.png`
+- `raid_thumb`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_vhard.png`
+  - Canonical: `qm_{event_id}_vhard.png`
+  - Redirect: `BattleRaid_{event_name}_Very_Hard.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_ex.png`
+  - Canonical: `qm_{event_id}_ex.png`
+  - Redirect: `BattleRaid_{event_name}_Extreme.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_high.png`
+  - Canonical: `qm_{event_id}_high.png`
+  - Redirect: `BattleRaid_{event_name}_Impossible.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_hell.png`
+  - Canonical: `qm_{event_id}_hell.png`
+  - Redirect: `BattleRaid_{event_name}_Nightmare.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_free_proud.png`
+  - Canonical: `free_{event_id}_free_proud.png`
+  - Redirect: `BattleRaid_{event_name}_Proud.png`
 
 ### Event Upload Summary Output
 
 - Successful `/eventupload` runs should include:
   - counts for processed/uploaded/duplicates/failed
   - wiki links for canonical and redirect files
-  - a copyable code block labeled `Paste into EventHistory template`
+  - a copyable code block labeled `Paste into EventHistory template` for `notice` and `start`
 - The EventHistory code block is semicolon-separated redirect filenames with underscores, for example:
   - `banner_PS_the_Astrals_1.png;banner_PS_the_Astrals_2.png`
 - This block should still appear on reruns that resolve to duplicates, as long as files were processed.
+- `raid_thumb` should not include the EventHistory copy box.
+
+### Event Upload UI Notes
+
+- `/eventupload` asset type dropdown labels should stay lowercase:
+  - `notice`
+  - `start`
+  - `raid_thumb`
+- The slash-command help text for `event_id` should describe it as a folder identifier, not a numeric-only id.
 
 ## Validation Rules Worth Preserving
 
@@ -167,6 +194,13 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Redirect naming uses `_HD`, following the existing Sky Compass/class-image style:
   - `{name}_HD.png`
   - variant-suffixed forms such as `{name}_HDA2.png`
+
+## Upload Comment Contract
+
+- Upload comments shown in MediaWiki file history for the affected `/imgupload` and `/statusupload` flows should be:
+  - `Uploaded by VyrnBot`
+- This is intentionally separate from file page categorization.
+- File pages should still receive their normal category tags via follow-up category edits.
 
 ## MainPageDraw Ownership
 
