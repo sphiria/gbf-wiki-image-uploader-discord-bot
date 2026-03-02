@@ -105,8 +105,9 @@ PAGE_TYPES = [
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
 
 EVENT_TEASER_ASSET_TYPE_CHOICES = [
-    app_commands.Choice(name="Notice", value="notice"),
-    app_commands.Choice(name="Start", value="start"),
+    app_commands.Choice(name="notice", value="notice"),
+    app_commands.Choice(name="start", value="start"),
+    app_commands.Choice(name="raid_thumb", value="raid_thumb"),
 ]
 EVENT_TEASER_ASSET_TYPE_SET = {choice.value for choice in EVENT_TEASER_ASSET_TYPE_CHOICES}
 
@@ -2384,7 +2385,7 @@ async def itemupload(
 )
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)
 @app_commands.describe(
-    event_id="Event identifier (e.g. 1168)",
+    event_id="Event folder identifier (e.g. treasureraid169 or biography042)",
     event_name="Event display name (used for redirects)",
     asset_type="Select which event asset type to upload.",
     max_index="Max index to attempt (default 20).",
@@ -2524,7 +2525,7 @@ async def eventupload(
                     for entry in files
                     if (redirect_name := entry.get("redirect"))
                 ]
-                if template_redirects:
+                if template_redirects and asset_type_value in {"notice", "start"}:
                     summary_lines.extend([
                         "",
                         "**Paste into EventHistory template:**",

@@ -43,7 +43,8 @@ Quick overview of the available slash commands:
 - `/rateup end_date:<YYYY-MM-DD> end_time:<HH:MM> rateups:<Name A|Name B> sparkable:<Name C|Name D>` — update `Template:MainPageDraw/RateUps` and `Template:MainPageDraw/RateUpsEndDate` using required rate-up and sparkable groups for the Main Page draw section.
 - `/itemupload item_type:<CDN folder (e.g. article, normal)> item_id:<cdn id> item_name:<display name>` — upload square/icon variants for a single item and create redirects (you can type any folder, but common choices include `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`).
 - `/enemyupload id:<enemy id>` — upload the S and M variants for an enemy icon (produces canonical `enemy_s_<id>.png`/`enemy_m_<id>.png` plus redirects `enemy_Icon_<id>_S.png` and `enemy_Icon_<id>_M.png`).
-- `/eventupload event_id:<event folder id> event_name:<display name> asset_type:<notice|start> max_index:<optional>` — upload event banner assets and create redirects (default `max_index` is 20):
+- `/eventupload event_id:<event folder id> event_name:<display name> asset_type:<notice|start|raid_thumb> max_index:<optional>` — upload event banner assets and create redirects:
   - `notice`: `<event_id>_banner_event_notice_<index>.png` + `banner_<EventName>_notice_<index>.png`
   - `start`: `<event_id>_banner_event_start_<index>.png` + `banner_<EventName>_<index>.png`
+  - `raid_thumb`: `qm_<event_id>_vhard.png` + `BattleRaid_<EventName>_Very_Hard.png`, `qm_<event_id>_ex.png` + `BattleRaid_<EventName>_Extreme.png`, `qm_<event_id>_high.png` + `BattleRaid_<EventName>_Impossible.png`, `qm_<event_id>_hell.png` + `BattleRaid_<EventName>_Nightmare.png`, and `free_<event_id>_free_proud.png` + `BattleRaid_<EventName>_Proud.png`
 - `/synccommands` — admin-only utility to force a guild/global slash-command sync if Discord stops showing new commands.

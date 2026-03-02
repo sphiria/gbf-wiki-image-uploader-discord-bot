@@ -116,20 +116,23 @@ Usage: `/enemyupload id:<8104243>`
 - Output: summary lists processed/uploaded/duplicates/failed counts plus wiki links for each canonical/redirect pair (`enemy_s_<id>.png`, `enemy_m_<id>.png`, `enemy_icon_<id>_S.png`, `enemy_icon_<id>_M.png`).
 
 **/eventupload**
-- Usage: `/eventupload event_id:<biography042> event_name:<Event Name> asset_type:<notice|start> max_index:<optional>`
-- Purpose: Upload indexed event notice/start banner assets and create matching redirects.
+- Usage: `/eventupload event_id:<biography042> event_name:<Event Name> asset_type:<notice|start|raid_thumb> max_index:<optional>`
+- Purpose: Upload indexed event notice/start banner assets and event raid thumbnails, then create matching redirects.
 - Inputs:
   - `event_id` - CDN folder slug such as `biography042`; must be lowercase letters/numbers/underscores.
   - `event_name` - display name used when building redirect filenames (spaces allowed; keep it exactly how you want it to appear on the wiki).
   - `asset_type` - strict dropdown with:
     - `notice`: loads `img/sp/banner/events/<event_id>/banner_event_notice_<index>.png`
     - `start`: loads `img/sp/banner/events/<event_id>/banner_event_start_<index>.png`
-  - `max_index` - optional upper bound for index probing (defaults to 20 for both `notice` and `start`; minimum 1).
+    - `raid_thumb`: loads `img/sp/assets/summon/qm/<event_id>_vhard.png`, `img/sp/assets/summon/qm/<event_id>_ex.png`, `img/sp/assets/summon/qm/<event_id>_high.png`, `img/sp/assets/summon/qm/<event_id>_hell.png`, and `img/sp/quest/assets/free/<event_id>_free_proud.png`
+  - `max_index` - optional upper bound for index probing (defaults to 20 for `notice` and `start`; `raid_thumb` currently processes the fixed `vhard`, `ex`, `high`, `hell`, and `free_proud` files and defaults to 5; minimum 1).
 - Checks & Limits: same role/cooldown/lock behavior as other uploaders; command stops when an index is missing.
 - Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair:
   - `notice`: `<event_id>_banner_event_notice_<index>.png` and `banner_<EventName>_notice_<index>.png`
   - `start`: `<event_id>_banner_event_start_<index>.png` and `banner_<EventName>_<index>.png`
-  - Includes a copyable code block with semicolon-separated redirect filenames for easy Event template pasting.
+  - `raid_thumb`: `qm_<event_id>_vhard.png` and `BattleRaid_<EventName>_Very_Hard.png`, `qm_<event_id>_ex.png` and `BattleRaid_<EventName>_Extreme.png`, `qm_<event_id>_high.png` and `BattleRaid_<EventName>_Impossible.png`, `qm_<event_id>_hell.png` and `BattleRaid_<EventName>_Nightmare.png`, plus `free_<event_id>_free_proud.png` and `BattleRaid_<EventName>_Proud.png`
+  - `notice` and `start` include a copyable code block with semicolon-separated redirect filenames for easy Event template pasting.
+  - `raid_thumb` skips the copy box and just lists links.
 
 **/synccommands**
 Usage: `/synccommands`

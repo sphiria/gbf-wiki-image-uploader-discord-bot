@@ -2349,6 +2349,7 @@ class WikiImages(object):
         Supported asset_type values:
         - notice: event teaser notice banners
         - start: event start banners
+        - raid_thumb: event raid thumbnails
         """
         event_id = str(event_id).strip().lower()
         if not event_id:
@@ -2357,7 +2358,7 @@ class WikiImages(object):
         asset_type_key = (asset_type or "").strip().lower()
         if not asset_type_key:
             raise ValueError("Asset type is required for event uploads.")
-        if asset_type_key not in {"notice", "start"}:
+        if asset_type_key not in {"notice", "start", "raid_thumb"}:
             raise ValueError(f'Unsupported asset type "{asset_type}" for event uploads.')
 
         event_name = mwparserfromhell.parse(event_name).strip_code().strip()
@@ -2365,6 +2366,8 @@ class WikiImages(object):
         if max_index is None:
             if asset_type_key == "start":
                 max_index = self.EVENT_BANNER_MAX_INDEX
+            elif asset_type_key == "raid_thumb":
+                max_index = 5
             else:
                 max_index = self.EVENT_TEASER_MAX_INDEX
         try:
@@ -2399,7 +2402,7 @@ class WikiImages(object):
             )
             canonical_template = "{event_id}_banner_event_notice_{index}.png"
             redirect_template = "banner_{event_name}_notice_{index}.png"
-        else:
+        elif asset_type_key == "start":
             asset_label = "event start"
             not_found_message = f'No event start banners found for event id "{event_id}".'
             url_template = (
@@ -2408,11 +2411,57 @@ class WikiImages(object):
             )
             canonical_template = "{event_id}_banner_event_start_{index}.png"
             redirect_template = "banner_{event_name}_{index}.png"
+        else:
+            asset_label = "raid thumb"
+            not_found_message = f'No raid thumbnails found for event id "{event_id}".'
+            raid_thumb_variants = [
+                {
+                    "difficulty": "vhard",
+                    "canonical": "qm_{event_id}_vhard.png",
+                    "redirect": "BattleRaid_{event_name}_Very_Hard.png",
+                },
+                {
+                    "difficulty": "ex",
+                    "canonical": "qm_{event_id}_ex.png",
+                    "redirect": "BattleRaid_{event_name}_Extreme.png",
+                },
+                {
+                    "difficulty": "high",
+                    "canonical": "qm_{event_id}_high.png",
+                    "redirect": "BattleRaid_{event_name}_Impossible.png",
+                },
+                {
+                    "difficulty": "hell",
+                    "canonical": "qm_{event_id}_hell.png",
+                    "redirect": "BattleRaid_{event_name}_Nightmare.png",
+                },
+                {
+                    "difficulty": "free_proud",
+                    "canonical": "free_{event_id}_free_proud.png",
+                    "redirect": "BattleRaid_{event_name}_Proud.png",
+                },
+            ]
 
-        for index in range(1, max_index + 1):
-            url = url_template.format(event_id=event_id, index=index)
-            canonical_name = canonical_template.format(event_id=event_id, index=index)
-            redirect_name = redirect_template.format(event_name=event_name, index=index)
+        loop_total = len(raid_thumb_variants) if asset_type_key == "raid_thumb" else max_index
+        for index in range(1, loop_total + 1):
+            if asset_type_key == "raid_thumb":
+                variant = raid_thumb_variants[index - 1]
+                difficulty = variant["difficulty"]
+                url = (
+                    "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                    f"img/sp/assets/summon/qm/{event_id}_{difficulty}.png"
+                )
+                if difficulty == "free_proud":
+                    url = (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/quest/assets/free/{event_id}_free_proud.png"
+                    )
+                canonical_name = variant["canonical"].format(event_id=event_id)
+                redirect_name = variant["redirect"].format(event_name=event_name)
+            else:
+                url = url_template.format(event_id=event_id, index=index)
+                canonical_name = canonical_template.format(event_id=event_id, index=index)
+                redirect_name = redirect_template.format(event_name=event_name, index=index)
 
             print(
                 f'Downloading {asset_label} #{index} for "{event_name}" '
@@ -2431,7 +2480,7 @@ class WikiImages(object):
                 self._status_callback(
                     "processing",
                     processed=processed,
-                    total=max_index,
+                    total=loop_total,
                     current_image=canonical_name,
                     event_id=event_id,
                     asset_type=asset_type_key,
@@ -2471,7 +2520,7 @@ class WikiImages(object):
                 uploaded=uploaded,
                 duplicates=duplicates,
                 failed=failed,
-                total=max_index,
+                total=loop_total,
                 total_urls=processed,
                 event_id=event_id,
                 asset_type=asset_type_key,
@@ -2483,7 +2532,7 @@ class WikiImages(object):
             "duplicates": duplicates,
             "failed": failed,
             "total_urls": processed,
-            "total": max_index,
+            "total": loop_total,
             "files": file_entries,
             "event_id": event_id,
             "asset_type": asset_type_key,
