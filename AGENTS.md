@@ -166,7 +166,22 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `Npc_my_{id}{index}.png`
 - Redirect naming follows the existing `m` icon mapping style, but uses `_my`:
   - `{name}_my.png`
-  - variant-suffixed forms such as `{name}_myA2.png`
+- variant-suffixed forms such as `{name}_myA2.png`
+
+## Character Style Image Contract
+
+- `/imgupload page_type:character` recognizes `style_id` from the target `{{Character}}` template.
+- `style_id` behavior:
+  - missing or `1`: treat as default style (no style suffix in canonical names)
+  - explicit `2` or higher: treat as style-specific assets
+- For explicit styles (`style_id >= 2`), character CDN filename probes and canonical wiki filenames append `_st{style_id}` after the existing index suffix:
+  - example: `{id}_01_st2.png`
+- This style suffix applies across character image families handled by the character upload flow, including:
+  - standard `npc/<section>` character assets
+  - `npc/my`
+  - `npc/result_lvup`
+  - Sky Compass `characters/1138x1138`
+- Redirect naming is unchanged for style pages; no `_st{style_id}` is appended to redirect filenames.
 
 ## Character Result Level Up Image Contract
 
