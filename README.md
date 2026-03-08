@@ -38,6 +38,7 @@ See `docs/discord-slash-command-reference.md` for Discord-ready copy you can pas
 Quick overview of the available slash commands:
 
 - `/imgupload page_type:<type> page_name:<title>` — bulk-upload all images for a wiki page (types: character, weapon, summon, class, class_skin, skin, npc, artifact, item, manatura, shield, skill_icons, bullet, advyrnture_gear, advyrnture_pal).
+  - `page_type:character` supports `{{Character|style_id=...}}` for explicit styles (`style_id >= 2`). Styled uploads use canonical CDN/wiki filenames with `_st<style_id>` after the variant index (for example `..._01_st2.png`) so they do not overwrite default-style canonicals. Redirect naming is unchanged.
 - `/statusupload status_id:<id or id#> max_iterations:<1-100>` — upload status effect icons (use `#` to iterate sequential IDs, defaults to 10 iterations).
 - `/bannerupload banner_id:<campaign id> max_index:<1-50>` — iterate `banner_<id>_<index>.jpg` assets to upload gacha banner variants (default max index 12).
 - `/rateup end_date:<YYYY-MM-DD> end_time:<HH:MM> rateups:<Name A|Name B> sparkable:<Name C|Name D>` — update `Template:MainPageDraw/RateUps` and `Template:MainPageDraw/RateUpsEndDate` using required rate-up and sparkable groups for the Main Page draw section.

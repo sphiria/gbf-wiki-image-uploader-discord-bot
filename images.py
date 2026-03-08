@@ -3586,6 +3586,7 @@ class WikiImages(object):
 
             asset_ids = []
             weapon_type = None
+            style_suffix = ''
 
             for param in template.params:
                 param_name = param.name.strip()
@@ -3595,6 +3596,21 @@ class WikiImages(object):
                     if asset_match != None:
                         asset_id = asset_match.group(1)
                     asset_ids.append(asset_id)
+                elif (
+                    asset_template == 'Character'
+                    and asset_type == 'npc'
+                    and param_name == 'style_id'
+                ):
+                    style_value = str(param.value).strip()
+                    style_value = (
+                        mwparserfromhell.parse(style_value)
+                        .strip_code()
+                        .strip()
+                    )
+                    if style_value.isdigit():
+                        style_id = int(style_value)
+                        if style_id >= 2:
+                            style_suffix = f'_st{style_id}'
                 elif asset_type == 'weapon' and param_name == 'weapon':
                     weapon_value = str(param.value).strip()
                     weapon_value = mwparserfromhell.parse(weapon_value).strip_code().strip().lower()
@@ -3638,13 +3654,17 @@ class WikiImages(object):
 
                     versions = len(params[2])
                     for version in range(versions):
+                        variant_suffix = '{0}{1}'.format(
+                            params[2][version],
+                            style_suffix
+                        )
                         if section == 'wsp':
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
                                 'img/sp/cjs/{0}{1}.{2}'
                             ).format(
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                             section_label = 'sp'
@@ -3654,7 +3674,7 @@ class WikiImages(object):
                                 'assets/customizes/characters/1138x1138/{0}{1}.{2}'
                             ).format(
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                             section_label = section
@@ -3666,7 +3686,7 @@ class WikiImages(object):
                                 asset_type,
                                 'f/skin',
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                             section_label = section
@@ -3678,7 +3698,7 @@ class WikiImages(object):
                                 asset_type,
                                 section,
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                             section_label = section
@@ -3686,7 +3706,7 @@ class WikiImages(object):
                         if section == 'skycompass_zoom':
                             true_name = "characters_1138x1138_{0}{1}.{2}".format(
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                         elif asset_type == 'npc' and section in ('my', 'result_lvup'):
@@ -3694,7 +3714,7 @@ class WikiImages(object):
                                 asset_type.capitalize(),
                                 section,
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                         else:
@@ -3702,7 +3722,7 @@ class WikiImages(object):
                                 asset_type.capitalize(),
                                 section_label,
                                 asset_id,
-                                params[2][version],
+                                variant_suffix,
                                 params[0]
                             )
                         
