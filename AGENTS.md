@@ -56,7 +56,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `start`
   - `raid_thumb`
 - Default `max_index` is `20` for `notice` and `start`.
-- `raid_thumb` currently processes the fixed `vhard`, `ex`, `high`, `hell`, and `free_proud` files and defaults to `5`.
+- `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to `13`.
 
 ### Event Upload Naming
 
@@ -70,20 +70,52 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - Redirect: `banner_{event_name}_{index}.png`
 - `raid_thumb`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_vhard.png`
-  - Canonical: `qm_{event_id}_vhard.png`
+  - Canonical: `summon_qm_{event_id}_vhard.png`
   - Redirect: `BattleRaid_{event_name}_Very_Hard.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_vhard_1.png`
+  - Canonical: `summon_qm_{event_id}_vhard_1.png`
+  - Redirect: `BattleRaid_{event_name}_Very_Hard2.png`
+  - Redirect: `BattleRaid_{event_name}_Very_Hard_2.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_vhard_2.png`
+  - Canonical: `summon_qm_{event_id}_vhard_2.png`
+  - Redirect: `BattleRaid_{event_name}_Very_Hard3.png`
+  - Redirect: `BattleRaid_{event_name}_Very_Hard_3.png`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_ex.png`
-  - Canonical: `qm_{event_id}_ex.png`
+  - Canonical: `summon_qm_{event_id}_ex.png`
   - Redirect: `BattleRaid_{event_name}_Extreme.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_ex_1.png`
+  - Canonical: `summon_qm_{event_id}_ex_1.png`
+  - Redirect: `BattleRaid_{event_name}_Extreme2.png`
+  - Redirect: `BattleRaid_{event_name}_Extreme_2.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_ex_2.png`
+  - Canonical: `summon_qm_{event_id}_ex_2.png`
+  - Redirect: `BattleRaid_{event_name}_Extreme3.png`
+  - Redirect: `BattleRaid_{event_name}_Extreme_3.png`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_high.png`
-  - Canonical: `qm_{event_id}_high.png`
+  - Canonical: `summon_{event_id}_high.png`
   - Redirect: `BattleRaid_{event_name}_Impossible.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_high_1.png`
+  - Canonical: `summon_qm_{event_id}_high_1.png`
+  - Redirect: `BattleRaid_{event_name}_Impossible2.png`
+  - Redirect: `BattleRaid_{event_name}_Impossible 2.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_high_2.png`
+  - Canonical: `summon_qm_{event_id}_high_2.png`
+  - Redirect: `BattleRaid_{event_name}_Impossible3.png`
+  - Redirect: `BattleRaid_{event_name}_Impossible 3.png`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_hell.png`
   - Canonical: `qm_{event_id}_hell.png`
   - Redirect: `BattleRaid_{event_name}_Nightmare.png`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_free_proud.png`
-  - Canonical: `free_{event_id}_free_proud.png`
+  - Canonical: `quest_assets_{event_id}_free_proud.png`
   - Redirect: `BattleRaid_{event_name}_Proud.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/{event_id}_free_proud_1.png`
+  - Canonical: `quest_assets_{event_id}_free_proud_1.png`
+  - Redirect: `BattleRaid_{event_name}_Proud2.png`
+  - Redirect: `BattleRaid_{event_name}_Proud_2.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/{event_id}_free_proud_2.png`
+  - Canonical: `quest_assets_{event_id}_free_proud_2.png`
+  - Redirect: `BattleRaid_{event_name}_Proud3.png`
+  - Redirect: `BattleRaid_{event_name}_Proud_3.png`
 
 ### Event Upload Summary Output
 

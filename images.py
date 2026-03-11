@@ -2367,7 +2367,7 @@ class WikiImages(object):
             if asset_type_key == "start":
                 max_index = self.EVENT_BANNER_MAX_INDEX
             elif asset_type_key == "raid_thumb":
-                max_index = 5
+                max_index = 13
             else:
                 max_index = self.EVENT_TEASER_MAX_INDEX
         try:
@@ -2382,16 +2382,6 @@ class WikiImages(object):
         duplicates = 0
         failed = 0
         file_entries = []
-
-        if hasattr(self, "_status_callback"):
-            self._status_callback(
-                "processing",
-                processed=processed,
-                total=max_index,
-                current_image=None,
-                event_id=event_id,
-                asset_type=asset_type_key,
-            )
 
         if asset_type_key == "notice":
             asset_label = "event notice"
@@ -2417,18 +2407,66 @@ class WikiImages(object):
             raid_thumb_variants = [
                 {
                     "difficulty": "vhard",
-                    "canonical": "qm_{event_id}_vhard.png",
+                    "canonical": "summon_qm_{event_id}_vhard.png",
                     "redirect": "BattleRaid_{event_name}_Very_Hard.png",
                 },
                 {
+                    "difficulty": "vhard_1",
+                    "canonical": "summon_qm_{event_id}_vhard_1.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Very_Hard2.png",
+                        "BattleRaid_{event_name}_Very_Hard_2.png",
+                    ],
+                },
+                {
+                    "difficulty": "vhard_2",
+                    "canonical": "summon_qm_{event_id}_vhard_2.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Very_Hard3.png",
+                        "BattleRaid_{event_name}_Very_Hard_3.png",
+                    ],
+                },
+                {
                     "difficulty": "ex",
-                    "canonical": "qm_{event_id}_ex.png",
+                    "canonical": "summon_qm_{event_id}_ex.png",
                     "redirect": "BattleRaid_{event_name}_Extreme.png",
                 },
                 {
+                    "difficulty": "ex_1",
+                    "canonical": "summon_qm_{event_id}_ex_1.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Extreme2.png",
+                        "BattleRaid_{event_name}_Extreme_2.png",
+                    ],
+                },
+                {
+                    "difficulty": "ex_2",
+                    "canonical": "summon_qm_{event_id}_ex_2.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Extreme3.png",
+                        "BattleRaid_{event_name}_Extreme_3.png",
+                    ],
+                },
+                {
                     "difficulty": "high",
-                    "canonical": "qm_{event_id}_high.png",
+                    "canonical": "summon_{event_id}_high.png",
                     "redirect": "BattleRaid_{event_name}_Impossible.png",
+                },
+                {
+                    "difficulty": "high_1",
+                    "canonical": "summon_qm_{event_id}_high_1.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Impossible2.png",
+                        "BattleRaid_{event_name}_Impossible 2.png",
+                    ],
+                },
+                {
+                    "difficulty": "high_2",
+                    "canonical": "summon_qm_{event_id}_high_2.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Impossible3.png",
+                        "BattleRaid_{event_name}_Impossible 3.png",
+                    ],
                 },
                 {
                     "difficulty": "hell",
@@ -2437,12 +2475,37 @@ class WikiImages(object):
                 },
                 {
                     "difficulty": "free_proud",
-                    "canonical": "free_{event_id}_free_proud.png",
+                    "canonical": "quest_assets_{event_id}_free_proud.png",
                     "redirect": "BattleRaid_{event_name}_Proud.png",
+                },
+                {
+                    "difficulty": "free_proud_1",
+                    "canonical": "quest_assets_{event_id}_free_proud_1.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Proud2.png",
+                        "BattleRaid_{event_name}_Proud_2.png",
+                    ],
+                },
+                {
+                    "difficulty": "free_proud_2",
+                    "canonical": "quest_assets_{event_id}_free_proud_2.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Proud3.png",
+                        "BattleRaid_{event_name}_Proud_3.png",
+                    ],
                 },
             ]
 
         loop_total = len(raid_thumb_variants) if asset_type_key == "raid_thumb" else max_index
+        if hasattr(self, "_status_callback"):
+            self._status_callback(
+                "processing",
+                processed=processed,
+                total=loop_total,
+                current_image=None,
+                event_id=event_id,
+                asset_type=asset_type_key,
+            )
         for index in range(1, loop_total + 1):
             if asset_type_key == "raid_thumb":
                 variant = raid_thumb_variants[index - 1]
@@ -2456,12 +2519,29 @@ class WikiImages(object):
                         "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
                         f"img/sp/quest/assets/free/{event_id}_free_proud.png"
                     )
+                elif difficulty == "free_proud_1":
+                    url = (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/quest/assets/{event_id}_free_proud_1.png"
+                    )
+                elif difficulty == "free_proud_2":
+                    url = (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/quest/assets/{event_id}_free_proud_2.png"
+                    )
                 canonical_name = variant["canonical"].format(event_id=event_id)
-                redirect_name = variant["redirect"].format(event_name=event_name)
+                redirect_names = [
+                    redirect_template.format(event_name=event_name)
+                    for redirect_template in variant.get("redirects", [])
+                ]
+                if not redirect_names:
+                    redirect_names = [variant["redirect"].format(event_name=event_name)]
+                redirect_name = redirect_names[0]
             else:
                 url = url_template.format(event_id=event_id, index=index)
                 canonical_name = canonical_template.format(event_id=event_id, index=index)
                 redirect_name = redirect_template.format(event_name=event_name, index=index)
+                redirect_names = [redirect_name]
 
             print(
                 f'Downloading {asset_label} #{index} for "{event_name}" '
@@ -2486,7 +2566,7 @@ class WikiImages(object):
                     asset_type=asset_type_key,
                 )
 
-            other_names = [redirect_name]
+            other_names = list(redirect_names)
             check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
             if check_image_result is True:
                 uploaded += 1
@@ -2503,10 +2583,12 @@ class WikiImages(object):
                     "index": index,
                     "canonical": canonical_name,
                     "redirect": redirect_name,
+                    "redirects": redirect_names,
                 }
             )
 
-            self.check_file_redirect(canonical_name, redirect_name)
+            for redirect_title in redirect_names:
+                self.check_file_redirect(canonical_name, redirect_title)
             time.sleep(self.delay)
             self.check_file_double_redirect(canonical_name)
 
@@ -4374,7 +4456,7 @@ class WikiImages(object):
         if missing:
             print(f'Class metadata incomplete ({", ".join(missing)} missing); no uploads attempted yet.')
 
-        uploads_attempted = 0
+        uploads_total = 0
         uploads_success = 0
         uploads_duplicates = 0
         class_categories = ['Class Images']
@@ -4417,6 +4499,18 @@ class WikiImages(object):
             if gender_alias == 'djeeta':
                 return ['Djeeta Class Images']
             return []
+
+        def gendered_asset_total(include_lvl50=False, require_supported_lvl50=False):
+            """
+            Return planned URL checks for a gendered asset family.
+            """
+            variant_count = 1
+            if include_lvl50:
+                if require_supported_lvl50:
+                    variant_count = 2 if supports_lvl50_assets else 1
+                else:
+                    variant_count = 2 if class_data.get('id_lvl50') else 1
+            return variant_count * len(genders)
 
         def build_variants(label, include_lvl50=False, lvl50_label=None):
             variants = [{
@@ -4473,7 +4567,7 @@ class WikiImages(object):
             emit_status(
                 "processing",
                 processed=uploads_success + uploads_duplicates,
-                total=uploads_attempted,
+                total=uploads_total,
                 current_image=final_name,
             )
             return True
@@ -4487,13 +4581,10 @@ class WikiImages(object):
             adjust_attempts_for_failures=False,
             extra_categories_builder=None,
         ):
-            nonlocal uploads_attempted
             any_success = False
 
             for variant in variants:
-                variant_success = False
                 for gender in genders:
-                    uploads_attempted += 1
                     gender_alias = GENDER_LABELS.get(gender, str(gender))
                     label_text = (
                         label_builder(variant, gender, gender_alias)
@@ -4509,21 +4600,57 @@ class WikiImages(object):
                         else None
                     )
                     if process_asset(label_text, url, canonical_name, other_names, extra_categories):
-                        variant_success = True
                         any_success = True
-                if adjust_attempts_for_failures and not variant_success:
-                    uploads_attempted -= len(genders)
 
             return any_success
 
         def process_single_asset(label_text, url, canonical_name, other_names, extra_categories=None):
-            nonlocal uploads_attempted
-            uploads_attempted += 1
             return process_asset(label_text, url, canonical_name, other_names, extra_categories)
 
         def emit_status(stage, **kwargs):
             if hasattr(self, '_status_callback'):
                 self._status_callback(stage, **kwargs)
+
+        # Compute total checks up front so progress denominator stays fixed.
+        if has_class_fields('id', 'id_num', 'abbr'):
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)   # sd
+
+        if has_class_fields('id_num', 'name', 'row', 'family'):
+            uploads_total += 1  # shared SD
+
+        uploads_total += gendered_asset_total()  # job_change
+        uploads_total += gendered_asset_total()  # jobm
+        uploads_total += gendered_asset_total(include_lvl50=True)  # party
+        uploads_total += gendered_asset_total(include_lvl50=True)  # jobon_z
+        uploads_total += gendered_asset_total(include_lvl50=True)  # jlon
+        uploads_total += gendered_asset_total(include_lvl50=True)  # result_ml
+
+        if has_class_fields('id', 'id_num', 'abbr', 'name'):
+            uploads_total += gendered_asset_total(include_lvl50=True)  # result
+            uploads_total += gendered_asset_total(include_lvl50=True)  # profile
+            uploads_total += gendered_asset_total(include_lvl50=True)  # raid_log
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # raid_normal
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # talk
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # quest
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # coop
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # btn
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # HD
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # homescreen
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # zenith
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # tower
+
+        if has_class_fields('id_num', 'name'):
+            uploads_total += 1  # icon
+            uploads_total += gendered_asset_total(include_lvl50=True, require_supported_lvl50=True)  # square gendered
+            uploads_total += 1  # square shared
+
+        if has_class_fields('id_num', 'family', 'name'):
+            uploads_total += 2  # job icon + jobtree
+
+        if has_class_fields('id_num'):
+            uploads_total += 1  # job name tree
+            if has_class_fields('name'):
+                uploads_total += 2  # job name + job list
 
         if has_class_fields('id', 'id_num', 'abbr'):
             sprite_variants = build_variants(
@@ -5022,7 +5149,7 @@ class WikiImages(object):
             processed=uploads_success + uploads_duplicates,
             uploaded=uploads_success,
             duplicates=uploads_duplicates,
-            total_urls=uploads_attempted,
+            total_urls=uploads_total,
         )
 
         return class_data

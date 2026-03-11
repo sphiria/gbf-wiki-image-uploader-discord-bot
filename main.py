@@ -2388,7 +2388,7 @@ async def itemupload(
     event_id="Event folder identifier (e.g. treasureraid169 or biography042)",
     event_name="Event display name (used for redirects)",
     asset_type="Select which event asset type to upload.",
-    max_index="Max index to attempt (default 20).",
+    max_index="Max index to attempt (default 20; raid_thumb defaults to 13).",
 )
 @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
 async def eventupload(
@@ -2425,7 +2425,7 @@ async def eventupload(
         return
 
     if max_index is None:
-        max_index = WikiImages.EVENT_BANNER_MAX_INDEX
+        max_index = 13 if asset_type_value == "raid_thumb" else WikiImages.EVENT_BANNER_MAX_INDEX
     if max_index < 1:
         await interaction.response.send_message(
             "Invalid max index. It must be at least 1.",
@@ -2539,10 +2539,16 @@ async def eventupload(
                 for entry in files:
                     index = entry.get("index")
                     canonical_name = entry.get("canonical")
-                    redirect_name = entry.get("redirect")
+                    redirect_names = entry.get("redirects") or []
+                    if not redirect_names and entry.get("redirect"):
+                        redirect_names = [entry["redirect"]]
+                    redirect_links = ", ".join(
+                        f"<{base_url}{redirect_name.replace(' ', '_')}>"
+                        for redirect_name in redirect_names
+                    )
                     link_lines.append(
                         f"- #{index}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
-                        f"Redirect <{base_url}{redirect_name.replace(' ', '_')}>"
+                        f"Redirect(s) {redirect_links}"
                     )
                 summary_lines.extend(link_lines)
 
