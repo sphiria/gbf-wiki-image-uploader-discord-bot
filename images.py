@@ -2550,6 +2550,12 @@ class WikiImages(object):
 
             success, sha1, size, io_obj = self.get_image(url)
             if not success:
+                if asset_type_key == "raid_thumb":
+                    print(
+                        f'Raid thumbnail not found for variant "{difficulty}" '
+                        f'(event id: {event_id}); skipping.'
+                    )
+                    continue
                 if index == 1:
                     print(not_found_message)
                 break

@@ -57,6 +57,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `raid_thumb`
 - Default `max_index` is `20` for `notice` and `start`.
 - `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to `13`.
+- `raid_thumb` should attempt every configured fixed variant even when some URLs are missing.
 
 ### Event Upload Naming
 

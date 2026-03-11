@@ -127,7 +127,7 @@ Usage: `/enemyupload id:<8104243>`
     - `start`: loads `img/sp/banner/events/<event_id>/banner_event_start_<index>.png`
     - `raid_thumb`: loads `img/sp/assets/summon/qm/<event_id>_vhard.png`, `img/sp/assets/summon/qm/<event_id>_vhard_1.png`, `img/sp/assets/summon/qm/<event_id>_vhard_2.png`, `img/sp/assets/summon/qm/<event_id>_ex.png`, `img/sp/assets/summon/qm/<event_id>_ex_1.png`, `img/sp/assets/summon/qm/<event_id>_ex_2.png`, `img/sp/assets/summon/qm/<event_id>_high.png`, `img/sp/assets/summon/qm/<event_id>_high_1.png`, `img/sp/assets/summon/qm/<event_id>_high_2.png`, `img/sp/assets/summon/qm/<event_id>_hell.png`, `img/sp/quest/assets/free/<event_id>_free_proud.png`, `img/sp/quest/assets/<event_id>_free_proud_1.png`, and `img/sp/quest/assets/<event_id>_free_proud_2.png`
   - `max_index` - optional upper bound for index probing (defaults to 20 for `notice` and `start`; `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to 13; minimum 1).
-- Checks & Limits: same role/cooldown/lock behavior as other uploaders; command stops when an index is missing.
+- Checks & Limits: same role/cooldown/lock behavior as other uploaders. `notice`/`start` stop on first missing index; `raid_thumb` checks every configured fixed variant even if some URLs are missing.
 - Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair:
   - `notice`: `<event_id>_banner_event_notice_<index>.png` and `banner_<EventName>_notice_<index>.png`
   - `start`: `<event_id>_banner_event_start_<index>.png` and `banner_<EventName>_<index>.png`
