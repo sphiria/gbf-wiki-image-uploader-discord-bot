@@ -3219,13 +3219,17 @@ class WikiImages(object):
                     'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
                     f'img/sp/assets/leader/raid_normal/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
-                raid_other = [f'Leader_raid_normal_{filter_id}_{gender_value}_01.jpg']
+                gender_redirect = 'gran' if gender_value == 0 else 'djeeta'
+                raid_other = [
+                    f'Leader_raid_normal_{filter_id}_{gender_value}_01.jpg',
+                    f'{page.name}_{gender_redirect}_profile.jpg',
+                ]
                 if skin_name:
                     raid_other.append(f'{skin_name} ({alias}) raid.jpg')
                 add_task(
                     f'raid_normal ({alias})',
                     raid_url,
-                    f'Leader_raid_normal_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
+                    f'leader_raid_normal_{filter_id}_{weapon_id}_{gender_value}_01.jpg',
                     raid_other,
                     raid_categories,
                 )
@@ -4522,7 +4526,11 @@ class WikiImages(object):
                 self._status_callback(stage, **kwargs)
 
         if has_class_fields('id', 'id_num', 'abbr'):
-            sprite_variants = build_variants('class sprite')
+            sprite_variants = build_variants(
+                'class sprite',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='class sprite (Lv50)',
+            )
             process_gendered_assets(
                 sprite_variants,
                 lambda variant, gender: (
@@ -4534,6 +4542,8 @@ class WikiImages(object):
                 ),
                 lambda variant, gender, alias: [
                     f'leader_sd_{variant["id_num"]}_{gender}_01.png',
+                    *([f'{page.name} ({alias.title()}) SD.png'] if not variant['is_lvl50'] else []),
+                    *([f'{page.name} ({alias.title()}) SD2.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
             )
@@ -4710,6 +4720,49 @@ class WikiImages(object):
                     f'leader_raid_log_{variant["id_num"]}_{gender}_01.png',
                     *([f'{class_data["name"]}_{alias}_raid_log.png'] if not variant['is_lvl50'] else []),
                     *([f'{class_data["name"]}_{alias}_raid_log2.png'] if variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            raid_normal_variants = build_variants(
+                'raid_normal image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='raid_normal (Lv50) image',
+            )
+            process_gendered_assets(
+                raid_normal_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/raid_normal/{variant["id"]}_{gender}_01.jpg'
+                ),
+                lambda variant, gender: (
+                    f'leader_raid_normal_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
+                ),
+                lambda variant, gender, alias: [
+                    f'leader_raid_normal_{variant["id_num"]}_{gender}_01.jpg',
+                    *([f'{page.name}_{alias}_profile.jpg'] if not variant['is_lvl50'] else []),
+                    *([f'{page.name}_{alias}_profile2.jpg'] if variant['is_lvl50'] else []),
+                    *([f'{class_data["name"]}_{alias}_raid.jpg'] if not variant['is_lvl50'] else []),
+                ],
+                extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
+            )
+
+            talk_variants = build_variants(
+                'talk image',
+                include_lvl50=supports_lvl50_assets,
+                lvl50_label='talk (Lv50) image',
+            )
+            process_gendered_assets(
+                talk_variants,
+                lambda variant, gender: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/talk/{variant["id"]}_{gender}_01.png'
+                ),
+                lambda variant, gender: f'leader_talk_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png',
+                lambda variant, gender, alias: [
+                    f'leader_talk_{variant["id_num"]}_{gender}_01.png',
+                    *([f'{page.name}_{alias}_talk.png'] if not variant['is_lvl50'] else []),
+                    *([f'{page.name}_{alias}_talk2.png'] if variant['is_lvl50'] else []),
                 ],
                 extra_categories_builder=lambda variant, gender, alias: get_gender_categories(alias),
             )
