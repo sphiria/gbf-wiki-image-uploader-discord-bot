@@ -190,6 +190,62 @@ class WikiImages(object):
                     continue
                 raise
 
+    def _parse_weapon_sp_file_name(self, file_name):
+        match = re.match(r'^File:Weapon sp (\d+)(?: ([12]))?\.([A-Za-z0-9]+)$', file_name)
+        if not match:
+            return None
+
+        return {
+            "id": int(match.group(1)),
+            "variant": match.group(2) or "",
+            "extension": match.group(3).lower(),
+        }
+
+    def _build_duplicate_validation_url(self, file_name):
+        weapon_sp_info = self._parse_weapon_sp_file_name(file_name)
+        if weapon_sp_info:
+            variant_suffix = f'_{weapon_sp_info["variant"]}' if weapon_sp_info["variant"] else ''
+            return (
+                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                f'img/sp/cjs/{weapon_sp_info["id"]}{variant_suffix}.{weapon_sp_info["extension"]}'
+            )
+
+        dupe_match = re.match(r'^File:(Summon|Weapon) ([a-z]+) (\d+)\.([a-z]+)$', file_name)
+        if dupe_match is None:
+            return None
+
+        return (
+            'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+            'img/sp/assets/{0}/{1}/{2}.{3}'
+        ).format(
+            'summon' if dupe_match.group(1) == 'Summon' else 'weapon',
+            dupe_match.group(2),
+            dupe_match.group(3),
+            dupe_match.group(4)
+        )
+
+    def _select_weapon_sp_canonical_duplicate(self, requested_file_name, duplicates):
+        requested_info = self._parse_weapon_sp_file_name(requested_file_name)
+        if not requested_info:
+            return None
+
+        weapon_sp_duplicates = []
+        for duplicate in duplicates:
+            duplicate_info = self._parse_weapon_sp_file_name(duplicate.name)
+            if not duplicate_info:
+                continue
+            if duplicate_info["variant"] != requested_info["variant"]:
+                continue
+            if duplicate_info["extension"] != requested_info["extension"]:
+                continue
+            weapon_sp_duplicates.append((duplicate_info["id"], duplicate))
+
+        if not weapon_sp_duplicates:
+            return None
+
+        weapon_sp_duplicates.sort(key=lambda entry: entry[0])
+        return weapon_sp_duplicates[0][1]
+
     def get_image(self, url, max_retries=3):
         print('Downloading {0}...'.format(url))
         headers = {
@@ -397,6 +453,21 @@ class WikiImages(object):
                 continue
             duplicates.append(wiki_duplicate)
 
+        canonical_weapon_sp_duplicate = self._select_weapon_sp_canonical_duplicate(file_name, duplicates)
+        if canonical_weapon_sp_duplicate is not None:
+            canonical_name = canonical_weapon_sp_duplicate.name[5:]
+            if canonical_weapon_sp_duplicate.page_title.strip().lower() == true_name.replace("_", " ").lower():
+                return file_name[5:]
+
+            print(
+                'Page "{0}" is weapon sp dupe of "{1}", using lower number...'.format(
+                    file_name,
+                    canonical_weapon_sp_duplicate.name
+                )
+            )
+            self.check_redirect(canonical_weapon_sp_duplicate.name, file_name)
+            return canonical_name
+
         if len(duplicates) > 1:
             # just don't handle too many duplicates
             print('Too many duplicates for: {0}'.format(true_name))
@@ -415,17 +486,9 @@ class WikiImages(object):
                 dupe_number = int(dupe_match.group(3))
                 file_number = int(re.search(r'\d+', file_name).group(0))
                 if dupe_number < file_number:
-                    url = (
-                        'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                        'img/sp/assets/{0}/{1}/{2}.{3}'
-                    ).format(
-                        'summon' if dupe_match.group(1) == 'Summon' else 'weapon',
-                        dupe_match.group(2),
-                        dupe_match.group(3),
-                        dupe_match.group(4)
-                    )
+                    url = self._build_duplicate_validation_url(dupe.name)
 
-                    success, dupe_sha1, dupe_size, dupe_io = self.get_image(url)
+                    success, dupe_sha1, dupe_size, dupe_io = self.get_image(url) if url else (False, "", 0, False)
                     if success and (dupe_sha1 == sha1) and (dupe_size == size):
                         print('Page "{0}" is dupe of "{1}", using lower number...'.format(dupe.name, file_name))
                         self.check_redirect(dupe.name, file_name)

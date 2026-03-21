@@ -7,6 +7,12 @@ This file captures repo-specific context that should stay consistent across AI s
 This repo is a Discord bot frontend for GBF Wiki image upload and Main Page promotion maintenance tasks.
 Most changes should preserve existing command contracts, wiki filename conventions, and deployment behavior.
 
+## Source Of Truth
+
+- This repository is the canonical active repo for the Discord bot.
+- The legacy `AdlaiT/gbf-wiki-image-uploader-discord-bot` checkout is closed and must not be treated as canonical.
+- When multiple local copies diverge, prefer this repo and its `origin` remote (`sphiria/gbf-wiki-image-uploader-discord-bot`).
+
 ## Important Files
 
 - `main.py`: Discord slash commands, validation, progress reporting, MainPageDraw page editing helpers.
