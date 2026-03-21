@@ -104,6 +104,24 @@ class AssetSpec:
 
         return other_names
 
+
+@dataclass(frozen=True)
+class DuplicateFamilyRule:
+    name: str
+    pattern: re.Pattern
+    id_parts: Sequence[str]
+    signature_parts: Sequence[str]
+    validation_url_builder: Optional[Callable[[re.Match], str]] = None
+
+
+@dataclass(frozen=True)
+class DuplicateFamilyMatch:
+    rule: DuplicateFamilyRule
+    file_name: str
+    id_token: str
+    family_signature: tuple[str, ...]
+    page_name: str
+
 class WikiImages(object):
     # Map of item upload types to CDN path segments
     ITEM_SINGLE_TYPE_PATHS = {
@@ -139,6 +157,152 @@ class WikiImages(object):
 
     EVENT_BANNER_MAX_INDEX = 20
     EVENT_TEASER_MAX_INDEX = 20
+    DUPLICATE_FAMILY_RULES = (
+        DuplicateFamilyRule(
+            name='weapon_sp',
+            pattern=re.compile(
+                r'^File:Weapon sp (?P<id>[A-Za-z0-9]+)(?: (?P<slot>[12]))?\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('slot', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='space_asset',
+            pattern=re.compile(
+                r'^File:(?P<kind>Weapon|Summon|Npc|Artifact) (?P<section>[A-Za-z0-9_]+) '
+                r'(?P<id>[A-Za-z0-9]+)(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('kind', 'section', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='npc_special',
+            pattern=re.compile(
+                r'^File:(?P<kind>Npc)_(?P<section>my|result_lvup)_(?P<id>[A-Za-z0-9]+)'
+                r'(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('kind', 'section', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='skycompass_character',
+            pattern=re.compile(
+                r'^File:characters_1138x1138_(?P<id>[A-Za-z0-9]+)(?P<suffix>(?:_[A-Za-z0-9]+)*)'
+                r'\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='item',
+            pattern=re.compile(
+                r'^File:item_(?P<item_type>[A-Za-z0-9]+)_(?P<variant>[A-Za-z0-9]+)_(?P<id>[A-Za-z0-9]+)'
+                r'\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('item_type', 'variant', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='sized_asset',
+            pattern=re.compile(
+                r'^File:(?P<prefix>familiar_[ms]|shield_[ms]|Bullet_[ms]|cosmetic_[ms])_'
+                r'(?P<id>[A-Za-z0-9]+)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='vyrnsampo_asset',
+            pattern=re.compile(
+                r'^File:(?P<prefix>vyrnsampo_character_thumb|vyrnsampo_character_detail|'
+                r'vyrnsampo_character_special_skill_label)_(?P<id>[A-Za-z0-9]+)'
+                r'(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='event_banner',
+            pattern=re.compile(
+                r'^File:(?P<id>[A-Za-z0-9_]+)_banner_event_(?P<banner_kind>notice|start)_'
+                r'(?P<index>\d+)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('banner_kind', 'index', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='event_summon_qm',
+            pattern=re.compile(
+                r'^File:summon_qm_(?P<id>[A-Za-z0-9_]+)_'
+                r'(?P<variant>vhard|vhard_1|vhard_2|ex|ex_1|ex_2|high_1|high_2)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('variant', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='event_summon_high',
+            pattern=re.compile(
+                r'^File:summon_(?P<id>[A-Za-z0-9_]+)_(?P<variant>high)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('variant', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='event_qm_hell',
+            pattern=re.compile(
+                r'^File:qm_(?P<id>[A-Za-z0-9_]+)_(?P<variant>hell)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('variant', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='event_quest_assets',
+            pattern=re.compile(
+                r'^File:quest_assets_(?P<id>[A-Za-z0-9_]+)_'
+                r'(?P<variant>free_proud|free_proud_1|free_proud_2)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('variant', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='class_gendered_asset',
+            pattern=re.compile(
+                r'^File:(?P<prefix>leader_sd|leader_s|leader_job_change|leader_jobm|leader_p|leader_jobon_z|'
+                r'leader_jlon|leader_result_ml|leader_result|leader_pm|leader_raid_log|'
+                r'leader_raid_normal|leader_talk|leader_quest|leader_coop|leader_btn|'
+                r'leader_my|leader_zenith|leader_t)_(?P<id_num>[A-Za-z0-9]+)_(?P<abbr>[A-Za-z0-9]+)'
+                r'(?P<suffix>_[01]_01)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id_num', 'abbr'),
+            signature_parts=('prefix', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='summon_archive_asset',
+            pattern=re.compile(
+                r'^File:archives_summons_(?P<id>[A-Za-z0-9]+)(?P<suffix>_detail_l)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='class_simple_asset',
+            pattern=re.compile(
+                r'^File:(?P<prefix>leader_sd_m|leader_m|leader_s|icon_job|leader_jobtree|'
+                r'job_name_tree_l|job_name|job_list|Assets_skin_name)_(?P<id>[A-Za-z0-9]+)'
+                r'(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='jobs_skycompass',
+            pattern=re.compile(
+                r'^File:jobs_1138x1138_(?P<id>[A-Za-z0-9]+)(?P<suffix>_[01])\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('suffix', 'ext'),
+        ),
+    )
 
     def __init__(self):
         """
@@ -190,24 +354,53 @@ class WikiImages(object):
                     continue
                 raise
 
-    def _parse_weapon_sp_file_name(self, file_name):
-        match = re.match(r'^File:Weapon sp (\d+)(?: ([12]))?\.([A-Za-z0-9]+)$', file_name)
-        if not match:
-            return None
+    def _normalize_duplicate_family_part(self, value):
+        return (value or '').strip().lower()
 
-        return {
-            "id": int(match.group(1)),
-            "variant": match.group(2) or "",
-            "extension": match.group(3).lower(),
-        }
+    def _build_duplicate_family_id_token(self, match, id_parts):
+        values = [str(match.group(part)).strip() for part in id_parts if match.group(part)]
+        return '_'.join(values)
+
+    def _build_duplicate_family_signature(self, rule, match):
+        signature = [rule.name]
+        for part in rule.signature_parts:
+            signature.append(self._normalize_duplicate_family_part(match.group(part)))
+        return tuple(signature)
+
+    def _match_duplicate_family(self, file_name):
+        for rule in self.DUPLICATE_FAMILY_RULES:
+            matched = rule.pattern.match(file_name)
+            if not matched:
+                continue
+
+            id_token = self._build_duplicate_family_id_token(matched, rule.id_parts)
+            if not id_token:
+                continue
+
+            return DuplicateFamilyMatch(
+                rule=rule,
+                file_name=file_name,
+                id_token=id_token,
+                family_signature=self._build_duplicate_family_signature(rule, matched),
+                page_name=file_name[5:] if file_name.startswith('File:') else file_name,
+            )
+
+        return None
+
+    def _duplicate_id_sort_key(self, id_token):
+        normalized = self._normalize_duplicate_family_part(id_token)
+        if normalized.isdigit():
+            return (0, int(normalized), normalized)
+        return (1, normalized)
 
     def _build_duplicate_validation_url(self, file_name):
-        weapon_sp_info = self._parse_weapon_sp_file_name(file_name)
-        if weapon_sp_info:
-            variant_suffix = f'_{weapon_sp_info["variant"]}' if weapon_sp_info["variant"] else ''
+        family_match = self._match_duplicate_family(file_name)
+        if family_match and family_match.rule.name == 'weapon_sp':
+            slot = family_match.family_signature[1]
+            variant_suffix = f'_{slot}' if slot else ''
             return (
                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-                f'img/sp/cjs/{weapon_sp_info["id"]}{variant_suffix}.{weapon_sp_info["extension"]}'
+                f'img/sp/cjs/{family_match.id_token}{variant_suffix}.{family_match.family_signature[2]}'
             )
 
         dupe_match = re.match(r'^File:(Summon|Weapon) ([a-z]+) (\d+)\.([a-z]+)$', file_name)
@@ -224,27 +417,29 @@ class WikiImages(object):
             dupe_match.group(4)
         )
 
-    def _select_weapon_sp_canonical_duplicate(self, requested_file_name, duplicates):
-        requested_info = self._parse_weapon_sp_file_name(requested_file_name)
-        if not requested_info:
+    def _select_canonical_duplicate_by_family(self, requested_file_name, duplicates):
+        requested_match = self._match_duplicate_family(requested_file_name)
+        if requested_match is None:
             return None
 
-        weapon_sp_duplicates = []
+        candidate_matches = []
         for duplicate in duplicates:
-            duplicate_info = self._parse_weapon_sp_file_name(duplicate.name)
-            if not duplicate_info:
+            duplicate_match = self._match_duplicate_family(duplicate.name)
+            if duplicate_match is None:
                 continue
-            if duplicate_info["variant"] != requested_info["variant"]:
+            if duplicate_match.rule.name != requested_match.rule.name:
                 continue
-            if duplicate_info["extension"] != requested_info["extension"]:
+            if duplicate_match.family_signature != requested_match.family_signature:
                 continue
-            weapon_sp_duplicates.append((duplicate_info["id"], duplicate))
+            candidate_matches.append((duplicate_match, duplicate))
 
-        if not weapon_sp_duplicates:
+        if not candidate_matches:
             return None
 
-        weapon_sp_duplicates.sort(key=lambda entry: entry[0])
-        return weapon_sp_duplicates[0][1]
+        candidate_matches.sort(
+            key=lambda entry: self._duplicate_id_sort_key(entry[0].id_token)
+        )
+        return candidate_matches[0]
 
     def get_image(self, url, max_retries=3):
         print('Downloading {0}...'.format(url))
@@ -453,19 +648,21 @@ class WikiImages(object):
                 continue
             duplicates.append(wiki_duplicate)
 
-        canonical_weapon_sp_duplicate = self._select_weapon_sp_canonical_duplicate(file_name, duplicates)
-        if canonical_weapon_sp_duplicate is not None:
-            canonical_name = canonical_weapon_sp_duplicate.name[5:]
-            if canonical_weapon_sp_duplicate.page_title.strip().lower() == true_name.replace("_", " ").lower():
+        canonical_duplicate = self._select_canonical_duplicate_by_family(file_name, duplicates)
+        if canonical_duplicate is not None:
+            canonical_duplicate_match, canonical_duplicate_page = canonical_duplicate
+            canonical_name = canonical_duplicate_match.page_name
+            if canonical_duplicate_page.page_title.strip().lower() == true_name.replace("_", " ").lower():
                 return file_name[5:]
 
             print(
-                'Page "{0}" is weapon sp dupe of "{1}", using lower number...'.format(
+                'Page "{0}" is duplicate of "{1}" within family "{2}", using stable canonical...'.format(
                     file_name,
-                    canonical_weapon_sp_duplicate.name
+                    canonical_duplicate_page.name,
+                    canonical_duplicate_match.rule.name
                 )
             )
-            self.check_redirect(canonical_weapon_sp_duplicate.name, file_name)
+            self.check_redirect(canonical_duplicate_page.name, file_name)
             return canonical_name
 
         if len(duplicates) > 1:

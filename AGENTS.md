@@ -20,6 +20,27 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `docs/discord-slash-command-reference.md`: user-facing slash command reference. Update when command contracts change.
 - `README.md`: short command overview. Keep it aligned with actual code.
 
+## Canonical Duplicate Handling
+
+- `images.py` now uses a centralized duplicate-family registry inside `check_image()` for supported ID-based canonical filenames.
+- For supported families, duplicate binaries should not be re-uploaded and should not trigger repeated canonical file moves on reruns.
+- Supported duplicate resolution should prefer a stable canonical file and redirect later duplicate canonical titles to it.
+- Canonical winner rule:
+  - numeric lowest ID token when comparable numerically
+  - lexical lowest normalized ID token otherwise
+- Duplicate canonicalization is only safe when both files match the same family and identical family signature.
+- Family signatures must keep meaningfully different variants separate, such as:
+  - section or subgroup
+  - style suffix like `_st2`
+  - melee sprite slot
+  - `m` vs `s`
+  - event difficulty or index
+  - gender or presentation variant
+  - extension
+- Do not broaden duplicate-family matching casually. A shared bitmap alone is not enough reason to collapse two canonical files together.
+- Unsupported or ambiguous canonical filename patterns should keep the older generic duplicate behavior until an explicit safe family rule is added.
+- When changing canonical filename generators in upload flows, review the duplicate-family registry in `images.py` so canonicalization behavior stays aligned.
+
 ## Command Conventions
 
 - Upload-style commands generally follow the same flow:
