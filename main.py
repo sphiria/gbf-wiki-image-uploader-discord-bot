@@ -107,6 +107,7 @@ ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lotte
 EVENT_TEASER_ASSET_TYPE_CHOICES = [
     app_commands.Choice(name="notice", value="notice"),
     app_commands.Choice(name="start", value="start"),
+    app_commands.Choice(name="guide", value="guide"),
     app_commands.Choice(name="raid_thumb", value="raid_thumb"),
 ]
 EVENT_TEASER_ASSET_TYPE_SET = {choice.value for choice in EVENT_TEASER_ASSET_TYPE_CHOICES}
@@ -2388,7 +2389,7 @@ async def itemupload(
     event_id="Event folder identifier (e.g. treasureraid169 or biography042)",
     event_name="Event display name (used for redirects)",
     asset_type="Select which event asset type to upload.",
-    max_index="Max index to attempt (default 20; raid_thumb defaults to 13).",
+    max_index="Max guide/banner index to attempt (default 20; raid_thumb defaults to 13).",
 )
 @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
 async def eventupload(
@@ -2533,6 +2534,22 @@ async def eventupload(
                         ";".join(template_redirects),
                         "```",
                     ])
+                if asset_type_value == "guide":
+                    gallery_lines = [
+                        entry["canonical"].replace(" ", "_")
+                        for entry in files
+                        if entry.get("canonical")
+                    ]
+                    if gallery_lines:
+                        summary_lines.extend([
+                            "",
+                            "**Paste into guide gallery:**",
+                            "```text",
+                            '<gallery mode="nolines" perrow="3" widths="280px" heights="300px" position="left">',
+                            *gallery_lines,
+                            "</gallery>",
+                            "```",
+                        ])
 
                 base_url = "https://gbf.wiki/File:"
                 link_lines = ["", "**Links:**"]

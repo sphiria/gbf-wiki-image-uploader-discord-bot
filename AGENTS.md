@@ -81,10 +81,14 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Supported `asset_type` values:
   - `notice`
   - `start`
+  - `guide`
   - `raid_thumb`
-- Default `max_index` is `20` for `notice` and `start`.
+- Default `max_index` is `20` for `notice`, `start`, and `guide`.
 - `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to `13`.
 - `raid_thumb` should attempt every configured fixed variant even when some URLs are missing.
+- `guide` scans the full `1..max_index` range instead of stopping on the first miss.
+- `guide` probes the base suffix plus `_0` and `_1` for each base index.
+- `guide` tries `.jpg` first and `.png` second for each suffix, and uploaded filenames keep the actual source extension.
 
 ### Event Upload Naming
 
@@ -96,6 +100,12 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/banner/events/{event_id}/banner_event_start_{index}.png`
   - Canonical: `{event_id}_banner_event_start_{index}.png`
   - Redirect: `banner_{event_name}_{index}.png`
+- `guide`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/event_teaser_{event_id}/assets/tips/description_event_{suffix}.jpg`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/event_teaser_{event_id}/assets/tips/description_event_{suffix}.png`
+  - Suffixes: `{index}`, `{index}_0`, `{index}_1`
+  - Canonical: `{event_id}_description_event_{suffix}.{ext}`
+  - Redirect: `description_{event_name}_{suffix}.{ext}`
 - `raid_thumb`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/summon/qm/{event_id}_vhard.png`
   - Canonical: `summon_qm_{event_id}_vhard.png`
@@ -151,9 +161,11 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - counts for processed/uploaded/duplicates/failed
   - wiki links for canonical and redirect files
   - a copyable code block labeled `Paste into EventHistory template` for `notice` and `start`
+  - a copyable code block labeled `Paste into guide gallery` for `guide`
 - The EventHistory code block is semicolon-separated redirect filenames with underscores, for example:
   - `banner_PS_the_Astrals_1.png;banner_PS_the_Astrals_2.png`
 - This block should still appear on reruns that resolve to duplicates, as long as files were processed.
+- The `guide` gallery block should list final canonical filenames in probe order, including duplicate-resolved canonicals.
 - `raid_thumb` should not include the EventHistory copy box.
 
 ### Event Upload UI Notes
@@ -161,6 +173,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `/eventupload` asset type dropdown labels should stay lowercase:
   - `notice`
   - `start`
+  - `guide`
   - `raid_thumb`
 - The slash-command help text for `event_id` should describe it as a folder identifier, not a numeric-only id.
 

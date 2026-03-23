@@ -2609,6 +2609,7 @@ class WikiImages(object):
         Supported asset_type values:
         - notice: event teaser notice banners
         - start: event start banners
+        - guide: event guide panels
         - raid_thumb: event raid thumbnails
         """
         event_id = str(event_id).strip().lower()
@@ -2618,7 +2619,7 @@ class WikiImages(object):
         asset_type_key = (asset_type or "").strip().lower()
         if not asset_type_key:
             raise ValueError("Asset type is required for event uploads.")
-        if asset_type_key not in {"notice", "start", "raid_thumb"}:
+        if asset_type_key not in {"notice", "start", "guide", "raid_thumb"}:
             raise ValueError(f'Unsupported asset type "{asset_type}" for event uploads.')
 
         event_name = mwparserfromhell.parse(event_name).strip_code().strip()
@@ -2661,6 +2662,12 @@ class WikiImages(object):
             )
             canonical_template = "{event_id}_banner_event_start_{index}.png"
             redirect_template = "banner_{event_name}_{index}.png"
+        elif asset_type_key == "guide":
+            asset_label = "event guide"
+            not_found_message = f'No event guide panels found for event id "{event_id}".'
+            guide_suffixes = []
+            for index in range(1, max_index + 1):
+                guide_suffixes.extend([str(index), f"{index}_0", f"{index}_1"])
         else:
             asset_label = "raid thumb"
             not_found_message = f'No raid thumbnails found for event id "{event_id}".'
@@ -2756,7 +2763,12 @@ class WikiImages(object):
                 },
             ]
 
-        loop_total = len(raid_thumb_variants) if asset_type_key == "raid_thumb" else max_index
+        if asset_type_key == "raid_thumb":
+            loop_total = len(raid_thumb_variants)
+        elif asset_type_key == "guide":
+            loop_total = len(guide_suffixes)
+        else:
+            loop_total = max_index
         if hasattr(self, "_status_callback"):
             self._status_callback(
                 "processing",
@@ -2797,24 +2809,69 @@ class WikiImages(object):
                 if not redirect_names:
                     redirect_names = [variant["redirect"].format(event_name=event_name)]
                 redirect_name = redirect_names[0]
+                display_index = index
+            elif asset_type_key == "guide":
+                suffix = guide_suffixes[index - 1]
+                display_index = suffix
+                resolved_extension = None
+                success = False
+                sha1 = None
+                size = None
+                io_obj = None
+                url = None
+                canonical_name = None
+                redirect_name = None
+                redirect_names = []
+                for extension in ("jpg", "png"):
+                    candidate_url = (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/event/event_teaser_{event_id}/assets/tips/description_event_{suffix}.{extension}"
+                    )
+                    print(
+                        f'Downloading {asset_label} #{suffix} for "{event_name}" '
+                        f'(event id: {event_id}) -> {candidate_url}'
+                    )
+                    success, sha1, size, io_obj = self.get_image(candidate_url)
+                    if success:
+                        resolved_extension = extension
+                        url = candidate_url
+                        canonical_name = (
+                            f"{event_id}_description_event_{suffix}.{resolved_extension}"
+                        )
+                        redirect_name = (
+                            f"description_{event_name}_{suffix}.{resolved_extension}"
+                        )
+                        redirect_names = [redirect_name]
+                        break
+                if not success:
+                    print(
+                        f'Event guide panel not found for suffix "{suffix}" '
+                        f'(event id: {event_id}); skipping.'
+                    )
+                    continue
             else:
                 url = url_template.format(event_id=event_id, index=index)
                 canonical_name = canonical_template.format(event_id=event_id, index=index)
                 redirect_name = redirect_template.format(event_name=event_name, index=index)
                 redirect_names = [redirect_name]
+                display_index = index
 
-            print(
-                f'Downloading {asset_label} #{index} for "{event_name}" '
-                f'(event id: {event_id}) -> {url}'
-            )
+            if asset_type_key != "guide":
+                print(
+                    f'Downloading {asset_label} #{display_index} for "{event_name}" '
+                    f'(event id: {event_id}) -> {url}'
+                )
 
-            success, sha1, size, io_obj = self.get_image(url)
+            if asset_type_key != "guide":
+                success, sha1, size, io_obj = self.get_image(url)
             if not success:
                 if asset_type_key == "raid_thumb":
                     print(
                         f'Raid thumbnail not found for variant "{difficulty}" '
                         f'(event id: {event_id}); skipping.'
                     )
+                    continue
+                if asset_type_key == "guide":
                     continue
                 if index == 1:
                     print(not_found_message)
@@ -2846,7 +2903,7 @@ class WikiImages(object):
 
             file_entries.append(
                 {
-                    "index": index,
+                    "index": display_index,
                     "canonical": canonical_name,
                     "redirect": redirect_name,
                     "redirects": redirect_names,
