@@ -2825,7 +2825,7 @@ class WikiImages(object):
                 for extension in ("jpg", "png"):
                     candidate_url = (
                         "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                        f"img/sp/event/event_teaser_{event_id}/assets/tips/description_event_{suffix}.{extension}"
+                        f"img/sp/event/{event_id}/assets/tips/description_event_{suffix}.{extension}"
                     )
                     print(
                         f'Downloading {asset_label} #{suffix} for "{event_name}" '

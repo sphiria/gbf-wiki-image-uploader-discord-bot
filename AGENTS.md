@@ -101,8 +101,8 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - Canonical: `{event_id}_banner_event_start_{index}.png`
   - Redirect: `banner_{event_name}_{index}.png`
 - `guide`
-  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/event_teaser_{event_id}/assets/tips/description_event_{suffix}.jpg`
-  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/event_teaser_{event_id}/assets/tips/description_event_{suffix}.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/{event_id}/assets/tips/description_event_{suffix}.jpg`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/event/{event_id}/assets/tips/description_event_{suffix}.png`
   - Suffixes: `{index}`, `{index}_0`, `{index}_1`
   - Canonical: `{event_id}_description_event_{suffix}.{ext}`
   - Redirect: `description_{event_name}_{suffix}.{ext}`
