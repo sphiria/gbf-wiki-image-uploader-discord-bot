@@ -2536,9 +2536,9 @@ async def eventupload(
                     ])
                 if asset_type_value == "guide":
                     gallery_lines = [
-                        entry["canonical"].replace(" ", "_")
+                        redirect_name.replace(" ", "_")
                         for entry in files
-                        if entry.get("canonical")
+                        if (redirect_name := entry.get("redirect"))
                     ]
                     if gallery_lines:
                         summary_lines.extend([

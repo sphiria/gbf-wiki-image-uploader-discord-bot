@@ -3961,8 +3961,20 @@ class WikiImages(object):
             'f_skin': [
                 'jpg',
                 '_tall',
-                ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6'],
-                ['fire', 'water', 'earth', 'wind', 'light', 'dark'],
+                [
+                    '_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
+                    '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
+                    '_82_s1', '_82_s2', '_82_s3', '_82_s4', '_82_s5', '_82_s6',
+                    '_81_0_s1', '_81_0_s2', '_81_0_s3', '_81_0_s4', '_81_0_s5', '_81_0_s6',
+                    '_82_1_s1', '_82_1_s2', '_82_1_s3', '_82_1_s4', '_82_1_s5', '_82_1_s6'
+                ],
+                [
+                    'fire', 'water', 'earth', 'wind', 'light', 'dark',
+                    'ST_fire', 'ST_water', 'ST_earth', 'ST_wind', 'ST_light', 'ST_dark',
+                    'ST2_fire', 'ST2_water', 'ST2_earth', 'ST2_wind', 'ST2_light', 'ST2_dark',
+                    'ST0_fire', 'ST0_water', 'ST0_earth', 'ST0_wind', 'ST0_light', 'ST0_dark',
+                    'ST21_fire', 'ST21_water', 'ST21_earth', 'ST21_wind', 'ST21_light', 'ST21_dark'
+                ],
                 ['Outfit Images', 'Tall Skin Character Images']
             ],
 
