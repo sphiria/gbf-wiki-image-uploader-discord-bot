@@ -121,6 +121,7 @@ class DuplicateFamilyMatch:
     id_token: str
     family_signature: tuple[str, ...]
     page_name: str
+    match_obj: re.Match
 
 class WikiImages(object):
     # Map of item upload types to CDN path segments
@@ -183,6 +184,15 @@ class WikiImages(object):
             ),
             id_parts=('id',),
             signature_parts=('kind', 'section', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='npc_f_skin',
+            pattern=re.compile(
+                r'^File:(?P<prefix>npc_f_skin)_(?P<id>[A-Za-z0-9]+)'
+                r'(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'suffix', 'ext'),
         ),
         DuplicateFamilyRule(
             name='skycompass_character',
@@ -357,6 +367,42 @@ class WikiImages(object):
     def _normalize_duplicate_family_part(self, value):
         return (value or '').strip().lower()
 
+    def _is_npc_duplicate_family(self, rule, match):
+        if rule.name in ('npc_special', 'npc_f_skin'):
+            return True
+        return (
+            rule.name == 'space_asset'
+            and self._normalize_duplicate_family_part(match.groupdict().get('kind')) == 'npc'
+        )
+
+    def _normalize_npc_duplicate_suffix(self, suffix):
+        normalized = self._normalize_duplicate_family_part(suffix)
+        if not normalized:
+            return normalized
+
+        normalized = re.sub(
+            r'^(?P<base>_(?:01|81|91))_0(?P<rest>(?:_[a-z0-9]+)*)$',
+            lambda match: match.group('base') + (match.group('rest') or ''),
+            normalized,
+        )
+        return normalized
+
+    def _normalize_duplicate_signature_value(self, rule, match, part):
+        value = self._normalize_duplicate_family_part(match.group(part))
+        if part == 'suffix' and self._is_npc_duplicate_family(rule, match):
+            return self._normalize_npc_duplicate_suffix(value)
+        return value
+
+    def _duplicate_canonical_preference_key(self, match):
+        if not self._is_npc_duplicate_family(match.rule, match.match_obj):
+            return (0, self._normalize_duplicate_family_part(match.page_name))
+
+        raw_suffix = self._normalize_duplicate_family_part(match.match_obj.groupdict().get('suffix'))
+        normalized_suffix = self._normalize_npc_duplicate_suffix(raw_suffix)
+        if raw_suffix and raw_suffix != normalized_suffix:
+            return (1, self._normalize_duplicate_family_part(match.page_name))
+        return (0, self._normalize_duplicate_family_part(match.page_name))
+
     def _build_duplicate_family_id_token(self, match, id_parts):
         values = [str(match.group(part)).strip() for part in id_parts if match.group(part)]
         return '_'.join(values)
@@ -364,7 +410,7 @@ class WikiImages(object):
     def _build_duplicate_family_signature(self, rule, match):
         signature = [rule.name]
         for part in rule.signature_parts:
-            signature.append(self._normalize_duplicate_family_part(match.group(part)))
+            signature.append(self._normalize_duplicate_signature_value(rule, match, part))
         return tuple(signature)
 
     def _match_duplicate_family(self, file_name):
@@ -383,6 +429,7 @@ class WikiImages(object):
                 id_token=id_token,
                 family_signature=self._build_duplicate_family_signature(rule, matched),
                 page_name=file_name[5:] if file_name.startswith('File:') else file_name,
+                match_obj=matched,
             )
 
         return None
@@ -437,9 +484,24 @@ class WikiImages(object):
             return None
 
         candidate_matches.sort(
-            key=lambda entry: self._duplicate_id_sort_key(entry[0].id_token)
+            key=lambda entry: (
+                self._duplicate_id_sort_key(entry[0].id_token),
+                self._duplicate_canonical_preference_key(entry[0]),
+            )
         )
-        return candidate_matches[0]
+        best_existing_match, best_existing_page = candidate_matches[0]
+        requested_key = (
+            self._duplicate_id_sort_key(requested_match.id_token),
+            self._duplicate_canonical_preference_key(requested_match),
+        )
+        best_existing_key = (
+            self._duplicate_id_sort_key(best_existing_match.id_token),
+            self._duplicate_canonical_preference_key(best_existing_match),
+        )
+        if requested_key < best_existing_key:
+            return requested_match, best_existing_page, True
+
+        return best_existing_match, best_existing_page, False
 
     def get_image(self, url, max_retries=3):
         print('Downloading {0}...'.format(url))
@@ -650,9 +712,27 @@ class WikiImages(object):
 
         canonical_duplicate = self._select_canonical_duplicate_by_family(file_name, duplicates)
         if canonical_duplicate is not None:
-            canonical_duplicate_match, canonical_duplicate_page = canonical_duplicate
+            canonical_duplicate_match, canonical_duplicate_page, prefer_requested_title = canonical_duplicate
             canonical_name = canonical_duplicate_match.page_name
             if canonical_duplicate_page.page_title.strip().lower() == true_name.replace("_", " ").lower():
+                return file_name[5:]
+
+            if prefer_requested_title:
+                backlinks = canonical_duplicate_page.backlinks(filterredir='redirects')
+                print(
+                    'Page "{0}" is duplicate of "{1}" within family "{2}", '
+                    'moving to preferred canonical title...'.format(
+                        canonical_duplicate_page.name,
+                        file_name,
+                        canonical_duplicate_match.rule.name
+                    )
+                )
+                self._perform_wiki_action_with_retry(
+                    canonical_duplicate_page.move,
+                    file_name,
+                    reason='Batch upload file name',
+                )
+                self.investigate_backlinks(backlinks, canonical_duplicate_page.name, file_name)
                 return file_name[5:]
 
             print(
