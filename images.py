@@ -32,6 +32,20 @@ WIKI_PASSWORD = os.environ.get("WIKI_PASSWORD")
 MITM_ROOT = os.environ.get("MITM_ROOT")
 
 
+def _read_optional_float_env(var_name):
+    raw_value = os.environ.get(var_name)
+    if raw_value is None or raw_value == "":
+        return None
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise RuntimeError(f"{var_name} must be a number, got {raw_value!r}") from exc
+
+
+IMAGE_PROBE_DELAY = _read_optional_float_env("IMAGE_PROBE_DELAY")
+LOCAL_IMAGE_PROBE_DELAY = _read_optional_float_env("LOCAL_IMAGE_PROBE_DELAY")
+
+
 @dataclass(frozen=True)
 class AssetVariant:
     suffix: str
@@ -195,6 +209,15 @@ class WikiImages(object):
             signature_parts=('prefix', 'suffix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='npc_s_skin',
+            pattern=re.compile(
+                r'^File:(?P<prefix>npc_s_skin)_(?P<id>[A-Za-z0-9]+)'
+                r'(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='skycompass_character',
             pattern=re.compile(
                 r'^File:characters_1138x1138_(?P<id>[A-Za-z0-9]+)(?P<suffix>(?:_[A-Za-z0-9]+)*)'
@@ -333,7 +356,12 @@ class WikiImages(object):
         self.mitm_root = MITM_ROOT or GBFWiki.mitmpath()
 
         # Other settings
-        self.delay = 25
+        if IMAGE_PROBE_DELAY is not None:
+            self.delay = IMAGE_PROBE_DELAY
+        elif not os.environ.get("PROXY_URL") and LOCAL_IMAGE_PROBE_DELAY is not None:
+            self.delay = LOCAL_IMAGE_PROBE_DELAY
+        else:
+            self.delay = 25
 
     def _item_variant_specs(self, item_type: str):
         """
@@ -368,7 +396,7 @@ class WikiImages(object):
         return (value or '').strip().lower()
 
     def _is_npc_duplicate_family(self, rule, match):
-        if rule.name in ('npc_special', 'npc_f_skin'):
+        if rule.name in ('npc_special', 'npc_f_skin', 'npc_s_skin'):
             return True
         return (
             rule.name == 'space_asset'
@@ -3023,6 +3051,143 @@ class WikiImages(object):
             "asset_type": asset_type_key,
         }
 
+    def _character_fs_skin_paths(self):
+        return {
+            'f_skin': ['jpg', '_tall',
+            ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
+            '_01_1_s1', '_01_1_s2', '_01_1_s3', '_01_1_s4', '_01_1_s5', '_01_1_s6',
+            '_01_101_s1', '_01_101_s2', '_01_101_s3', '_01_101_s4', '_01_101_s5', '_01_101_s6',
+            '_01_102_s1', '_01_102_s2', '_01_102_s3', '_01_102_s4', '_01_102_s5', '_01_102_s6',
+            '_01_103_s1', '_01_103_s2', '_01_103_s3', '_01_103_s4', '_01_103_s5', '_01_103_s6',
+            '_01_104_s1', '_01_104_s2', '_01_104_s3', '_01_104_s4', '_01_104_s5', '_01_104_s6',
+            '_01_105_s1', '_01_105_s2', '_01_105_s3', '_01_105_s4', '_01_105_s5', '_01_105_s6',
+            '_02_s1', '_02_s2', '_02_s3', '_02_s4', '_02_s5', '_02_s6',
+            '_02_1_s1', '_02_1_s2', '_02_1_s3', '_02_1_s4', '_02_1_s5', '_02_1_s6',
+            '_02_101_s1', '_02_101_s2', '_02_101_s3', '_02_101_s4', '_02_101_s5', '_02_101_s6',
+            '_02_102_s1', '_02_102_s2', '_02_102_s3', '_02_102_s4', '_02_102_s5', '_02_102_s6',
+            '_02_103_s1', '_02_103_s2', '_02_103_s3', '_02_103_s4', '_02_103_s5', '_02_103_s6',
+            '_02_104_s1', '_02_104_s2', '_02_104_s3', '_02_104_s4', '_02_104_s5', '_02_104_s6',
+            '_02_105_s1', '_02_105_s2', '_02_105_s3', '_02_105_s4', '_02_105_s5', '_02_105_s6',
+            '_03_s1', '_03_s2', '_03_s3', '_03_s4', '_03_s5', '_03_s6',
+            '_03_1_s1', '_03_1_s2', '_03_1_s3', '_03_1_s4', '_03_1_s5', '_03_1_s6',
+            '_03_101_s1', '_03_101_s2', '_03_101_s3', '_03_101_s4', '_03_101_s5', '_03_101_s6',
+            '_03_102_s1', '_03_102_s2', '_03_102_s3', '_03_102_s4', '_03_102_s5', '_03_102_s6',
+            '_03_103_s1', '_03_103_s2', '_03_103_s3', '_03_103_s4', '_03_103_s5', '_03_103_s6',
+            '_03_104_s1', '_03_104_s2', '_03_104_s3', '_03_104_s4', '_03_104_s5', '_03_104_s6',
+            '_03_105_s1', '_03_105_s2', '_03_105_s3', '_03_105_s4', '_03_105_s5', '_03_105_s6',
+            '_04_s1', '_04_s2', '_04_s3', '_04_s4', '_04_s5', '_04_s6',
+            '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
+            '_82_s1', '_82_s2', '_82_s3', '_82_s4', '_82_s5', '_82_s6',
+            '_91_s1', '_91_s2', '_91_s3', '_91_s4', '_91_s5', '_91_s6',
+            '_91_0_s1', '_91_0_s2', '_91_0_s3', '_91_0_s4', '_91_0_s5', '_91_0_s6',
+            '_91_1_s1', '_91_1_s2', '_91_1_s3', '_91_1_s4', '_91_1_s5', '_91_1_s6',
+
+            '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
+            '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
+            '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'
+            ],
+            ['A_fire', 'A_water', 'A_earth', 'A_wind', 'A_light', 'A_dark',
+            'A2_fire', 'A2_water', 'A2_earth', 'A2_wind', 'A2_light', 'A2_dark',
+            'A101_fire', 'A101_water', 'A101_earth', 'A101_wind', 'A101_light', 'A101_dark',
+            'A102_fire', 'A102_water', 'A102_earth', 'A102_wind', 'A102_light', 'A102_dark',
+            'A103_fire', 'A103_water', 'A103_earth', 'A103_wind', 'A103_light', 'A103_dark',
+            'A104_fire', 'A104_water', 'A104_earth', 'A104_wind', 'A104_light', 'A104_dark',
+            'A105_fire', 'A105_water', 'A105_earth', 'A105_wind', 'A105_light', 'A105_dark',
+            'B_fire', 'B_water', 'B_earth', 'B_wind', 'B_light', 'B_dark',
+            'B2_fire', 'B2_water', 'B2_earth', 'B2_wind', 'B2_light', 'B2_dark',
+            'B101_fire', 'B101_water', 'B101_earth', 'B101_wind', 'B101_light', 'B101_dark',
+            'B102_fire', 'B102_water', 'B102_earth', 'B102_wind', 'B102_light', 'B102_dark',
+            'B103_fire', 'B103_water', 'B103_earth', 'B103_wind', 'B103_light', 'B103_dark',
+            'B104_fire', 'B104_water', 'B104_earth', 'B104_wind', 'B104_light', 'B104_dark',
+            'B105_fire', 'B105_water', 'B105_earth', 'B105_wind', 'B105_light', 'B105_dark',
+            'C_fire', 'C_water', 'C_earth', 'C_wind', 'C_light', 'C_dark',
+            'C2_fire', 'C2_water', 'C2_earth', 'C2_wind', 'C2_light', 'C2_dark',
+            'C101_fire', 'C101_water', 'C101_earth', 'C101_wind', 'C101_light', 'C101_dark',
+            'C102_fire', 'C102_water', 'C102_earth', 'C102_wind', 'C102_light', 'C102_dark',
+            'C103_fire', 'C103_water', 'C103_earth', 'C103_wind', 'C103_light', 'C103_dark',
+            'C104_fire', 'C104_water', 'C104_earth', 'C104_wind', 'C104_light', 'C104_dark',
+            'C105_fire', 'C105_water', 'C105_earth', 'C105_wind', 'C105_light', 'C105_dark',
+            'D_fire', 'D_water', 'D_earth', 'D_wind', 'D_light', 'D_dark',
+            'ST_fire', 'ST_water', 'ST_earth', 'ST_wind', 'ST_light', 'ST_dark',
+            'ST2_fire', 'ST2_water', 'ST2_earth', 'ST2_wind', 'ST2_light', 'ST2_dark',
+            'EX_fire', 'EX_water', 'EX_earth', 'EX_wind', 'EX_light', 'EX_dark',
+            'EX1_fire', 'EX1_water', 'EX1_earth', 'EX1_wind', 'EX1_light', 'EX1_dark',
+            'EX2_fire', 'EX2_water', 'EX2_earth', 'EX2_wind', 'EX2_light', 'EX2_dark',
+
+            'A01_fire', 'A01_water', 'A01_earth', 'A01_wind', 'A01_light', 'A01_dark',
+            'A02_fire', 'A02_water', 'A02_earth', 'A02_wind', 'A02_light', 'A02_dark',
+            'A03_fire', 'A03_water', 'A03_earth', 'A03_wind', 'A03_light', 'A03_dark',
+            ],
+            ['Character Images', 'Tall Skin Character Images' ]],
+
+            's_skin': ['jpg', '_square',
+            ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
+            '_01_1_s1', '_01_1_s2', '_01_1_s3', '_01_1_s4', '_01_1_s5', '_01_1_s6',
+            '_01_101_s1', '_01_101_s2', '_01_101_s3', '_01_101_s4', '_01_101_s5', '_01_101_s6',
+            '_01_102_s1', '_01_102_s2', '_01_102_s3', '_01_102_s4', '_01_102_s5', '_01_102_s6',
+            '_01_103_s1', '_01_103_s2', '_01_103_s3', '_01_103_s4', '_01_103_s5', '_01_103_s6',
+            '_01_104_s1', '_01_104_s2', '_01_104_s3', '_01_104_s4', '_01_104_s5', '_01_104_s6',
+            '_01_105_s1', '_01_105_s2', '_01_105_s3', '_01_105_s4', '_01_105_s5', '_01_105_s6',
+            '_02_s1', '_02_s2', '_02_s3', '_02_s4', '_02_s5', '_02_s6',
+            '_02_1_s1', '_02_1_s2', '_02_1_s3', '_02_1_s4', '_02_1_s5', '_02_1_s6',
+            '_02_101_s1', '_02_101_s2', '_02_101_s3', '_02_101_s4', '_02_101_s5', '_02_101_s6',
+            '_02_102_s1', '_02_102_s2', '_02_102_s3', '_02_102_s4', '_02_102_s5', '_02_102_s6',
+            '_02_103_s1', '_02_103_s2', '_02_103_s3', '_02_103_s4', '_02_103_s5', '_02_103_s6',
+            '_02_104_s1', '_02_104_s2', '_02_104_s3', '_02_104_s4', '_02_104_s5', '_02_104_s6',
+            '_02_105_s1', '_02_105_s2', '_02_105_s3', '_02_105_s4', '_02_105_s5', '_02_105_s6',
+            '_03_s1', '_03_s2', '_03_s3', '_03_s4', '_03_s5', '_03_s6',
+            '_03_1_s1', '_03_1_s2', '_03_1_s3', '_03_1_s4', '_03_1_s5', '_03_1_s6',
+            '_03_101_s1', '_03_101_s2', '_03_101_s3', '_03_101_s4', '_03_101_s5', '_03_101_s6',
+            '_03_102_s1', '_03_102_s2', '_03_102_s3', '_03_102_s4', '_03_102_s5', '_03_102_s6',
+            '_03_103_s1', '_03_103_s2', '_03_103_s3', '_03_103_s4', '_03_103_s5', '_03_103_s6',
+            '_03_104_s1', '_03_104_s2', '_03_104_s3', '_03_104_s4', '_03_104_s5', '_03_104_s6',
+            '_03_105_s1', '_03_105_s2', '_03_105_s3', '_03_105_s4', '_03_105_s5', '_03_105_s6',
+            '_04_s1', '_04_s2', '_04_s3', '_04_s4', '_04_s5', '_04_s6',
+            '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
+            '_82_s1', '_82_s2', '_82_s3', '_82_s4', '_82_s5', '_82_s6',
+            '_91_s1', '_91_s2', '_91_s3', '_91_s4', '_91_s5', '_91_s6',
+            '_91_0_s1', '_91_0_s2', '_91_0_s3', '_91_0_s4', '_91_0_s5', '_91_0_s6',
+            '_91_1_s1', '_91_1_s2', '_91_1_s3', '_91_1_s4', '_91_1_s5', '_91_1_s6',
+
+            '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
+            '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
+            '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'
+            ],
+            ['A_fire', 'A_water', 'A_earth', 'A_wind', 'A_light', 'A_dark',
+            'A2_fire', 'A2_water', 'A2_earth', 'A2_wind', 'A2_light', 'A2_dark',
+            'A101_fire', 'A101_water', 'A101_earth', 'A101_wind', 'A101_light', 'A101_dark',
+            'A102_fire', 'A102_water', 'A102_earth', 'A102_wind', 'A102_light', 'A102_dark',
+            'A103_fire', 'A103_water', 'A103_earth', 'A103_wind', 'A103_light', 'A103_dark',
+            'A104_fire', 'A104_water', 'A104_earth', 'A104_wind', 'A104_light', 'A104_dark',
+            'A105_fire', 'A105_water', 'A105_earth', 'A105_wind', 'A105_light', 'A105_dark',
+            'B_fire', 'B_water', 'B_earth', 'B_wind', 'B_light', 'B_dark',
+            'B2_fire', 'B2_water', 'B2_earth', 'B2_wind', 'B2_light', 'B2_dark',
+            'B101_fire', 'B101_water', 'B101_earth', 'B101_wind', 'B101_light', 'B101_dark',
+            'B102_fire', 'B102_water', 'B102_earth', 'B102_wind', 'B102_light', 'B102_dark',
+            'B103_fire', 'B103_water', 'B103_earth', 'B103_wind', 'B103_light', 'B103_dark',
+            'B104_fire', 'B104_water', 'B104_earth', 'B104_wind', 'B104_light', 'B104_dark',
+            'B105_fire', 'B105_water', 'B105_earth', 'B105_wind', 'B105_light', 'B105_dark',
+            'C_fire', 'C_water', 'C_earth', 'C_wind', 'C_light', 'C_dark',
+            'C2_fire', 'C2_water', 'C2_earth', 'C2_wind', 'C2_light', 'C2_dark',
+            'C101_fire', 'C101_water', 'C101_earth', 'C101_wind', 'C101_light', 'C101_dark',
+            'C102_fire', 'C102_water', 'C102_earth', 'C102_wind', 'C102_light', 'C102_dark',
+            'C103_fire', 'C103_water', 'C103_earth', 'C103_wind', 'C103_light', 'C103_dark',
+            'C104_fire', 'C104_water', 'C104_earth', 'C104_wind', 'C104_light', 'C104_dark',
+            'C105_fire', 'C105_water', 'C105_earth', 'C105_wind', 'C105_light', 'C105_dark',
+            'D_fire', 'D_water', 'D_earth', 'D_wind', 'D_light', 'D_dark',
+            'ST_fire', 'ST_water', 'ST_earth', 'ST_wind', 'ST_light', 'ST_dark',
+            'ST2_fire', 'ST2_water', 'ST2_earth', 'ST2_wind', 'ST2_light', 'ST2_dark',
+            'EX_fire', 'EX_water', 'EX_earth', 'EX_wind', 'EX_light', 'EX_dark',
+            'EX1_fire', 'EX1_water', 'EX1_earth', 'EX1_wind', 'EX1_light', 'EX1_dark',
+            'EX2_fire', 'EX2_water', 'EX2_earth', 'EX2_wind', 'EX2_light', 'EX2_dark',
+
+            'A01_fire', 'A01_water', 'A01_earth', 'A01_wind', 'A01_light', 'A01_dark',
+            'A02_fire', 'A02_water', 'A02_earth', 'A02_wind', 'A02_light', 'A02_dark',
+            'A03_fire', 'A03_water', 'A03_earth', 'A03_wind', 'A03_light', 'A03_dark',
+            ],
+            ['Character Images', 'Square Skin Character Images' ]],
+        }
+
     def check_character(self, page):
         paths = {
             'zoom':          ['png', '', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04', 
@@ -3052,65 +3217,6 @@ class WikiImages(object):
             # 'C01', 'C02', 'C03', 'C04', 'C05', 'C06'
             ],
             ['Sky Compass Images', 'Sky Compass Character Images']],
-            
-            'f_skin':             ['jpg', '_tall',   
-            ['_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
-            '_01_101_s1', '_01_101_s2', '_01_101_s3', '_01_101_s4', '_01_101_s5', '_01_101_s6',
-            '_01_102_s1', '_01_102_s2', '_01_102_s3', '_01_102_s4', '_01_102_s5', '_01_102_s6',
-            '_01_103_s1', '_01_103_s2', '_01_103_s3', '_01_103_s4', '_01_103_s5', '_01_103_s6',
-            '_01_104_s1', '_01_104_s2', '_01_104_s3', '_01_104_s4', '_01_104_s5', '_01_104_s6',
-            '_01_105_s1', '_01_105_s2', '_01_105_s3', '_01_105_s4', '_01_105_s5', '_01_105_s6',
-            '_02_s1', '_02_s2', '_02_s3', '_02_s4', '_02_s5', '_02_s6',
-            '_02_1_s1', '_02_1_s2', '_02_1_s3', '_02_1_s4', '_02_1_s5', '_02_1_s6',
-            '_02_101_s1', '_02_101_s2', '_02_101_s3', '_02_101_s4', '_02_101_s5', '_02_101_s6',
-            '_02_102_s1', '_02_102_s2', '_02_102_s3', '_02_102_s4', '_02_102_s5', '_02_102_s6',
-            '_02_103_s1', '_02_103_s2', '_02_103_s3', '_02_103_s4', '_02_103_s5', '_02_103_s6',
-            '_02_104_s1', '_02_104_s2', '_02_104_s3', '_02_104_s4', '_02_104_s5', '_02_104_s6',
-            '_02_105_s1', '_02_105_s2', '_02_105_s3', '_02_105_s4', '_02_105_s5', '_02_105_s6',
-            '_03_s1', '_03_s2', '_03_s3', '_03_s4', '_03_s5', '_03_s6',
-            '_03_101_s1', '_03_101_s2', '_03_101_s3', '_03_101_s4', '_03_101_s5', '_03_101_s6',
-            '_03_102_s1', '_03_102_s2', '_03_102_s3', '_03_102_s4', '_03_102_s5', '_03_102_s6',
-            '_03_103_s1', '_03_103_s2', '_03_103_s3', '_03_103_s4', '_03_103_s5', '_03_103_s6',
-            '_03_104_s1', '_03_104_s2', '_03_104_s3', '_03_104_s4', '_03_104_s5', '_03_104_s6',
-            '_03_105_s1', '_03_105_s2', '_03_105_s3', '_03_105_s4', '_03_105_s5', '_03_105_s6',
-            '_04_s1', '_04_s2', '_04_s3', '_04_s4', '_04_s5', '_04_s6',
-            '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
-            '_82_s1', '_82_s2', '_82_s3', '_82_s4', '_82_s5', '_82_s6',
-            '_91_s1', '_91_s2', '_91_s3', '_91_s4', '_91_s5', '_91_s6',
-
-            '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06', 
-            '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06', 
-            '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'
-            ], 
-            ['A_fire', 'A_water', 'A_earth', 'A_wind', 'A_light', 'A_dark',
-            'A101_fire', 'A101_water', 'A101_earth', 'A101_wind', 'A101_light', 'A101_dark',
-            'A102_fire', 'A102_water', 'A102_earth', 'A102_wind', 'A102_light', 'A102_dark',
-            'A103_fire', 'A103_water', 'A103_earth', 'A103_wind', 'A103_light', 'A103_dark',
-            'A104_fire', 'A104_water', 'A104_earth', 'A104_wind', 'A104_light', 'A104_dark',
-            'A105_fire', 'A105_water', 'A105_earth', 'A105_wind', 'A105_light', 'A105_dark',
-            'B_fire', 'B_water', 'B_earth', 'B_wind', 'B_light', 'B_dark',
-            'B2_fire', 'B2_water', 'B2_earth', 'B2_wind', 'B2_light', 'B2_dark',
-            'B101_fire', 'B101_water', 'B101_earth', 'B101_wind', 'B101_light', 'B101_dark',
-            'B102_fire', 'B102_water', 'B102_earth', 'B102_wind', 'B102_light', 'B102_dark',
-            'B103_fire', 'B103_water', 'B103_earth', 'B103_wind', 'B103_light', 'B103_dark',
-            'B104_fire', 'B104_water', 'B104_earth', 'B104_wind', 'B104_light', 'B104_dark',
-            'B105_fire', 'B105_water', 'B105_earth', 'B105_wind', 'B105_light', 'B105_dark',
-            'C_fire', 'C_water', 'C_earth', 'C_wind', 'C_light', 'C_dark',
-            'C101_fire', 'C101_water', 'C101_earth', 'C101_wind', 'C101_light', 'C101_dark',
-            'C102_fire', 'C102_water', 'C102_earth', 'C102_wind', 'C102_light', 'C102_dark',
-            'C103_fire', 'C103_water', 'C103_earth', 'C103_wind', 'C103_light', 'C103_dark',
-            'C104_fire', 'C104_water', 'C104_earth', 'C104_wind', 'C104_light', 'C104_dark',
-            'C105_fire', 'C105_water', 'C105_earth', 'C105_wind', 'C105_light', 'C105_dark',
-            'D_fire', 'D_water', 'D_earth', 'D_wind', 'D_light', 'D_dark',
-            'ST_fire', 'ST_water', 'ST_earth', 'ST_wind', 'ST_light', 'ST_dark',
-            'ST2_fire', 'ST2_water', 'ST2_earth', 'ST2_wind', 'ST2_light', 'ST2_dark',
-            'EX_fire', 'EX_water', 'EX_earth', 'EX_wind', 'EX_light', 'EX_dark',
-
-            'A01_fire', 'A01_water', 'A01_earth', 'A01_wind', 'A01_light', 'A01_dark',
-            'A02_fire', 'A02_water', 'A02_earth', 'A02_wind', 'A02_light', 'A02_dark',
-            'A03_fire', 'A03_water', 'A03_earth', 'A03_wind', 'A03_light', 'A03_dark',
-            ],
-            ['Character Images', 'Tall Skin Character Images' ]],
             
             'f':             ['jpg', '_tall', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04', '_81', '_82', '_91', '_91_0', '_91_1',
             '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06', 
@@ -3223,6 +3329,9 @@ class WikiImages(object):
             #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/s/1010200300.jpg
         }
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
+
+    def check_character_fs_skin(self, page):
+        self.check_sp_asset(page, 'npc', 'Character', self._character_fs_skin_paths(), False)
 
     def check_skill_icons(self, page):
         """
@@ -4059,6 +4168,27 @@ class WikiImages(object):
                 ],
                 ['Outfit Images', 'Tall Skin Character Images']
             ],
+            's_skin': [
+                'jpg',
+                '_square',
+                [
+                    '_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
+                    '_01_1_s1', '_01_1_s2', '_01_1_s3', '_01_1_s4', '_01_1_s5', '_01_1_s6',
+                    '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
+                    '_82_s1', '_82_s2', '_82_s3', '_82_s4', '_82_s5', '_82_s6',
+                    '_81_0_s1', '_81_0_s2', '_81_0_s3', '_81_0_s4', '_81_0_s5', '_81_0_s6',
+                    '_82_1_s1', '_82_1_s2', '_82_1_s3', '_82_1_s4', '_82_1_s5', '_82_1_s6'
+                ],
+                [
+                    'fire', 'water', 'earth', 'wind', 'light', 'dark',
+                    'A1_fire', 'A1_water', 'A1_earth', 'A1_wind', 'A1_light', 'A1_dark',
+                    'ST_fire', 'ST_water', 'ST_earth', 'ST_wind', 'ST_light', 'ST_dark',
+                    'ST2_fire', 'ST2_water', 'ST2_earth', 'ST2_wind', 'ST2_light', 'ST2_dark',
+                    'ST0_fire', 'ST0_water', 'ST0_earth', 'ST0_wind', 'ST0_light', 'ST0_dark',
+                    'ST21_fire', 'ST21_water', 'ST21_earth', 'ST21_wind', 'ST21_light', 'ST21_dark'
+                ],
+                ['Outfit Images', 'Square Skin Character Images']
+            ],
 
             #                                      ['Outfit Images', 'Tall Outfit Images' ]],
             # 'sd_ability':    ['png', '',   ['_01_ability', '_01_stbwait', '_01_attack', '_01_double', '_01_vs_motion_1', '_01_vs_motion_2', '_01_vs_motion_3', '_ab_motion'], [' SD_ability', ' SD_stbwait', ' SD_attack', ' SD_double', ' SD_vs_motion_1', ' SD_vs_motion_2', ' SD_vs_motion_3', ' SD_ab_motion'], ['Outfit Images', 'Skin Outfit Images'  ]],
@@ -4205,6 +4335,18 @@ class WikiImages(object):
                                 params[0]
                             )
                             section_label = section
+                        elif section == 's_skin':
+                            url = (
+                                'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                                'img/sp/assets/{0}/{1}/{2}{3}.{4}'
+                            ).format(
+                                asset_type,
+                                's/skin',
+                                asset_id,
+                                variant_suffix,
+                                params[0]
+                            )
+                            section_label = section
                         else:
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -4220,6 +4362,20 @@ class WikiImages(object):
 
                         if section == 'skycompass_zoom':
                             true_name = "characters_1138x1138_{0}{1}.{2}".format(
+                                asset_id,
+                                variant_suffix,
+                                params[0]
+                            )
+                        elif section == 'f_skin':
+                            true_name = "{0}_f_skin_{1}{2}.{3}".format(
+                                asset_type.lower(),
+                                asset_id,
+                                variant_suffix,
+                                params[0]
+                            )
+                        elif section == 's_skin':
+                            true_name = "{0}_s_skin_{1}{2}.{3}".format(
+                                asset_type.lower(),
                                 asset_id,
                                 variant_suffix,
                                 params[0]
@@ -4605,6 +4761,16 @@ class WikiImages(object):
                                 params[2][version],
                                 params[0]
                             )
+                        elif section == 's_skin': # for square element skins
+                            url = (
+                                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                                'img/sp/assets/{0}/s/skin/{1}{2}.{3}'
+                            ).format(
+                                asset_type,
+                                asset_id,
+                                params[2][version],
+                                params[0]
+                            )
                         else:
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -4637,6 +4803,13 @@ class WikiImages(object):
                                     params[2][version],
                                     params[0]
                                 )
+                            elif section == 's_skin':
+                                true_name = "{0}_s_skin_{1}{2}.{3}".format(
+                                    asset_type.lower(),
+                                    asset_id,
+                                    params[2][version],
+                                    params[0]
+                                )
                             else:
                                 true_name = "{0} {1} {2}{3}.{4}".format(
                                     asset_type.capitalize(),
@@ -4647,7 +4820,7 @@ class WikiImages(object):
                                 )
                             other_names = []
 
-                            if section == 'f_skin':
+                            if section in ('f_skin', 's_skin'):
                                 element_label = params[3][version] if version < len(params[3]) else ''
                                 if element_label:
                                     other_names.append(
@@ -5673,6 +5846,8 @@ def main():
 
     if (mode == 'character') or (mode == 'char'):
         wi.check_character(wi.wiki.pages[sys.argv[2]])
+    elif mode == 'character_fs_skin':
+        wi.check_character_fs_skin(wi.wiki.pages[sys.argv[2]])
     elif mode == 'npc':
         wi.check_npc(wi.wiki.pages[sys.argv[2]])
     elif mode == 'skin':

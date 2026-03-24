@@ -85,6 +85,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 # Valid page types
 PAGE_TYPES = [
     "character",
+    "character_fs_skin",
     "weapon",
     "summon",
     "class",
@@ -835,6 +836,8 @@ async def run_wiki_upload(
             
             if page_type == 'character':
                 wi.check_character(page)
+            elif page_type == 'character_fs_skin':
+                wi.check_character_fs_skin(page)
             elif page_type == 'weapon':
                 wi.check_weapon(page)
             elif page_type == 'summon':

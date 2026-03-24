@@ -38,12 +38,15 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - gender or presentation variant
   - extension
 - NPC-style duplicate handling exception:
-  - for `Npc ...`, `Npc_my_...`, `Npc_result_lvup_...`, and `npc_f_skin_*` canonical families, omitted gender and `_0` are treated as the same duplicate signature when the binaries match
+  - for `Npc ...`, `Npc_my_...`, `Npc_result_lvup_...`, `npc_f_skin_*`, and `npc_s_skin_*` canonical families, omitted gender and `_0` are treated as the same duplicate signature when the binaries match
   - the non-gendered canonical title is the stable winner over the `_0` form
   - `_1` variants remain meaningfully distinct and must not collapse into the non-gendered or `_0` canonical
 - Skin tall-element CDN note:
   - `npc/f/skin` asset probes currently work against both `prd-game-a-granbluefantasy.akamaized.net` and `prd-game-a2-granbluefantasy.akamaized.net`
   - for future `npc/f/skin` probe additions, prefer `prd-game-a` as the default host unless there is a specific reason not to
+- Skin square-element CDN note:
+  - `npc/s/skin` asset probes should use `prd-game-a-granbluefantasy.akamaized.net` as the default host
+  - canonical naming for these assets uses `npc_s_skin_*`
 - Do not broaden duplicate-family matching casually. A shared bitmap alone is not enough reason to collapse two canonical files together.
 - Unsupported or ambiguous canonical filename patterns should keep the older generic duplicate behavior until an explicit safe family rule is added.
 - When changing canonical filename generators in upload flows, review the duplicate-family registry in `images.py` so canonicalization behavior stays aligned.
@@ -75,6 +78,8 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - `DRY_RUN` is a supported runtime flag.
 - `ALLOWED_ROLES` is runtime-configurable.
+- `IMAGE_PROBE_DELAY` is a supported runtime flag for slowing image probe/upload pacing in `images.py` across all environments.
+- `LOCAL_IMAGE_PROBE_DELAY` is a supported runtime flag for slowing image probe/upload pacing only when `PROXY_URL` is unset; this is preferred for local runs so the deployed bot keeps its normal pacing.
 - `ENABLE_EVENTUPLOAD` was temporary and has been removed. Do not reintroduce a feature gate for `/eventupload` unless explicitly requested.
 
 ## Event Upload Contract
@@ -262,6 +267,17 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `npc/result_lvup`
   - Sky Compass `characters/1138x1138`
 - Redirect naming is unchanged for style pages; no `_st{style_id}` is appended to redirect filenames.
+
+## Character FS Skin Contract
+
+- `/imgupload page_type:character_fs_skin` scans only the character `f_skin` and `s_skin` asset families from the target `{{Character}}` id.
+- `page_type:character` no longer owns `f_skin` or `s_skin`; those heavy skin subsets belong exclusively to `character_fs_skin`.
+- `f_skin` canonical naming:
+  - `npc_f_skin_{id}{suffix}.jpg`
+- `s_skin` canonical naming:
+  - `npc_s_skin_{id}{suffix}.jpg`
+- `f_skin` redirects keep the existing character-style `_tall...` naming pattern.
+- `s_skin` redirects follow the existing character-style `_square...` naming pattern.
 
 ## Character Result Level Up Image Contract
 
