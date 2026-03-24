@@ -165,7 +165,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - The EventHistory code block is semicolon-separated redirect filenames with underscores, for example:
   - `banner_PS_the_Astrals_1.png;banner_PS_the_Astrals_2.png`
 - This block should still appear on reruns that resolve to duplicates, as long as files were processed.
-- The `guide` gallery block should list final canonical filenames in probe order, including duplicate-resolved canonicals.
+- The `guide` gallery block should list redirect filenames in probe order.
 - `raid_thumb` should not include the EventHistory copy box.
 
 ### Event Upload UI Notes
