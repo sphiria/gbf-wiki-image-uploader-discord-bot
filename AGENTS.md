@@ -41,6 +41,9 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - for `Npc ...`, `Npc_my_...`, `Npc_result_lvup_...`, and `npc_f_skin_*` canonical families, omitted gender and `_0` are treated as the same duplicate signature when the binaries match
   - the non-gendered canonical title is the stable winner over the `_0` form
   - `_1` variants remain meaningfully distinct and must not collapse into the non-gendered or `_0` canonical
+- Skin tall-element CDN note:
+  - `npc/f/skin` asset probes currently work against both `prd-game-a-granbluefantasy.akamaized.net` and `prd-game-a2-granbluefantasy.akamaized.net`
+  - for future `npc/f/skin` probe additions, prefer `prd-game-a` as the default host unless there is a specific reason not to
 - Do not broaden duplicate-family matching casually. A shared bitmap alone is not enough reason to collapse two canonical files together.
 - Unsupported or ambiguous canonical filename patterns should keep the older generic duplicate behavior until an explicit safe family rule is added.
 - When changing canonical filename generators in upload flows, review the duplicate-family registry in `images.py` so canonicalization behavior stays aligned.

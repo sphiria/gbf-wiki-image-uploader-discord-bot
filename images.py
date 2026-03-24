@@ -4043,6 +4043,7 @@ class WikiImages(object):
                 '_tall',
                 [
                     '_01_s1', '_01_s2', '_01_s3', '_01_s4', '_01_s5', '_01_s6',
+                    '_01_1_s1', '_01_1_s2', '_01_1_s3', '_01_1_s4', '_01_1_s5', '_01_1_s6',
                     '_81_s1', '_81_s2', '_81_s3', '_81_s4', '_81_s5', '_81_s6',
                     '_82_s1', '_82_s2', '_82_s3', '_82_s4', '_82_s5', '_82_s6',
                     '_81_0_s1', '_81_0_s2', '_81_0_s3', '_81_0_s4', '_81_0_s5', '_81_0_s6',
@@ -4050,6 +4051,7 @@ class WikiImages(object):
                 ],
                 [
                     'fire', 'water', 'earth', 'wind', 'light', 'dark',
+                    'A1_fire', 'A1_water', 'A1_earth', 'A1_wind', 'A1_light', 'A1_dark',
                     'ST_fire', 'ST_water', 'ST_earth', 'ST_wind', 'ST_light', 'ST_dark',
                     'ST2_fire', 'ST2_water', 'ST2_earth', 'ST2_wind', 'ST2_light', 'ST2_dark',
                     'ST0_fire', 'ST0_water', 'ST0_earth', 'ST0_wind', 'ST0_light', 'ST0_dark',
