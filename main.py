@@ -109,6 +109,9 @@ EVENT_TEASER_ASSET_TYPE_CHOICES = [
     app_commands.Choice(name="notice", value="notice"),
     app_commands.Choice(name="start", value="start"),
     app_commands.Choice(name="guide", value="guide"),
+    app_commands.Choice(name="trailer mp3", value="trailer_mp3"),
+    app_commands.Choice(name="voice banner", value="voice_banner"),
+    app_commands.Choice(name="top", value="top"),
     app_commands.Choice(name="raid_thumb", value="raid_thumb"),
 ]
 EVENT_TEASER_ASSET_TYPE_SET = {choice.value for choice in EVENT_TEASER_ASSET_TYPE_CHOICES}
@@ -2385,14 +2388,14 @@ async def itemupload(
 
 @bot.tree.command(
     name="eventupload",
-    description="Upload indexed event banner assets",
+    description="Upload event banner and teaser assets",
 )
 @app_commands.checks.has_any_role(*ALLOWED_ROLES)
 @app_commands.describe(
     event_id="Event folder identifier (e.g. treasureraid169 or biography042)",
     event_name="Event display name (used for redirects)",
     asset_type="Select which event asset type to upload.",
-    max_index="Max guide/banner index to attempt (default 20; raid_thumb defaults to 13).",
+    max_index="Max guide/banner index to attempt (default 20; raid_thumb defaults to 13; top/trailer mp3 use 1).",
 )
 @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
 async def eventupload(
@@ -2429,7 +2432,12 @@ async def eventupload(
         return
 
     if max_index is None:
-        max_index = 13 if asset_type_value == "raid_thumb" else WikiImages.EVENT_BANNER_MAX_INDEX
+        if asset_type_value == "raid_thumb":
+            max_index = 13
+        elif asset_type_value in {"top", "trailer_mp3"}:
+            max_index = 1
+        else:
+            max_index = WikiImages.EVENT_BANNER_MAX_INDEX
     if max_index < 1:
         await interaction.response.send_message(
             "Invalid max index. It must be at least 1.",
@@ -2562,14 +2570,16 @@ async def eventupload(
                     redirect_names = entry.get("redirects") or []
                     if not redirect_names and entry.get("redirect"):
                         redirect_names = [entry["redirect"]]
-                    redirect_links = ", ".join(
-                        f"<{base_url}{redirect_name.replace(' ', '_')}>"
-                        for redirect_name in redirect_names
+                    line = (
+                        f"- #{index}: Canonical <{base_url}{canonical_name.replace(' ', '_')}>"
                     )
-                    link_lines.append(
-                        f"- #{index}: Canonical <{base_url}{canonical_name.replace(' ', '_')}> | "
-                        f"Redirect(s) {redirect_links}"
-                    )
+                    if redirect_names:
+                        redirect_links = ", ".join(
+                            f"<{base_url}{redirect_name.replace(' ', '_')}>"
+                            for redirect_name in redirect_names
+                        )
+                        line += f" | Redirect(s) {redirect_links}"
+                    link_lines.append(line)
                 summary_lines.extend(link_lines)
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))

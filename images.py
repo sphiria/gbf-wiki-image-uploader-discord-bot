@@ -2718,6 +2718,9 @@ class WikiImages(object):
         - notice: event teaser notice banners
         - start: event start banners
         - guide: event guide panels
+        - trailer_mp3: event trailer audio
+        - voice_banner: event trailer banners
+        - top: event teaser top image
         - raid_thumb: event raid thumbnails
         """
         event_id = str(event_id).strip().lower()
@@ -2727,7 +2730,7 @@ class WikiImages(object):
         asset_type_key = (asset_type or "").strip().lower()
         if not asset_type_key:
             raise ValueError("Asset type is required for event uploads.")
-        if asset_type_key not in {"notice", "start", "guide", "raid_thumb"}:
+        if asset_type_key not in {"notice", "start", "guide", "trailer_mp3", "voice_banner", "top", "raid_thumb"}:
             raise ValueError(f'Unsupported asset type "{asset_type}" for event uploads.')
 
         event_name = mwparserfromhell.parse(event_name).strip_code().strip()
@@ -2735,6 +2738,8 @@ class WikiImages(object):
         if max_index is None:
             if asset_type_key == "start":
                 max_index = self.EVENT_BANNER_MAX_INDEX
+            elif asset_type_key in {"top", "trailer_mp3"}:
+                max_index = 1
             elif asset_type_key == "raid_thumb":
                 max_index = 13
             else:
@@ -2773,9 +2778,27 @@ class WikiImages(object):
         elif asset_type_key == "guide":
             asset_label = "event guide"
             not_found_message = f'No event guide panels found for event id "{event_id}".'
-            guide_suffixes = []
-            for index in range(1, max_index + 1):
-                guide_suffixes.extend([str(index), f"{index}_0", f"{index}_1"])
+            guide_suffixes = ("", "_0", "_1")
+        elif asset_type_key == "trailer_mp3":
+            asset_label = "trailer mp3"
+            not_found_message = f'No trailer mp3 found for event id "{event_id}".'
+            url_template = (
+                "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                "sound/voice/{event_id}.mp3"
+            )
+            canonical_name = f"{event_id}.mp3"
+        elif asset_type_key == "voice_banner":
+            asset_label = "voice banner"
+            not_found_message = f'No voice banners found for event id "{event_id}".'
+        elif asset_type_key == "top":
+            asset_label = "event top"
+            not_found_message = f'No top teaser asset found for event id "{event_id}".'
+            url_template = (
+                "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                "img/sp/event/{event_id}/assets/teaser/event_teaser_top.jpg"
+            )
+            canonical_template = "{event_id}_top.jpg"
+            redirect_template = "{event_name}_top.jpg"
         else:
             asset_label = "raid thumb"
             not_found_message = f'No raid thumbnails found for event id "{event_id}".'
@@ -2873,10 +2896,52 @@ class WikiImages(object):
 
         if asset_type_key == "raid_thumb":
             loop_total = len(raid_thumb_variants)
-        elif asset_type_key == "guide":
-            loop_total = len(guide_suffixes)
+        elif asset_type_key in {"top", "trailer_mp3"}:
+            loop_total = 1
         else:
             loop_total = max_index
+
+        def process_event_asset_result(display_index, canonical_name, redirect_name, redirect_names, sha1, size, io_obj):
+            nonlocal processed, uploaded, duplicates, failed
+
+            processed += 1
+
+            if hasattr(self, "_status_callback"):
+                self._status_callback(
+                    "processing",
+                    processed=processed,
+                    total=loop_total,
+                    current_image=canonical_name,
+                    event_id=event_id,
+                    asset_type=asset_type_key,
+                )
+
+            other_names = list(redirect_names)
+            check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
+            if check_image_result is True:
+                uploaded += 1
+            elif check_image_result is False:
+                failed += 1
+                print(f'Upload validation failed for {canonical_name}.')
+                return
+            else:
+                duplicates += 1
+                canonical_name = check_image_result
+
+            file_entries.append(
+                {
+                    "index": display_index,
+                    "canonical": canonical_name,
+                    "redirect": redirect_name,
+                    "redirects": redirect_names,
+                }
+            )
+
+            for redirect_title in redirect_names:
+                self.check_file_redirect(canonical_name, redirect_title)
+            time.sleep(self.delay)
+            self.check_file_double_redirect(canonical_name)
+
         if hasattr(self, "_status_callback"):
             self._status_callback(
                 "processing",
@@ -2919,8 +2984,72 @@ class WikiImages(object):
                 redirect_name = redirect_names[0]
                 display_index = index
             elif asset_type_key == "guide":
-                suffix = guide_suffixes[index - 1]
-                display_index = suffix
+                base_index = index
+                base_suffix = str(base_index)
+                base_found = False
+                for suffix_part in guide_suffixes:
+                    suffix = f"{base_index}{suffix_part}"
+                    display_index = suffix
+                    resolved_extension = None
+                    success = False
+                    sha1 = None
+                    size = None
+                    io_obj = None
+                    url = None
+                    canonical_name = None
+                    redirect_name = None
+                    redirect_names = []
+                    for extension in ("jpg", "png"):
+                        candidate_url = (
+                            "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                            f"img/sp/event/{event_id}/assets/tips/description_event_{suffix}.{extension}"
+                        )
+                        print(
+                            f'Downloading {asset_label} #{suffix} for "{event_name}" '
+                            f'(event id: {event_id}) -> {candidate_url}'
+                        )
+                        success, sha1, size, io_obj = self.get_image(candidate_url)
+                        if success:
+                            resolved_extension = extension
+                            url = candidate_url
+                            canonical_name = (
+                                f"{event_id}_description_event_{suffix}.{resolved_extension}"
+                            )
+                            redirect_name = (
+                                f"description_{event_name}_{suffix}.{resolved_extension}"
+                            )
+                            redirect_names = [redirect_name]
+                            break
+                    if not success:
+                        if suffix == base_suffix:
+                            if base_index == 1:
+                                print(not_found_message)
+                            else:
+                                print(
+                                    f'Event guide base index "{base_suffix}" not found '
+                                    f'(event id: {event_id}); stopping.'
+                                )
+                            break
+                        print(
+                            f'Event guide panel not found for suffix "{suffix}" '
+                            f'(event id: {event_id}); skipping.'
+                        )
+                        continue
+                    base_found = True
+                    process_event_asset_result(
+                        display_index=display_index,
+                        canonical_name=canonical_name,
+                        redirect_name=redirect_name,
+                        redirect_names=redirect_names,
+                        sha1=sha1,
+                        size=size,
+                        io_obj=io_obj,
+                    )
+                if not base_found:
+                    break
+                continue
+            elif asset_type_key == "voice_banner":
+                display_index = index
                 resolved_extension = None
                 success = False
                 sha1 = None
@@ -2930,13 +3059,13 @@ class WikiImages(object):
                 canonical_name = None
                 redirect_name = None
                 redirect_names = []
-                for extension in ("jpg", "png"):
+                for extension in ("png", "jpg"):
                     candidate_url = (
                         "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                        f"img/sp/event/{event_id}/assets/tips/description_event_{suffix}.{extension}"
+                        f"img/sp/banner/events/{event_id}/banner_event_trailer_{index}.{extension}"
                     )
                     print(
-                        f'Downloading {asset_label} #{suffix} for "{event_name}" '
+                        f'Downloading {asset_label} #{index} for "{event_name}" '
                         f'(event id: {event_id}) -> {candidate_url}'
                     )
                     success, sha1, size, io_obj = self.get_image(candidate_url)
@@ -2944,19 +3073,22 @@ class WikiImages(object):
                         resolved_extension = extension
                         url = candidate_url
                         canonical_name = (
-                            f"{event_id}_description_event_{suffix}.{resolved_extension}"
+                            f"{event_id}_banner_event_trailer_{index}.{resolved_extension}"
                         )
                         redirect_name = (
-                            f"description_{event_name}_{suffix}.{resolved_extension}"
+                            f"banner_{event_name}_trailer_{index}.{resolved_extension}"
                         )
                         redirect_names = [redirect_name]
                         break
-                if not success:
-                    print(
-                        f'Event guide panel not found for suffix "{suffix}" '
-                        f'(event id: {event_id}); skipping.'
-                    )
-                    continue
+            elif asset_type_key == "trailer_mp3":
+                display_index = 1
+                url = url_template.format(event_id=event_id)
+                redirect_name = None
+                redirect_names = []
+                success = False
+                sha1 = None
+                size = None
+                io_obj = None
             else:
                 url = url_template.format(event_id=event_id, index=index)
                 canonical_name = canonical_template.format(event_id=event_id, index=index)
@@ -2964,13 +3096,13 @@ class WikiImages(object):
                 redirect_names = [redirect_name]
                 display_index = index
 
-            if asset_type_key != "guide":
+            if asset_type_key not in {"guide", "voice_banner"}:
                 print(
                     f'Downloading {asset_label} #{display_index} for "{event_name}" '
                     f'(event id: {event_id}) -> {url}'
                 )
 
-            if asset_type_key != "guide":
+            if asset_type_key not in {"guide", "voice_banner"}:
                 success, sha1, size, io_obj = self.get_image(url)
             if not success:
                 if asset_type_key == "raid_thumb":
@@ -2981,47 +3113,22 @@ class WikiImages(object):
                     continue
                 if asset_type_key == "guide":
                     continue
+                if asset_type_key == "voice_banner":
+                    if index == 1:
+                        print(not_found_message)
+                    break
                 if index == 1:
                     print(not_found_message)
                 break
-
-            processed += 1
-
-            if hasattr(self, "_status_callback"):
-                self._status_callback(
-                    "processing",
-                    processed=processed,
-                    total=loop_total,
-                    current_image=canonical_name,
-                    event_id=event_id,
-                    asset_type=asset_type_key,
-                )
-
-            other_names = list(redirect_names)
-            check_image_result = self.check_image(canonical_name, sha1, size, io_obj, other_names)
-            if check_image_result is True:
-                uploaded += 1
-            elif check_image_result is False:
-                failed += 1
-                print(f'Upload validation failed for {canonical_name}.')
-                continue
-            else:
-                duplicates += 1
-                canonical_name = check_image_result
-
-            file_entries.append(
-                {
-                    "index": display_index,
-                    "canonical": canonical_name,
-                    "redirect": redirect_name,
-                    "redirects": redirect_names,
-                }
+            process_event_asset_result(
+                display_index=display_index,
+                canonical_name=canonical_name,
+                redirect_name=redirect_name,
+                redirect_names=redirect_names,
+                sha1=sha1,
+                size=size,
+                io_obj=io_obj,
             )
-
-            for redirect_title in redirect_names:
-                self.check_file_redirect(canonical_name, redirect_title)
-            time.sleep(self.delay)
-            self.check_file_double_redirect(canonical_name)
 
         if processed == 0:
             raise ValueError(not_found_message)
