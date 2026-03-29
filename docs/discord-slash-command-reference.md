@@ -118,30 +118,32 @@ Usage: `/enemyupload id:<8104243>`
 - Output: summary lists processed/uploaded/duplicates/failed counts plus wiki links for each canonical/redirect pair (`enemy_s_<id>.png`, `enemy_m_<id>.png`, `enemy_icon_<id>_S.png`, `enemy_icon_<id>_M.png`).
 
 **/eventupload**
-- Usage: `/eventupload event_id:<biography042> event_name:<Event Name> asset_type:<notice|start|guide|voice_banner|top|raid_thumb> max_index:<optional>`
-- Purpose: Upload event notice/start banner assets, event guide panels, event trailer banners, the event teaser top image, and event raid thumbnails, then create matching redirects.
+- Usage: `/eventupload event_id:<biography042> event_name:<Event Name> asset_type:<notice|start|guide|trailer_mp3|voice_banner|top|raid_thumb> max_index:<optional>`
+- Purpose: Upload event notice/start banner assets, event guide panels, event trailer audio, event trailer banners, the event teaser top image, and event raid thumbnails, then create matching redirects where applicable.
 - Inputs:
   - `event_id` - CDN folder slug such as `biography042`; must be lowercase letters/numbers/underscores.
-  - `event_name` - display name used when building redirect filenames (spaces allowed; keep it exactly how you want it to appear on the wiki).
+  - `event_name` - display name used when building redirect filenames (spaces allowed; keep it exactly how you want it to appear on the wiki). `trailer_mp3` keeps this field required for command consistency but ignores it for naming because no redirect is created.
   - `asset_type` - strict dropdown with:
     - `notice`: loads `img/sp/banner/events/<event_id>/banner_event_notice_<index>.png`
     - `start`: loads `img/sp/banner/events/<event_id>/banner_event_start_<index>.png`
     - `guide`: scans `img/sp/event/<event_id>/assets/tips/description_event_<suffix>.jpg` and `.png`, where `<suffix>` is each base index `1..max_index` plus optional `_0` and `_1` variants
+    - `trailer_mp3`: loads `assets_en/sound/voice/<event_id>.mp3`
     - `voice_banner`: scans `img/sp/banner/events/<event_id>/banner_event_trailer_<index>.png` first and `.jpg` second
     - `top`: loads `img/sp/event/<event_id>/assets/teaser/event_teaser_top.jpg`
     - `raid_thumb`: loads `img/sp/assets/summon/qm/<event_id>_vhard.png`, `img/sp/assets/summon/qm/<event_id>_vhard_1.png`, `img/sp/assets/summon/qm/<event_id>_vhard_2.png`, `img/sp/assets/summon/qm/<event_id>_ex.png`, `img/sp/assets/summon/qm/<event_id>_ex_1.png`, `img/sp/assets/summon/qm/<event_id>_ex_2.png`, `img/sp/assets/summon/qm/<event_id>_high.png`, `img/sp/assets/summon/qm/<event_id>_high_1.png`, `img/sp/assets/summon/qm/<event_id>_high_2.png`, `img/sp/assets/summon/qm/<event_id>_hell.png`, `img/sp/quest/assets/free/<event_id>_free_proud.png`, `img/sp/quest/assets/<event_id>_free_proud_1.png`, and `img/sp/quest/assets/<event_id>_free_proud_2.png`
-  - `max_index` - optional upper bound for index probing (defaults to 20 for `notice`, `start`, `guide`, and `voice_banner`; `top` uses a single fixed file and defaults to 1; `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to 13; minimum 1).
-- Checks & Limits: same role/cooldown/lock behavior as other uploaders. `notice`, `start`, and `voice_banner` stop on the first missing base index; `guide` probes the base suffix plus `_0` and `_1` for each base index, tries `.jpg` first and `.png` second, skips missing subindices, and stops on the first missing base index; `top` checks a single fixed teaser URL; `raid_thumb` checks every configured fixed variant even if some URLs are missing.
+  - `max_index` - optional upper bound for index probing (defaults to 20 for `notice`, `start`, `guide`, and `voice_banner`; `top` and `trailer_mp3` use a single fixed file and default to 1; `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to 13; minimum 1).
+- Checks & Limits: same role/cooldown/lock behavior as other uploaders. `notice`, `start`, and `voice_banner` stop on the first missing base index; `guide` probes the base suffix plus `_0` and `_1` for each base index, tries `.jpg` first and `.png` second, skips missing subindices, and stops on the first missing base index; `top` and `trailer_mp3` each check one fixed URL; `raid_thumb` checks every configured fixed variant even if some URLs are missing.
 - Output: summary reports how many banners were processed/uploaded/duplicated along with wiki links for each canonical + redirect pair:
   - `notice`: `<event_id>_banner_event_notice_<index>.png` and `banner_<EventName>_notice_<index>.png`
   - `start`: `<event_id>_banner_event_start_<index>.png` and `banner_<EventName>_<index>.png`
   - `guide`: `<event_id>_description_event_<suffix>.<jpg|png>` and `description_<EventName>_<suffix>.<jpg|png>` using the actual source extension, plus a copyable redirect-based `<gallery>` block for MediaWiki galleries
+  - `trailer_mp3`: `<event_id>.mp3` only; no redirect is created
   - `voice_banner`: `<event_id>_banner_event_trailer_<index>.<png|jpg>` and `banner_<EventName>_trailer_<index>.<png|jpg>` using the actual source extension
   - `top`: `<event_id>_top.jpg` and `<EventName>_top.jpg`
   - `raid_thumb`: `summon_qm_<event_id>_vhard.png` and `BattleRaid_<EventName>_Very_Hard.png`, `summon_qm_<event_id>_vhard_1.png` and `BattleRaid_<EventName>_Very_Hard2.png` (with extra redirect `BattleRaid_<EventName>_Very_Hard_2.png`), `summon_qm_<event_id>_vhard_2.png` and `BattleRaid_<EventName>_Very_Hard3.png` (with extra redirect `BattleRaid_<EventName>_Very_Hard_3.png`), `summon_qm_<event_id>_ex.png` and `BattleRaid_<EventName>_Extreme.png`, `summon_qm_<event_id>_ex_1.png` and `BattleRaid_<EventName>_Extreme2.png` (with extra redirect `BattleRaid_<EventName>_Extreme_2.png`), `summon_qm_<event_id>_ex_2.png` and `BattleRaid_<EventName>_Extreme3.png` (with extra redirect `BattleRaid_<EventName>_Extreme_3.png`), `summon_<event_id>_high.png` and `BattleRaid_<EventName>_Impossible.png`, `summon_qm_<event_id>_high_1.png` and `BattleRaid_<EventName>_Impossible2.png` (with extra redirect `BattleRaid_<EventName>_Impossible 2.png`), `summon_qm_<event_id>_high_2.png` and `BattleRaid_<EventName>_Impossible3.png` (with extra redirect `BattleRaid_<EventName>_Impossible 3.png`), `qm_<event_id>_hell.png` and `BattleRaid_<EventName>_Nightmare.png`, `quest_assets_<event_id>_free_proud.png` and `BattleRaid_<EventName>_Proud.png`, `quest_assets_<event_id>_free_proud_1.png` and `BattleRaid_<EventName>_Proud2.png` (with extra redirect `BattleRaid_<EventName>_Proud_2.png`), plus `quest_assets_<event_id>_free_proud_2.png` and `BattleRaid_<EventName>_Proud3.png` (with extra redirect `BattleRaid_<EventName>_Proud_3.png`)
   - `notice` and `start` include a copyable code block with semicolon-separated redirect filenames for easy Event template pasting.
   - `guide` includes a copyable `<gallery>` block listing redirect filenames in probe order.
-  - `voice_banner`, `top`, and `raid_thumb` skip the copy box and just list links.
+  - `trailer_mp3`, `voice_banner`, `top`, and `raid_thumb` skip the copy box and just list links.
 
 **/synccommands**
 Usage: `/synccommands`

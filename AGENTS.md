@@ -94,10 +94,12 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `notice`
   - `start`
   - `guide`
+  - `trailer mp3`
   - `voice banner`
   - `top`
   - `raid_thumb`
 - Default `max_index` is `20` for `notice`, `start`, and `guide`.
+- `trailer mp3` uses the fixed single audio file and defaults to `1`.
 - `voice banner` also defaults to `20`.
 - `top` uses the fixed single teaser file and defaults to `1`.
 - `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to `13`.
@@ -107,6 +109,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `guide` probes the base suffix plus `_0` and `_1` for each base index.
 - `guide` should continue to later base indices when a subindex like `_0` or `_1` is missing.
 - `guide` tries `.jpg` first and `.png` second for each suffix, and uploaded filenames keep the actual source extension.
+- `trailer mp3` uses the fixed `assets_en/sound/voice/{event_id}.mp3` URL and uploads the canonical file without redirects.
 - `voice banner` tries `.png` first and `.jpg` second for each index, and uploaded filenames keep the actual source extension.
 
 ### Event Upload Naming
@@ -125,6 +128,11 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - Suffixes: `{index}`, `{index}_0`, `{index}_1`
   - Canonical: `{event_id}_description_event_{suffix}.{ext}`
   - Redirect: `description_{event_name}_{suffix}.{ext}`
+- `trailer mp3`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/sound/voice/{event_id}.mp3`
+  - Canonical: `{event_id}.mp3`
+  - No redirect
+  - `event_name` remains required for command consistency but is ignored for naming
 - `voice banner`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/banner/events/{event_id}/banner_event_trailer_{index}.png`
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/banner/events/{event_id}/banner_event_trailer_{index}.jpg`
@@ -194,7 +202,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `banner_PS_the_Astrals_1.png;banner_PS_the_Astrals_2.png`
 - This block should still appear on reruns that resolve to duplicates, as long as files were processed.
 - The `guide` gallery block should list redirect filenames in probe order.
-- `voice banner`, `top`, and `raid_thumb` should not include the EventHistory copy box.
+- `trailer mp3`, `voice banner`, `top`, and `raid_thumb` should not include the EventHistory copy box.
 
 ### Event Upload UI Notes
 
@@ -202,6 +210,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `notice`
   - `start`
   - `guide`
+  - `trailer mp3`
   - `voice banner`
   - `top`
   - `raid_thumb`
