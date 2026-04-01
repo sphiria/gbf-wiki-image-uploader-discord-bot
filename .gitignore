@@ -4,5 +4,6 @@ uv.lock
 wiki.db
 Template MainPageDraw.wikitext
 Template MainPageDraw SuptixPromo.wikitext
+Template MainPageDraw SuptixPromoEndDate.wikitext
 .codex
 __pycache__/
