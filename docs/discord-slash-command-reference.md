@@ -9,6 +9,17 @@ __Reference Lists (from `main.py`)__
 - `PAGE_TYPES`: `character`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `skill_icons`, `npc`, `artifact`, `item`, `manatura`, `shield`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
 - `ITEM_TYPES`: `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`.
 
+**/help**
+Usage: `/help command:<optional>`
+- Purpose: Show a concise overview of all supported slash commands, or detailed help for one command directly in Discord.
+- Inputs:
+  - `command` - optional slash command name. Autocomplete suggests valid command names and filters as you type.
+- Checks & Limits: no upload cooldown or upload lock; this is informational only.
+- Output:
+  - No `command`: a short overview list of slash commands plus a prompt to rerun with `command`.
+  - Valid `command`: detailed help for that command, automatically split into Discord-safe chunks if needed.
+  - Invalid `command`: ephemeral error with matching command suggestions when available.
+
 **/imgupload**
 Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|class_skin|skin|npc|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
@@ -39,10 +50,27 @@ Usage: `/statusupload status_id:<1438|status_1438|status_1438#> max_index:<1-100
 Usage: `/bannerupload banner_id:<campaign id> max_index:<1-50 (defaults 12)>`
 - Purpose: Upload rotating gacha banner variants by hitting `banner_<id>_<index>.jpg` on the CDN until an index fails.
 - Inputs:
-  - `banner_id` - the part between `banner_` and the trailing index (letters/numbers/underscores only). You may paste a full `banner_<id>` string; the command strips `banner_` automatically.
+  - `banner_id` - the part between `banner_` and the trailing index (letters/numbers/underscores only). You may also paste `banner_<id>`, `banner_<id>.png`, or the full CDN URL; the command normalizes those automatically.
   - `max_index` - highest numeric suffix to try, 1-50 with a default of 12.
 - Checks & Limits: role/cooldown/lock apply; invalid IDs are rejected up front.
 - Output: shows which banner slug/index it is processing, then reports processed/uploaded/failed counts and wiki links for every successful upload.
+
+**/promoupdate**
+Usage: `/promoupdate promo_type:<suptix> promo_id:<id> end_date:<YYYY-MM-DD> end_time:<HH:MM> link_target:<wiki page (defaults Surprise Ticket)>`
+- Purpose: Update a supported non-draw MainPageDraw promo subtemplate without using `/drawupdate`.
+- Inputs:
+  - `promo_type` - currently only `suptix`.
+  - `promo_id` - accepts the bare id, `banner_<id>`, `banner_<id>.png`, or the full CDN URL. For the current Suptix banner filename `banner_special_217.png`, use `special_217` or paste the full filename/URL.
+  - `end_date` - required JST date in `YYYY-MM-DD`.
+  - `end_time` - required JST time in `HH:MM`; common values are `18:59`, `11:59`, and `23:59`.
+  - `link_target` - wiki page target for the promo image; defaults to `Surprise Ticket`.
+- Checks & Limits: same role/cooldown/lock rules as upload commands.
+- Notes: `/promoupdate` does not upload the asset; it assumes the resolved wiki file already exists.
+- Validation: the command halts before saving if the resolved `File:banner_<promo_id>.png` title does not exist on the wiki or redirect to a real file page.
+- Output:
+  - Updated page links.
+  - The resolved wiki file name.
+  - Main Page purge reminder.
 
 **/drawupdate**
 Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:<YYYY-MM-DD> end_time:<HH:MM> left_banner_id:<id> right_banner_id:<id?> left_count:<1-50?> right_count:<1-50?> max_probe:<1-50 (defaults 12)> link_target:<wiki page (defaults Draw)> element_start:<fire|water|earth|wind|light|dark>`

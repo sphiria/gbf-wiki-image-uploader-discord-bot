@@ -70,9 +70,27 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - Slash commands are synced automatically on startup in `WikiBot.setup_hook()`.
 - `/synccommands` exists as a manual recovery tool if Discord command sync drifts.
+- `/help` exists as an in-bot slash-command reference.
 - Do not assume a new command will appear without either:
   - bot restart/redeploy
   - manual `/synccommands`
+
+## Help Command Contract
+
+- `/help` is informational and should not use upload cooldown or the global `upload_lock`.
+- Params:
+  - `command` (optional)
+- Behavior:
+  - no `command`: show a concise overview of supported slash commands
+  - valid `command`: show detailed help for that command
+  - invalid `command`: return an error with suggested valid command names when possible
+- Autocomplete:
+  - the `command` field should autocomplete slash command names
+  - filtering should be case-insensitive
+  - suggestions should stay within Discord's 25-choice limit
+- Help text should stay aligned with:
+  - `README.md`
+  - `docs/discord-slash-command-reference.md`
 
 ## Environment / Deployment
 
@@ -342,6 +360,8 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 ## MainPageDraw Ownership
 
+- `promoupdate` currently owns these subtemplates:
+  - `Template:MainPageDraw/SuptixPromo`
 - `drawupdate` currently owns these subtemplates:
   - `Template:MainPageDraw/PromoMode`
   - `Template:MainPageDraw/EndDate`
@@ -434,6 +454,28 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `Template:MainPageDraw/EndDate` should include the exact datetime
   - `Template:MainPageDraw/PromoMode` should include the resolved mode value
   - content subtemplates can keep the generic draw promotion summary
+
+### PromoUpdate Contract
+
+- `/promoupdate` is separate from `/drawupdate`; do not overload `/drawupdate` with non-draw promo sections.
+- Supported `promo_type` values:
+  - `suptix`
+- `/promoupdate` currently owns:
+  - `Template:MainPageDraw/SuptixPromo`
+- `/promoupdate` params currently include:
+  - `promo_type`
+  - `promo_id`
+  - `end_date`
+  - `end_time`
+  - `link_target`
+- `promo_id` accepts the bare id, `banner_<id>`, `banner_<id>.png`, or the full CDN URL and normalizes to the id portion.
+- Current `suptix` subtemplate contract:
+  - subtemplate page: `Template:MainPageDraw/SuptixPromo`
+  - resolved file title: `banner_{promo_id}.png`
+  - default link target: `Surprise Ticket`
+  - countdown uses the supplied `end_date` + `end_time` in JST
+- `/promoupdate` does not upload files; it assumes the referenced wiki file already exists.
+- `/promoupdate` should halt before saving when the resolved file title does not exist on the wiki or redirect to a real file page.
 
 ## Code Health Notes
 

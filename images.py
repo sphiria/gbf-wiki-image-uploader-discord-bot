@@ -45,6 +45,29 @@ def _read_optional_float_env(var_name):
 IMAGE_PROBE_DELAY = _read_optional_float_env("IMAGE_PROBE_DELAY")
 LOCAL_IMAGE_PROBE_DELAY = _read_optional_float_env("LOCAL_IMAGE_PROBE_DELAY")
 
+def normalize_banner_id_input(raw_value):
+    """
+    Accept a bare banner id, `banner_<id>`, `banner_<id>.png`, or a full CDN URL
+    and normalize it to the id portion used by gacha banner uploads.
+    """
+    cleaned = (raw_value or '').strip()
+    if not cleaned:
+        return ''
+
+    cleaned = cleaned.rstrip('/')
+    cleaned = cleaned.rsplit('/', 1)[-1]
+
+    lowered = cleaned.lower()
+    if lowered.endswith('.png') or lowered.endswith('.jpg'):
+        cleaned = cleaned[:-4]
+    elif lowered.endswith('.jpeg'):
+        cleaned = cleaned[:-5]
+
+    if cleaned.lower().startswith('banner_'):
+        cleaned = cleaned[7:]
+
+    return cleaned
+
 
 @dataclass(frozen=True)
 class AssetVariant:
@@ -1166,6 +1189,8 @@ class WikiImages(object):
             banner_identifier (str): Text between `banner_` and the trailing index in the CDN file name.
             max_index (int): Highest sequential index to attempt. Defaults to 12.
         """
+        banner_identifier = normalize_banner_id_input(banner_identifier)
+
         if not banner_identifier:
             print('Banner identifier is required.')
             return
