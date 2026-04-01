@@ -137,6 +137,7 @@ DRAW_MAX_PROBE_DEFAULT = 12
 DRAW_PAGE_PROMO_MODE = "Template:MainPageDraw/PromoMode"
 DRAW_PAGE_END_DATE = "Template:MainPageDraw/EndDate"
 DRAW_PAGE_SUPTIX_PROMO = "Template:MainPageDraw/SuptixPromo"
+DRAW_PAGE_SUPTIX_PROMO_END_DATE = "Template:MainPageDraw/SuptixPromoEndDate"
 DRAW_PAGE_SINGLE = "Template:MainPageDraw/SinglePromo"
 DRAW_PAGE_DOUBLE_LEFT = "Template:MainPageDraw/DoublePromoLeft"
 DRAW_PAGE_DOUBLE_RIGHT = "Template:MainPageDraw/DoublePromoRight"
@@ -629,12 +630,13 @@ def build_rateup_content(rateup_names: list[str], sparkable_names: list[str]) ->
 def build_suptix_promo_content(promo_id: str, end_datetime_text: str, link_target: str) -> str:
     file_name = f"banner_{promo_id}.png"
     return "\n".join([
+        '{{ScheduledContent|end_time={{MainPageDraw/SuptixPromoEndDate}} JST|content=',
         '<div style="max-width:470px;">',
         '{{GallerySwapImages|w=450|h=110',
         f'|[[File:{file_name}|450px|link={link_target}]]',
         '}}',
-        f'{{{{EventCountdown|{end_datetime_text} JST|text_after=This banner promotion has ended.}}}}',
-        '</div>',
+        '{{EventCountdown|{{MainPageDraw/SuptixPromoEndDate}} JST|text_after=This banner promotion has ended.}}',
+        '</div>}}',
     ])
 
 def _format_jst_datetime(dt: datetime) -> str:
@@ -1033,7 +1035,11 @@ async def run_promo_update(
                     (
                         DRAW_PAGE_SUPTIX_PROMO,
                         build_suptix_promo_content(promo_id, end_datetime_text, link_target),
-                    )
+                    ),
+                    (
+                        DRAW_PAGE_SUPTIX_PROMO_END_DATE,
+                        end_datetime_text,
+                    ),
                 ]
             else:
                 raise ValueError(f"Unsupported promo type: {promo_type}")
@@ -1049,9 +1055,13 @@ async def run_promo_update(
                 page = site.pages[page_title]
                 if DRY_RUN and hasattr(wi, "_patch_page_save"):
                     wi._patch_page_save(page)
+                if page_title == DRAW_PAGE_SUPTIX_PROMO_END_DATE:
+                    save_summary = f"Bot: update MainPageDraw SuptixPromoEndDate to {end_datetime_text} JST"
+                else:
+                    save_summary = f"Bot: update MainPageDraw {promo_type} promo"
                 page.save(
                     page_text,
-                    summary=f"Bot: update MainPageDraw {promo_type} promo",
+                    summary=save_summary,
                     minor=False,
                     bot=True,
                 )

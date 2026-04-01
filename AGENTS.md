@@ -362,6 +362,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - `promoupdate` currently owns these subtemplates:
   - `Template:MainPageDraw/SuptixPromo`
+  - `Template:MainPageDraw/SuptixPromoEndDate`
 - `drawupdate` currently owns these subtemplates:
   - `Template:MainPageDraw/PromoMode`
   - `Template:MainPageDraw/EndDate`
@@ -462,6 +463,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `suptix`
 - `/promoupdate` currently owns:
   - `Template:MainPageDraw/SuptixPromo`
+  - `Template:MainPageDraw/SuptixPromoEndDate`
 - `/promoupdate` params currently include:
   - `promo_type`
   - `promo_id`
@@ -471,9 +473,11 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `promo_id` accepts the bare id, `banner_<id>`, `banner_<id>.png`, or the full CDN URL and normalizes to the id portion.
 - Current `suptix` subtemplate contract:
   - subtemplate page: `Template:MainPageDraw/SuptixPromo`
+  - end date page: `Template:MainPageDraw/SuptixPromoEndDate`
   - resolved file title: `banner_{promo_id}.png`
   - default link target: `Surprise Ticket`
-  - countdown uses the supplied `end_date` + `end_time` in JST
+  - `SuptixPromo` should use both `{{ScheduledContent|end_time={{MainPageDraw/SuptixPromoEndDate}} JST|...}}` and `{{EventCountdown|{{MainPageDraw/SuptixPromoEndDate}} JST|...}}`
+  - `SuptixPromoEndDate` stores the supplied `end_date` + `end_time` in `YYYY-MM-DD HH:MM` JST-local form without the `JST` suffix
 - `/promoupdate` does not upload files; it assumes the referenced wiki file already exists.
 - `/promoupdate` should halt before saving when the resolved file title does not exist on the wiki or redirect to a real file page.
 
