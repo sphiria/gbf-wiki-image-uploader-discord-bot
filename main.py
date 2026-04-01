@@ -136,6 +136,7 @@ DRAW_ELEMENT_ORDER = [choice.value for choice in DRAW_ELEMENT_CHOICES]
 DRAW_MAX_PROBE_DEFAULT = 12
 DRAW_PAGE_PROMO_MODE = "Template:MainPageDraw/PromoMode"
 DRAW_PAGE_END_DATE = "Template:MainPageDraw/EndDate"
+DRAW_PAGE_SUPTIX_PROMO = "Template:MainPageDraw/SuptixPromo"
 DRAW_PAGE_SINGLE = "Template:MainPageDraw/SinglePromo"
 DRAW_PAGE_DOUBLE_LEFT = "Template:MainPageDraw/DoublePromoLeft"
 DRAW_PAGE_DOUBLE_RIGHT = "Template:MainPageDraw/DoublePromoRight"
@@ -143,7 +144,157 @@ DRAW_PAGE_ELEMENT_BANNERS = "Template:MainPageDraw/ElementPromoBanners"
 DRAW_PAGE_ELEMENT_ICONS = "Template:MainPageDraw/ElementPromoIcons"
 DRAW_PAGE_RATE_UPS = "Template:MainPageDraw/RateUps"
 DRAW_PAGE_RATE_UPS_END_DATE = "Template:MainPageDraw/RateUpsEndDate"
+PROMO_TYPE_CHOICES = [
+    app_commands.Choice(name="suptix", value="suptix"),
+]
+PROMO_TYPE_SET = {choice.value for choice in PROMO_TYPE_CHOICES}
 MAIN_PAGE_PURGE_URL = "<https://gbf.wiki/Main_Page/purge>"
+
+HELP_COMMAND_DETAILS = {
+    "help": {
+        "summary": "Show an overview of slash commands or detailed help for one command.",
+        "details": "\n".join([
+            "**/help**",
+            "Usage: `/help command:<optional>`",
+            "- Purpose: Show an overview of the bot's slash commands or detailed help for one command.",
+            "- Inputs:",
+            "  - `command` - optional slash command name. Autocomplete suggests valid command names and filters as you type.",
+            "- Output:",
+            "  - No `command`: concise overview of all slash commands.",
+            "  - With `command`: detailed help for that command, split into Discord-safe chunks when needed.",
+        ]),
+    },
+    "imgupload": {
+        "summary": "Bulk-upload images for a wiki page based on its page type.",
+        "details": "\n".join([
+            "**/imgupload**",
+            "Usage: `/imgupload page_type:<type> page_name:<title> filter:<id>`",
+            "- Purpose: Pull every image the upload scripts expect for a wiki page and upload them to canonical file titles.",
+            "- Inputs:",
+            "  - `page_type` - chooses the asset family and CDN scan rules.",
+            "  - `page_name` - target wiki page title.",
+            "  - `filter` - optional everywhere except `class_skin`, where it is required.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families.",
+            "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
+        ]),
+    },
+    "statusupload": {
+        "summary": "Upload small and large status icons, optionally as a numbered range.",
+        "details": "\n".join([
+            "**/statusupload**",
+            "Usage: `/statusupload status_id:<1438|status_1438|status_1438#> max_index:<1-100>`",
+            "- Purpose: Upload status effect icons in bulk.",
+            "- Inputs:",
+            "  - `status_id` - raw id, prefixed id, or a trailing `#` to iterate sequential ids.",
+            "  - `max_index` - only used with trailing `#`; default 10.",
+            "- Output: processed/uploaded/failed counts and direct wiki links.",
+        ]),
+    },
+    "bannerupload": {
+        "summary": "Upload rotating gacha banner variants until the first missing index.",
+        "details": "\n".join([
+            "**/bannerupload**",
+            "Usage: `/bannerupload banner_id:<campaign id> max_index:<1-50>`",
+            "- Purpose: Upload `banner_<id>_<index>.jpg` variants from the CDN.",
+            "- Inputs:",
+            "  - `banner_id` - campaign slug; full `banner_<id>` input is accepted and normalized.",
+            "  - `max_index` - highest suffix to try; default 12.",
+            "- Output: processed/uploaded/failed counts and wiki links.",
+        ]),
+    },
+    "drawupdate": {
+        "summary": "Update MainPageDraw promotion subtemplates for single, double, or element modes.",
+        "details": "\n".join([
+            "**/drawupdate**",
+            "Usage: `/drawupdate mode:<single|double|element-single|element-double> end_date:<YYYY-MM-DD> end_time:<HH:MM> ...`",
+            "- Purpose: Update MainPageDraw promotion subtemplates without editing `Template:MainPageDraw` directly.",
+            "- Inputs:",
+            "  - `mode`, `end_date`, `end_time`, and `left_banner_id` are core inputs.",
+            "  - `right_banner_id` is required for `double` and `element-double`.",
+            "  - `end_time` and `element_start` have autocomplete suggestions.",
+            "- Notes: save order is content pages, then `EndDate`, then `PromoMode`.",
+            f"- Output: updated page links, resolved inputs, and purge reminder {MAIN_PAGE_PURGE_URL}.",
+        ]),
+    },
+    "promoupdate": {
+        "summary": "Update a dedicated non-draw MainPageDraw promo subtemplate.",
+        "details": "\n".join([
+            "**/promoupdate**",
+            "Usage: `/promoupdate promo_type:<suptix> promo_id:<id> end_date:<YYYY-MM-DD> end_time:<HH:MM> link_target:<wiki page>`",
+            "- Purpose: Update a supported non-draw MainPageDraw promo subtemplate without using `/drawupdate`.",
+            "- Inputs:",
+            "  - `promo_type` - currently only `suptix`.",
+            "  - `promo_id` - accepts the bare id, `banner_<id>`, `banner_<id>.png`, or the full CDN URL and resolves it to the wiki file name.",
+            "  - `end_date` and `end_time` define the JST countdown cutoff.",
+            "  - `link_target` defaults to `Surprise Ticket` for `suptix`.",
+            "- Notes: `/promoupdate` does not upload the asset; it assumes the file already exists on the wiki.",
+            f"- Output: updated page links, resolved file name, and purge reminder {MAIN_PAGE_PURGE_URL}.",
+        ]),
+    },
+    "rateup": {
+        "summary": "Update MainPageDraw rate-up templates with pipe-separated character lists.",
+        "details": "\n".join([
+            "**/rateup**",
+            "Usage: `/rateup end_date:<YYYY-MM-DD> end_time:<HH:MM> rateups:<A|B> sparkable:<C|D>`",
+            "- Purpose: Update `Template:MainPageDraw/RateUps` and `Template:MainPageDraw/RateUpsEndDate`.",
+            "- Inputs:",
+            "  - `end_date` and `end_time` define the JST cutoff.",
+            "  - `rateups` and `sparkable` are required pipe-separated character lists.",
+            "- Notes: `/rateup` keeps its end date separate from draw banner rotation end dates.",
+            f"- Output: updated page links, rendered wikitext preview, and purge reminder {MAIN_PAGE_PURGE_URL}.",
+        ]),
+    },
+    "synccommands": {
+        "summary": "Force a slash-command sync when Discord falls out of sync.",
+        "details": "\n".join([
+            "**/synccommands**",
+            "Usage: `/synccommands`",
+            "- Purpose: Force-register slash commands when Discord command sync drifts.",
+            "- Requirements: server-only and administrator-only.",
+            "- Output: sync scope, total command count, and fallback error details when relevant.",
+        ]),
+    },
+    "itemupload": {
+        "summary": "Upload the square and icon variants for a single item id.",
+        "details": "\n".join([
+            "**/itemupload**",
+            "Usage: `/itemupload item_type:<folder> item_id:<cdn id> item_name:<display name>`",
+            "- Purpose: Upload square/icon item variants and create redirects for the supplied name.",
+            "- Inputs:",
+            "  - `item_type` - free-form CDN folder with autocomplete suggestions.",
+            "  - `item_id` - item path fragment from the CDN URL.",
+            "  - `item_name` - wiki-facing redirect name.",
+            "- Output: processed/uploaded/duplicate totals and canonical/redirect links.",
+        ]),
+    },
+    "eventupload": {
+        "summary": "Upload event banners, guide panels, teaser assets, and raid thumbnails.",
+        "details": "\n".join([
+            "**/eventupload**",
+            "Usage: `/eventupload event_id:<folder id> event_name:<display name> asset_type:<...> max_index:<optional>`",
+            "- Purpose: Upload event notice/start banners, guide panels, trailer audio, trailer banners, teaser top art, and raid thumbnails.",
+            "- Inputs:",
+            "  - `event_id` - lowercase folder slug.",
+            "  - `event_name` - display name used for redirects where applicable.",
+            "  - `asset_type` - strict dropdown covering `notice`, `start`, `guide`, `trailer_mp3`, `voice_banner`, `top`, and `raid_thumb`.",
+            "  - `max_index` - defaults vary by asset family; fixed-file assets use 1.",
+            "- Notes: indexed families stop on the first missing base index; guide skips missing subindices; `trailer_mp3` creates no redirect.",
+            "- Output: processed/uploaded/duplicate/failed counts, canonical links, and asset-specific copy blocks where applicable.",
+        ]),
+    },
+    "enemyupload": {
+        "summary": "Upload the S and M icon variants for a single enemy id.",
+        "details": "\n".join([
+            "**/enemyupload**",
+            "Usage: `/enemyupload id:<enemy id>`",
+            "- Purpose: Upload enemy S/M icons and create matching redirects.",
+            "- Inputs:",
+            "  - `id` - numeric CDN identifier.",
+            "- Output: processed/uploaded/duplicate/failed counts and canonical/redirect links.",
+        ]),
+    },
+}
+HELP_COMMAND_CHOICES = sorted(HELP_COMMAND_DETAILS.keys())
 
 def normalize_item_type_input(raw_value: str | None) -> str:
     """
@@ -189,6 +340,18 @@ async def edit_or_followup_long_message(
     await msg.edit(content=chunks[0] if chunks else "")
     for chunk in chunks[1:]:
         await msg.channel.send(content=chunk)
+
+async def edit_or_followup_long_message_ephemeral(
+    msg: discord.Message, interaction: discord.Interaction, content: str
+) -> None:
+    """Edit the original ephemeral message, then send ephemeral follow-ups if needed."""
+    chunks = chunk_text_for_discord(content, limit=2000)
+    await msg.edit(content=chunks[0] if chunks else "")
+    for chunk in chunks[1:]:
+        await interaction.followup.send(content=chunk, ephemeral=True)
+
+def normalize_help_command_input(raw_value: str | None) -> str:
+    return (raw_value or "").strip().lower().lstrip("/")
 
 def validate_page_name(page_name: str) -> tuple[bool, str]:
     """
@@ -307,14 +470,36 @@ def validate_class_skin_filter(filter_value: str) -> tuple[bool, str]:
 
     return True, filter_value
 
+def normalize_banner_id_input(raw_value: str | None) -> str:
+    """
+    Accept a bare banner id, `banner_<id>`, `banner_<id>.png`, or a full CDN URL
+    and normalize it to the id portion used by banner-related commands.
+    """
+    cleaned = (raw_value or "").strip()
+    if not cleaned:
+        return ""
+
+    cleaned = cleaned.rstrip("/")
+    cleaned = cleaned.rsplit("/", 1)[-1]
+
+    if cleaned.lower().endswith(".png"):
+        cleaned = cleaned[:-4]
+    elif cleaned.lower().endswith(".jpg"):
+        cleaned = cleaned[:-4]
+    elif cleaned.lower().endswith(".jpeg"):
+        cleaned = cleaned[:-5]
+
+    if cleaned.lower().startswith("banner_"):
+        cleaned = cleaned[7:]
+
+    return cleaned
+
 def validate_banner_id(banner_id: str) -> tuple[bool, str]:
     """
     Validate a gacha banner identifier (portion between `banner_` and the index).
     Returns (is_valid, cleaned_value/error_message).
     """
-    banner_id = banner_id.strip()
-    if banner_id.lower().startswith("banner_"):
-        banner_id = banner_id[7:]
+    banner_id = normalize_banner_id_input(banner_id)
 
     if len(banner_id) == 0 or len(banner_id) > MAX_BANNER_ID_LEN:
         return False, f"Invalid banner id. Must be between 1 and {MAX_BANNER_ID_LEN} characters."
@@ -440,6 +625,17 @@ def build_rateup_content(rateup_names: list[str], sparkable_names: list[str]) ->
         + "\n".join(inner_lines)
         + "}}"
     )
+
+def build_suptix_promo_content(promo_id: str, end_datetime_text: str, link_target: str) -> str:
+    file_name = f"banner_{promo_id}.png"
+    return "\n".join([
+        '<div style="max-width:470px;">',
+        '{{GallerySwapImages|w=450|h=110',
+        f'|[[File:{file_name}|450px|link={link_target}]]',
+        '}}',
+        f'{{{{EventCountdown|{end_datetime_text} JST|text_after=This banner promotion has ended.}}}}',
+        '</div>',
+    ])
 
 def _format_jst_datetime(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M JST")
@@ -797,6 +993,96 @@ async def run_rateup_update(
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
     except Exception as exc:
         error_msg = f"Rate-up update task failed: {exc}"
+        print(error_msg)
+        return 1, "", str(exc)
+
+async def run_promo_update(
+    promo_type: str,
+    promo_id: str,
+    end_datetime_text: str,
+    link_target: str,
+    status: dict | None = None,
+) -> tuple[int, str, str]:
+    """
+    Update a supported MainPageDraw promo subtemplate without uploading assets.
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def update_status(stage: str, **kwargs):
+        if status is not None:
+            status.update({"stage": stage, **kwargs})
+
+    def upload_task():
+        try:
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            site = wi.wiki
+
+            if promo_type == "suptix":
+                resolved_file_name = f"banner_{promo_id}.png"
+                update_status(
+                    "validating_file",
+                    resolved_file_name=resolved_file_name,
+                )
+                if not _file_exists_or_redirects_to_file(site, resolved_file_name):
+                    raise ValueError(
+                        f'No wiki file found for "{resolved_file_name}". '
+                        "Upload the file first before using /promoupdate."
+                    )
+                page_updates = [
+                    (
+                        DRAW_PAGE_SUPTIX_PROMO,
+                        build_suptix_promo_content(promo_id, end_datetime_text, link_target),
+                    )
+                ]
+            else:
+                raise ValueError(f"Unsupported promo type: {promo_type}")
+
+            update_status(
+                "saving_pages",
+                pages=[title for title, _ in page_updates],
+                resolved_file_name=resolved_file_name,
+            )
+
+            saved_pages: list[str] = []
+            for page_title, page_text in page_updates:
+                page = site.pages[page_title]
+                if DRY_RUN and hasattr(wi, "_patch_page_save"):
+                    wi._patch_page_save(page)
+                page.save(
+                    page_text,
+                    summary=f"Bot: update MainPageDraw {promo_type} promo",
+                    minor=False,
+                    bot=True,
+                )
+                saved_pages.append(page_title)
+
+            update_status(
+                "completed",
+                saved_pages=saved_pages,
+                resolved_file_name=resolved_file_name,
+            )
+            return 0
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(
+            f"Starting promo update (type: {promo_type}, promo id: {promo_id}, end: {end_datetime_text})"
+        )
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual saves will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as exc:
+        error_msg = f"Promo update task failed: {exc}"
         print(error_msg)
         return 1, "", str(exc)
 
@@ -2004,6 +2290,192 @@ async def drawupdate_end_time_autocomplete(
 
 
 @bot.tree.command(
+    name="promoupdate",
+    description="Update a supported MainPageDraw promo subtemplate",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    promo_type="Which promo section to update",
+    promo_id="Promo asset id, banner filename, or full CDN URL",
+    end_date="Promo end date in JST (YYYY-MM-DD)",
+    end_time="Promo end time in JST (HH:MM)",
+    link_target="Wiki link target for promo clicks",
+)
+@app_commands.choices(promo_type=PROMO_TYPE_CHOICES)
+async def promoupdate(
+    interaction: discord.Interaction,
+    promo_type: app_commands.Choice[str],
+    promo_id: str,
+    end_date: str,
+    end_time: str,
+    link_target: str = "Surprise Ticket",
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
+
+    promo_type_value = promo_type.value
+    if promo_type_value not in PROMO_TYPE_SET:
+        await interaction.response.send_message("Invalid promo_type option.", ephemeral=True)
+        return
+
+    is_valid_date, cleaned_end_date = validate_draw_end_date(end_date)
+    if not is_valid_date:
+        await interaction.response.send_message(cleaned_end_date, ephemeral=True)
+        return
+
+    is_valid_time, cleaned_end_time = validate_draw_end_time(end_time)
+    if not is_valid_time:
+        await interaction.response.send_message(cleaned_end_time, ephemeral=True)
+        return
+
+    is_valid_promo, cleaned_promo_id = validate_banner_id(promo_id)
+    if not is_valid_promo:
+        await interaction.response.send_message(cleaned_promo_id, ephemeral=True)
+        return
+
+    is_valid_link, cleaned_link_target = validate_draw_link_target(link_target)
+    if not is_valid_link:
+        await interaction.response.send_message(cleaned_link_target, ephemeral=True)
+        return
+
+    cleaned_end_datetime = f"{cleaned_end_date} {cleaned_end_time}"
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/promoupdate` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}Promo update started for `{promo_type_value}` "
+            f"using `{cleaned_promo_id}`. This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+        status_info = {
+            "stage": "starting",
+            "saved_pages": [],
+            "resolved_file_name": "",
+        }
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+                stage = status_info.get("stage", "processing")
+                if stage == "validating_file":
+                    resolved_file_name = status_info.get("resolved_file_name") or "?"
+                    content = (
+                        f"{dry_run_prefix}Validating promo file `{resolved_file_name}` "
+                        f"on the wiki ({elapsed}s elapsed)"
+                    )
+                elif stage == "saving_pages":
+                    pages = status_info.get("pages") or []
+                    content = (
+                        f"{dry_run_prefix}Saving promo subtemplates ({len(pages)} pages) "
+                        f"({elapsed}s elapsed)"
+                    )
+                elif stage == "completed":
+                    content = (
+                        f"{dry_run_prefix}Promo update is wrapping up ({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}Promo update is {stage} ({elapsed}s elapsed)"
+                    )
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_promo_update(
+            promo_type_value,
+            cleaned_promo_id,
+            cleaned_end_datetime,
+            cleaned_link_target,
+            status_info,
+        )
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            saved_pages = status_info.get("saved_pages") or []
+            resolved_file_name = status_info.get("resolved_file_name") or f"banner_{cleaned_promo_id}.png"
+
+            summary_lines = [
+                f"{dry_run_prefix}Promo update completed for `{promo_type_value}` in {elapsed}s.",
+                "**Inputs used:**",
+                f"- promo_type: `{promo_type_value}`",
+                f"- promo_id: `{cleaned_promo_id}`",
+                f"- end_date: `{cleaned_end_date}`",
+                f"- end_time: `{cleaned_end_time}`",
+                f"- link_target: `{cleaned_link_target}`",
+                "",
+                "**Resolved file:**",
+                f"- `{resolved_file_name}`",
+                "",
+                "**Updated pages:**",
+            ]
+
+            for page in saved_pages:
+                page_url = f"https://gbf.wiki/{page.replace(' ', '_')}"
+                summary_lines.append(f"- <{page_url}>")
+
+            summary_lines.append("")
+            summary_lines.append(
+                f"Please purge Main Page to show changes immediately: {MAIN_PAGE_PURGE_URL}"
+            )
+
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
+        else:
+            await msg.edit(
+                content=f"{dry_run_prefix}Promo update failed for `{promo_type_value}` in {elapsed}s."
+            )
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@promoupdate.autocomplete("end_time")
+async def promoupdate_end_time_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> list[app_commands.Choice[str]]:
+    current_clean = (current or "").strip()
+    filtered = [
+        t for t in DRAW_COMMON_END_TIMES
+        if not current_clean or current_clean in t
+    ]
+    return [app_commands.Choice(name=t, value=t) for t in filtered[:25]]
+
+
+@bot.tree.command(
     name="rateup",
     description="Update MainPageDraw rate-up characters subtemplate",
 )
@@ -2180,6 +2652,67 @@ async def rateup_end_time_autocomplete(
         if not current_clean or current_clean in t
     ]
     return [app_commands.Choice(name=t, value=t) for t in filtered[:25]]
+
+
+@bot.tree.command(
+    name="help",
+    description="Show slash-command help and usage details.",
+)
+@app_commands.describe(
+    command="Optional slash command name to show in detail.",
+)
+async def help_command(
+    interaction: discord.Interaction,
+    command: str | None = None,
+):
+    normalized_command = normalize_help_command_input(command)
+
+    if not normalized_command:
+        overview_lines = [
+            "**Slash Commands**",
+            "Use `/help command:<name>` for detailed help on one command.",
+            "",
+        ]
+        overview_lines.extend(
+            f"- `/{name}` — {HELP_COMMAND_DETAILS[name]['summary']}"
+            for name in HELP_COMMAND_CHOICES
+        )
+        await interaction.response.send_message("\n".join(overview_lines), ephemeral=True)
+        return
+
+    help_entry = HELP_COMMAND_DETAILS.get(normalized_command)
+    if help_entry is None:
+        suggestions = [
+            name for name in HELP_COMMAND_CHOICES
+            if normalized_command in name
+        ][:5]
+        suggestion_text = (
+            f" Try one of: {', '.join(f'`/{name}`' for name in suggestions)}."
+            if suggestions
+            else ""
+        )
+        await interaction.response.send_message(
+            f"Unknown command `{normalized_command}`.{suggestion_text}",
+            ephemeral=True,
+        )
+        return
+
+    await interaction.response.send_message("Loading help...", ephemeral=True)
+    msg = await interaction.original_response()
+    await edit_or_followup_long_message_ephemeral(msg, interaction, help_entry["details"])
+
+@help_command.autocomplete("command")
+async def help_command_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    current_clean = normalize_help_command_input(current)
+    filtered = [
+        command_name
+        for command_name in HELP_COMMAND_CHOICES
+        if not current_clean or current_clean in command_name
+    ]
+    return [app_commands.Choice(name=name, value=name) for name in filtered[:25]]
 
 
 @bot.tree.command(
