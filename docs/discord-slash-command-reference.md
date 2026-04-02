@@ -127,6 +127,28 @@ Usage: `/rateup end_date:<YYYY-MM-DD> end_time:<HH:MM> rateups:<Name A|Name B> s
 - Checks & Limits: same role/cooldown/lock behavior as other upload-style commands; names use the same wiki page-name validation as other wiki-facing inputs.
 - Output: progress updates while saving, then a summary that echoes inputs, shows updated page links, includes the exact rendered subtemplate in a copyable `wikitext` code block, and includes a purge reminder link: `<https://gbf.wiki/Main_Page/purge>` (embed suppressed).
 
+**/risingrotation**
+Usage: `/risingrotation start_date:<YYYY-MM-DD> c2:<Name> c3:<Name?> c4:<Name?> c5:<Name?> c1:<Name?> notes:<text?> week_override:<int?> start_time_override:<HH:MM?> end_date_override:<YYYY-MM-DD?> end_time_override:<HH:MM?>`
+- Purpose: Insert one new `{{RisingRotation/Row}}` at the top of `Granblue Fantasy Versus: Rising/Rotation` without hand-editing the page.
+- Inputs:
+  - `start_date` - required JST date in `YYYY-MM-DD`.
+  - `start_time_override` - optional JST time in `HH:MM`. If omitted, start time defaults to `11:00`.
+  - `end_date_override` / `end_time_override` - optional override pair for special cases. If omitted, end resolves to `start_date + 7 days` at `10:59 JST`.
+  - `c2` - required character slot.
+  - `c1`, `c3`, `c4`, `c5` - optional character slots for exception or extended weeks.
+  - `notes` - optional text copied into the row’s `notes` parameter.
+  - `week_override` - optional manual week for backfills/corrections.
+- Character autocomplete:
+  - `c1`-`c5` suggest a local GBVSR roster list as you type.
+  - Suggestions are case-insensitive, capped to Discord’s 25-choice limit, and intentionally exclude `All Characters` and `38 Characters`.
+  - Fields remain free-form, so you can still type roster entries that are newer than the bot’s local suggestion list.
+- Resolution rules:
+  - The command reads the current top row on `Granblue Fantasy Versus: Rising/Rotation` and auto-resolves the next week as `top_week + 1`.
+  - `week_override` may backfill/correct an older week, but it may not jump ahead of the next auto week.
+  - The command aborts if the resolved week already exists anywhere on the page.
+- Checks & Limits: same role/cooldown/lock behavior as other upload-style commands.
+- Output: progress updates while loading/saving, then a summary with the resolved week/start/end values, the updated page link, and a copyable `wikitext` block containing the inserted row.
+
 **/itemupload**
 Usage: `/itemupload item_type:<CDN folder (e.g. Article, Normal)> item_id:<CDN id> item_name:<Display Name>`
 - Purpose: Upload the square/icon pair for a single item along with canonical redirects for the supplied display name.

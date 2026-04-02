@@ -92,6 +92,47 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `README.md`
   - `docs/discord-slash-command-reference.md`
 
+## Rising Rotation Contract
+
+- `/risingrotation` updates the fixed page:
+  - `Granblue Fantasy Versus: Rising/Rotation`
+- Params:
+  - `start_date`
+  - `c2`
+  - optional `c1`, `c3`, `c4`, `c5`
+  - optional `notes`
+  - optional `week_override`
+  - optional `start_time_override`
+  - optional `end_date_override`
+  - optional `end_time_override`
+- Auto-filled defaults:
+  - `week` defaults to the current top row week plus `1`
+  - `start_time` defaults to `11:00` JST
+  - `end` defaults to `start_date + 7 days` at `10:59` JST
+- Override rules:
+  - `week_override` is for backfills/corrections and must not jump ahead of the next auto week
+  - `end_date_override` and `end_time_override` must be provided together
+  - explicit end overrides fully replace the default calculated end
+- Insert behavior:
+  - generate one `{{RisingRotation/Row}}`
+  - prepend it immediately under the `{{RisingRotation|` wrapper
+  - preserve existing older rows and wrapper text
+  - abort if the resolved week already exists anywhere on the page
+- Wikitext output:
+  - `start` and `end` are stored as `YYYY-MM-DD HH:MM JST`
+  - blank character fields are omitted instead of emitted as empty params
+  - `c1` should only be emitted when explicitly supplied
+- Character suggestions:
+  - `c1`-`c5` should autocomplete from a local roster list
+  - suggestions should be case-insensitive
+  - suggestions should stay within Discord's 25-choice limit
+  - do not suggest `All Characters` or `38 Characters`
+  - fields must remain free-form so newly added characters can still be typed manually
+- Summary output should include:
+  - resolved week/start/end values
+  - the updated page link
+  - a copyable `wikitext` block for the inserted row
+
 ## Environment / Deployment
 
 - `DRY_RUN` is a supported runtime flag.
