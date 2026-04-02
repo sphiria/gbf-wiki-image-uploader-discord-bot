@@ -67,8 +67,10 @@ MAX_EVENT_ID_LEN = 64
 MAX_ENEMY_ID_LEN = 64
 MAX_CLASS_SKIN_ID_LEN = 64
 MAX_RATEUP_INPUT_LEN = 1000
+MAX_RISING_ROTATION_NOTES_LEN = 500
 PAGE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|\x00-\x1F]")
 FILE_NAME_INVALID_PATTERN = re.compile(r"[#<>\[\]\{\}\|:\x00-\x1F]")
+CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x1F]")
 VALID_ITEM_ID_REGEX = re.compile(r"^[\w\-]+$")
 VALID_STATUS_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+#?$")
 VALID_BANNER_ID_REGEX = re.compile(r"^[A-Za-z0-9_]+$")
@@ -150,6 +152,51 @@ PROMO_TYPE_CHOICES = [
 ]
 PROMO_TYPE_SET = {choice.value for choice in PROMO_TYPE_CHOICES}
 MAIN_PAGE_PURGE_URL = "<https://gbf.wiki/Main_Page/purge>"
+RISING_ROTATION_PAGE = "Granblue Fantasy Versus: Rising/Rotation"
+RISING_ROTATION_DEFAULT_START_TIME = "11:00"
+RISING_ROTATION_DEFAULT_END_TIME = "10:59"
+RISING_ROTATION_CHARACTER_NAMES = [
+    "Anila",
+    "Avatar Belial",
+    "Beatrix",
+    "Belial",
+    "Cagliostro",
+    "Charlotta",
+    "Djeeta",
+    "Eustace",
+    "Ferry",
+    "Galleon",
+    "Gran",
+    "Grimnir",
+    "Ilsa",
+    "Katalina",
+    "Ladiva",
+    "Lancelot",
+    "Lowain",
+    "Lucilius",
+    "Lunalu",
+    "Metera",
+    "Narmaya",
+    "Percival",
+    "Sandalphon",
+    "Seox",
+    "Siegfried",
+    "Soriz",
+    "Vane",
+    "Vaseraga",
+    "Versusia",
+    "Vikala",
+    "Wilnas",
+    "Yuel",
+    "Zooey",
+    "2B",
+    "Vira",
+    "Avatar Belial",
+]
+RISING_ROTATION_AUTOCOMPLETE_NAMES = [
+    name for name in sorted(set(RISING_ROTATION_CHARACTER_NAMES), key=str.casefold)
+    if name not in {"All Characters", "38 Characters"}
+]
 
 HELP_COMMAND_DETAILS = {
     "help": {
@@ -243,6 +290,23 @@ HELP_COMMAND_DETAILS = {
             "  - `rateups` and `sparkable` are required pipe-separated character lists.",
             "- Notes: `/rateup` keeps its end date separate from draw banner rotation end dates.",
             f"- Output: updated page links, rendered wikitext preview, and purge reminder {MAIN_PAGE_PURGE_URL}.",
+        ]),
+    },
+    "risingrotation": {
+        "summary": "Insert a new GBVSR rotation row on the dedicated rotation subpage.",
+        "details": "\n".join([
+            "**/risingrotation**",
+            "Usage: `/risingrotation start_date:<YYYY-MM-DD> c2:<name> c3:<name?> c4:<name?> c5:<name?> c1:<name?> notes:<text?> week_override:<int?> start_time_override:<HH:MM?> end_date_override:<YYYY-MM-DD?> end_time_override:<HH:MM?>`",
+            f"- Purpose: Insert one new `{{{{RisingRotation/Row}}}}` at the top of `{RISING_ROTATION_PAGE}` without hand-editing the page.",
+            "- Inputs:",
+            "  - `start_date` is required and uses JST `YYYY-MM-DD` format.",
+            f"  - `start_time_override` is optional; otherwise start defaults to `{RISING_ROTATION_DEFAULT_START_TIME}` JST.",
+            f"  - `end` defaults to start date + 7 days at `{RISING_ROTATION_DEFAULT_END_TIME}` JST.",
+            "  - `end_date_override` and `end_time_override` must be supplied together for special cases.",
+            "  - `c2` is required; `c1`, `c3`, `c4`, and `c5` are optional free-form character fields with autocomplete suggestions.",
+            "  - `week_override` is optional for backfills/corrections and cannot jump ahead of the next automatic week.",
+            "- Notes: the command reads the current top row to compute the next week and aborts if the resolved week already exists.",
+            "- Output: updated page link, resolved week/start/end values, and a copyable `wikitext` preview of the inserted row.",
         ]),
     },
     "synccommands": {
@@ -531,6 +595,80 @@ def validate_draw_end_time(end_time: str) -> tuple[bool, str]:
     except ValueError:
         return False, "Invalid end_time. Use HH:MM (24-hour), e.g. 18:59."
     return True, cleaned
+
+def validate_rising_rotation_notes(notes: str | None) -> tuple[bool, str]:
+    cleaned = (notes or "").strip()
+    if not cleaned:
+        return True, ""
+    if len(cleaned) > MAX_RISING_ROTATION_NOTES_LEN:
+        return False, f"Invalid notes. Must be at most {MAX_RISING_ROTATION_NOTES_LEN} characters."
+    if CONTROL_CHAR_PATTERN.search(cleaned):
+        return False, "Invalid notes. Control characters are not allowed."
+    return True, cleaned
+
+def validate_rising_rotation_character(
+    value: str | None,
+    field_name: str,
+    *,
+    required: bool = False,
+) -> tuple[bool, str]:
+    cleaned = (value or "").strip()
+    if not cleaned:
+        if required:
+            return False, f"`{field_name}` is required."
+        return True, ""
+    is_valid, result = validate_page_name(cleaned)
+    if not is_valid:
+        error_text = result[2:] if result.startswith("❌ ") else result
+        return False, f"Invalid `{field_name}`: {error_text}"
+    return True, result
+
+def build_rising_rotation_row(
+    week: int,
+    start_datetime_text: str,
+    end_datetime_text: str,
+    character_slots: dict[str, str],
+    notes: str = "",
+) -> str:
+    lines = [
+        "{{RisingRotation/Row",
+        f"|{'week':<6}= {week}",
+        f"|{'start':<6}= {start_datetime_text} JST",
+        f"|{'end':<6}= {end_datetime_text} JST",
+    ]
+    for field_name in ("c1", "c2", "c3", "c4", "c5"):
+        value = character_slots.get(field_name, "").strip()
+        if value:
+            lines.append(f"|{field_name:<6}= {value}")
+    if notes:
+        lines.append(f"|{'notes':<6}= {notes}")
+    lines.append("}}")
+    return "\n".join(lines)
+
+def _extract_rising_rotation_weeks(page_text: str) -> list[int]:
+    weeks: list[int] = []
+    for match in re.finditer(r"\{\{RisingRotation/Row\b(.*?)\}\}", page_text, re.DOTALL):
+        row_text = match.group(1)
+        week_match = re.search(r"^\|week\s*=\s*(\d+)\s*$", row_text, re.MULTILINE)
+        if week_match:
+            weeks.append(int(week_match.group(1)))
+    return weeks
+
+def get_rising_rotation_top_week(page_text: str) -> int:
+    weeks = _extract_rising_rotation_weeks(page_text)
+    if not weeks:
+        raise ValueError(f'Could not find any `{{{{RisingRotation/Row}}}}` entries on "{RISING_ROTATION_PAGE}".')
+    return weeks[0]
+
+def insert_rising_rotation_row(page_text: str, row_text: str) -> str:
+    pattern = re.compile(r"(\{\{RisingRotation\|)\s*", re.DOTALL)
+    if not pattern.search(page_text):
+        raise ValueError(f'Could not find the `{{{{RisingRotation|` wrapper on "{RISING_ROTATION_PAGE}".')
+    return pattern.sub(
+        lambda match: f"{match.group(1)}\n\n{row_text.strip()}\n\n",
+        page_text,
+        count=1,
+    )
 
 def validate_draw_link_target(link_target: str) -> tuple[bool, str]:
     """
@@ -1093,6 +1231,119 @@ async def run_promo_update(
         return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
     except Exception as exc:
         error_msg = f"Promo update task failed: {exc}"
+        print(error_msg)
+        return 1, "", str(exc)
+
+async def run_rising_rotation_update(
+    start_datetime_text: str,
+    end_datetime_text: str,
+    character_slots: dict[str, str],
+    notes: str,
+    week_override: int | None,
+    status: dict | None = None,
+) -> tuple[int, str, str]:
+    """
+    Insert a new row into the GBVSR rotation page.
+    """
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    def update_status(stage: str, **kwargs):
+        if status is not None:
+            status.update({"stage": stage, **kwargs})
+
+    def upload_task():
+        try:
+            wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            site = wi.wiki
+            page = site.pages[RISING_ROTATION_PAGE]
+
+            update_status("loading_page", page=RISING_ROTATION_PAGE)
+            page_text = page.text()
+
+            existing_weeks = _extract_rising_rotation_weeks(page_text)
+            if not existing_weeks:
+                raise ValueError(
+                    f'Could not determine the current top week from "{RISING_ROTATION_PAGE}".'
+                )
+
+            top_week = existing_weeks[0]
+            next_auto_week = top_week + 1
+            resolved_week = next_auto_week
+            week_source = "auto"
+            if week_override is not None:
+                if week_override > next_auto_week:
+                    raise ValueError(
+                        f"`week_override` cannot jump ahead of the next automatic week "
+                        f"({next_auto_week})."
+                    )
+                resolved_week = week_override
+                week_source = "override"
+
+            if resolved_week in existing_weeks:
+                raise ValueError(
+                    f'Week {resolved_week} already exists on "{RISING_ROTATION_PAGE}".'
+                )
+
+            row_text = build_rising_rotation_row(
+                resolved_week,
+                start_datetime_text,
+                end_datetime_text,
+                character_slots,
+                notes,
+            )
+            updated_page_text = insert_rising_rotation_row(page_text, row_text)
+
+            update_status(
+                "saving_page",
+                page=RISING_ROTATION_PAGE,
+                resolved_week=resolved_week,
+                week_source=week_source,
+                row_text=row_text,
+                start_datetime_text=start_datetime_text,
+                end_datetime_text=end_datetime_text,
+            )
+
+            if DRY_RUN and hasattr(wi, "_patch_page_save"):
+                wi._patch_page_save(page)
+            page.save(
+                updated_page_text,
+                summary=f"Bot: add GBVSR rotation week {resolved_week}",
+                minor=False,
+                bot=True,
+            )
+
+            update_status(
+                "completed",
+                page=RISING_ROTATION_PAGE,
+                resolved_week=resolved_week,
+                week_source=week_source,
+                row_text=row_text,
+                start_datetime_text=start_datetime_text,
+                end_datetime_text=end_datetime_text,
+            )
+            return 0
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        tee_stdout = TeeOutput(sys.stdout, stdout_buffer)
+        tee_stderr = TeeOutput(sys.stderr, stderr_buffer)
+
+        print(
+            f"Starting GBVSR rotation update (start: {start_datetime_text}, end: {end_datetime_text}, "
+            f"week_override: {week_override})"
+        )
+        if DRY_RUN:
+            print("DRY RUN MODE - No actual saves will be performed")
+
+        with redirect_stdout(tee_stdout), redirect_stderr(tee_stderr):
+            return_code = await asyncio.to_thread(upload_task)
+
+        return return_code, stdout_buffer.getvalue(), stderr_buffer.getvalue()
+    except Exception as exc:
+        error_msg = f"Rising rotation update task failed: {exc}"
         print(error_msg)
         return 1, "", str(exc)
 
@@ -2662,6 +2913,260 @@ async def rateup_end_time_autocomplete(
         if not current_clean or current_clean in t
     ]
     return [app_commands.Choice(name=t, value=t) for t in filtered[:25]]
+
+
+@bot.tree.command(
+    name="risingrotation",
+    description="Insert a new GBVSR rotation row on the dedicated rotation subpage",
+)
+@app_commands.checks.has_any_role(*ALLOWED_ROLES)
+@app_commands.describe(
+    start_date="Rotation start date in JST (YYYY-MM-DD). Default start time is 11:00.",
+    c2="Second character slot. Suggestions provided; custom entries allowed.",
+    c3="Third character slot. Suggestions provided; custom entries allowed.",
+    c4="Fourth character slot. Suggestions provided; custom entries allowed.",
+    c5="Fifth character slot. Suggestions provided; custom entries allowed.",
+    c1="Optional first slot override for exception weeks. Suggestions provided; custom entries allowed.",
+    notes="Optional notes text for the row.",
+    week_override="Optional manual week for backfills/corrections.",
+    start_time_override="Optional start time override in JST (HH:MM). Defaults to 11:00.",
+    end_date_override="Optional end date override in JST (YYYY-MM-DD). Must be paired with end_time_override.",
+    end_time_override="Optional end time override in JST (HH:MM). Must be paired with end_date_override.",
+)
+async def risingrotation(
+    interaction: discord.Interaction,
+    start_date: str,
+    c2: str,
+    c3: str = "",
+    c4: str = "",
+    c5: str = "",
+    c1: str = "",
+    notes: str = "",
+    week_override: app_commands.Range[int, 1, 9999] | None = None,
+    start_time_override: str = "",
+    end_date_override: str = "",
+    end_time_override: str = "",
+):
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member or not (
+        any(role.name in ALLOWED_ROLES for role in member.roles)
+        or member.guild.owner_id == interaction.user.id
+    ):
+        await interaction.response.send_message(
+            f"You must have one of the following roles to use this command: {', '.join(ALLOWED_ROLES)}",
+            ephemeral=True,
+        )
+        return
+
+    is_valid_start_date, cleaned_start_date = validate_draw_end_date(start_date)
+    if not is_valid_start_date:
+        await interaction.response.send_message(
+            cleaned_start_date.replace("end_date", "start_date"),
+            ephemeral=True,
+        )
+        return
+
+    cleaned_start_time = RISING_ROTATION_DEFAULT_START_TIME
+    start_time_source = "auto"
+    if (start_time_override or "").strip():
+        is_valid_start_time, cleaned_start_time = validate_draw_end_time(start_time_override)
+        if not is_valid_start_time:
+            await interaction.response.send_message(
+                cleaned_start_time.replace("end_time", "start_time_override"),
+                ephemeral=True,
+            )
+            return
+        start_time_source = "override"
+
+    has_end_date_override = bool((end_date_override or "").strip())
+    has_end_time_override = bool((end_time_override or "").strip())
+    if has_end_date_override != has_end_time_override:
+        await interaction.response.send_message(
+            "`end_date_override` and `end_time_override` must be supplied together.",
+            ephemeral=True,
+        )
+        return
+
+    start_datetime = datetime.strptime(
+        f"{cleaned_start_date} {cleaned_start_time}",
+        "%Y-%m-%d %H:%M",
+    )
+    cleaned_end_date = (start_datetime + timedelta(days=7)).strftime("%Y-%m-%d")
+    cleaned_end_time = RISING_ROTATION_DEFAULT_END_TIME
+    end_source = "auto"
+    if has_end_date_override and has_end_time_override:
+        is_valid_end_date, cleaned_end_date = validate_draw_end_date(end_date_override)
+        if not is_valid_end_date:
+            await interaction.response.send_message(cleaned_end_date, ephemeral=True)
+            return
+        is_valid_end_time, cleaned_end_time = validate_draw_end_time(end_time_override)
+        if not is_valid_end_time:
+            await interaction.response.send_message(cleaned_end_time, ephemeral=True)
+            return
+        end_source = "override"
+
+    validated_characters: dict[str, str] = {}
+    for field_name, raw_value, required in (
+        ("c1", c1, False),
+        ("c2", c2, True),
+        ("c3", c3, False),
+        ("c4", c4, False),
+        ("c5", c5, False),
+    ):
+        is_valid_character, cleaned_character = validate_rising_rotation_character(
+            raw_value,
+            field_name,
+            required=required,
+        )
+        if not is_valid_character:
+            await interaction.response.send_message(cleaned_character, ephemeral=True)
+            return
+        validated_characters[field_name] = cleaned_character
+
+    is_valid_notes, cleaned_notes = validate_rising_rotation_notes(notes)
+    if not is_valid_notes:
+        await interaction.response.send_message(cleaned_notes, ephemeral=True)
+        return
+
+    start_datetime_text = f"{cleaned_start_date} {cleaned_start_time}"
+    end_datetime_text = f"{cleaned_end_date} {cleaned_end_time}"
+
+    now = time.time()
+    last = last_used.get(interaction.user.id, 0)
+    if now - last < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last))
+        await interaction.response.send_message(
+            f"Please wait {remaining}s before using `/risingrotation` again.",
+            ephemeral=True,
+        )
+        return
+    last_used[interaction.user.id] = now
+
+    if upload_lock.locked():
+        await interaction.response.send_message(
+            "Another upload is already running. Please wait until it finishes.",
+            ephemeral=True,
+        )
+        return
+
+    async with upload_lock:
+        dry_run_prefix = "[DRY RUN] " if DRY_RUN else ""
+        await interaction.response.send_message(
+            f"{dry_run_prefix}GBVSR rotation update started for `{RISING_ROTATION_PAGE}`. This may take a while..."
+        )
+        msg = await interaction.original_response()
+
+    try:
+        start_time = time.time()
+        status_info = {
+            "stage": "starting",
+            "page": RISING_ROTATION_PAGE,
+            "resolved_week": None,
+            "week_source": "auto",
+            "row_text": "",
+            "start_datetime_text": start_datetime_text,
+            "end_datetime_text": end_datetime_text,
+        }
+
+        async def progress_updater():
+            while True:
+                await asyncio.sleep(15)
+                elapsed = int(time.time() - start_time)
+                stage = status_info.get("stage", "processing")
+                if stage == "loading_page":
+                    content = (
+                        f"{dry_run_prefix}Loading `{RISING_ROTATION_PAGE}` "
+                        f"({elapsed}s elapsed)"
+                    )
+                elif stage == "saving_page":
+                    resolved_week = status_info.get("resolved_week")
+                    content = (
+                        f"{dry_run_prefix}Saving week `{resolved_week}` to `{RISING_ROTATION_PAGE}` "
+                        f"({elapsed}s elapsed)"
+                    )
+                elif stage == "completed":
+                    content = (
+                        f"{dry_run_prefix}GBVSR rotation update is wrapping up ({elapsed}s elapsed)"
+                    )
+                else:
+                    content = (
+                        f"{dry_run_prefix}GBVSR rotation update is {stage} ({elapsed}s elapsed)"
+                    )
+                await msg.edit(content=content)
+
+        updater_task = asyncio.create_task(progress_updater())
+        return_code, stdout, stderr = await run_rising_rotation_update(
+            start_datetime_text,
+            end_datetime_text,
+            validated_characters,
+            cleaned_notes,
+            week_override,
+            status_info,
+        )
+        updater_task.cancel()
+        elapsed = int(time.time() - start_time)
+
+        if return_code == 0:
+            resolved_week = status_info.get("resolved_week")
+            row_text = status_info.get("row_text") or ""
+            page_url = f"https://gbf.wiki/{RISING_ROTATION_PAGE.replace(' ', '_')}"
+
+            summary_lines = [
+                f"{dry_run_prefix}GBVSR rotation update completed in {elapsed}s.",
+                "**Resolved values:**",
+                f"- page: `{RISING_ROTATION_PAGE}`",
+                f"- week: `{resolved_week}` ({status_info.get('week_source', 'auto')})",
+                f"- start: `{start_datetime_text} JST` ({start_time_source})",
+                f"- end: `{end_datetime_text} JST` ({end_source})",
+                "",
+                "**Characters:**",
+            ]
+            for field_name in ("c1", "c2", "c3", "c4", "c5"):
+                value = validated_characters.get(field_name, "")
+                if value:
+                    summary_lines.append(f"- {field_name}: `{value}`")
+            if cleaned_notes:
+                summary_lines.append(f"- notes: `{cleaned_notes}`")
+
+            summary_lines.extend([
+                "",
+                "**Updated page:**",
+                f"- <{page_url}>",
+                "",
+                "**Inserted row:**",
+                "```wikitext",
+                row_text,
+                "```",
+            ])
+
+            await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
+        else:
+            await msg.edit(content=f"{dry_run_prefix}GBVSR rotation update failed in {elapsed}s.")
+            if stderr.strip():
+                error_preview = stderr.strip()[:500]
+                await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
+
+    except Exception as e:
+        elapsed = int(time.time() - start_time)
+        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+
+
+@risingrotation.autocomplete("c1")
+@risingrotation.autocomplete("c2")
+@risingrotation.autocomplete("c3")
+@risingrotation.autocomplete("c4")
+@risingrotation.autocomplete("c5")
+async def risingrotation_character_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    current_lower = (current or "").strip().lower()
+    filtered = [
+        name
+        for name in RISING_ROTATION_AUTOCOMPLETE_NAMES
+        if not current_lower or current_lower in name.lower()
+    ]
+    return [app_commands.Choice(name=name, value=name) for name in filtered[:25]]
 
 
 @bot.tree.command(
