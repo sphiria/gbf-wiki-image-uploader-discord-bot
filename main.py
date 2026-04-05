@@ -87,8 +87,8 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 # Valid page types
 PAGE_TYPES = [
     "character",
-    "character_full",
     "character_fs_skin",
+    "character_full",
     "weapon",
     "summon",
     "class",
