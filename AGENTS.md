@@ -358,6 +358,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - `/imgupload page_type:character_fs_skin` scans only the character `f_skin` and `s_skin` asset families from the target `{{Character}}` id.
 - `page_type:character` no longer owns `f_skin` or `s_skin`; those heavy skin subsets belong exclusively to `character_fs_skin`.
+- `/imgupload page_type:character_full` runs `character` and `character_fs_skin` sequentially for the same page, so it covers both the lighter standard character families and the heavier skin-only families in one command.
 - `f_skin` canonical naming:
   - `npc_f_skin_{id}{suffix}.jpg`
 - `s_skin` canonical naming:
@@ -542,6 +543,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Do not silently change canonical or redirect naming conventions.
 - Do not silently change wiki page targets or MainPageDraw subtemplate ownership.
 - Do not leave docs stale after changing slash command parameters or outputs.
+- If a `Template:MainPageDraw` section becomes managed by a slash command, update `Template:MainPageDraw` documentation/noinclude notes so editors can see which command owns that section and which inputs it expects.
 - If a behavior is being changed for operator convenience, document the reason here if it affects future maintenance.
 - If a session identifies a worthwhile refactoring opportunity, it may suggest it.
 - Do not perform refactoring just because an opportunity exists; explain the problem, the proposed direction, and the tradeoff first, then get explicit user permission before doing the refactor.
@@ -551,6 +553,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - If a slash command contract changed, update:
   - `README.md`
   - `docs/discord-slash-command-reference.md`
+- If a `Template:MainPageDraw` section is newly managed by a slash command or its managed inputs changed, update `Template:MainPageDraw` noinclude documentation.
 - If MainPageDraw behavior changed, confirm the affected subtemplate ownership still matches this file.
 - If canonical names, redirect names, or CDN URL patterns changed, record the new contract here.
 - Run at least:

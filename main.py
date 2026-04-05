@@ -87,6 +87,7 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 # Valid page types
 PAGE_TYPES = [
     "character",
+    "character_full",
     "character_fs_skin",
     "weapon",
     "summon",
@@ -222,7 +223,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - optional everywhere except `class_skin`, where it is required.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_full` runs `character` and `character_fs_skin` back-to-back; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -1366,7 +1367,6 @@ async def run_wiki_upload(
                 status["stage"] = "initializing"
                 
             wi = DryRunWikiImages() if DRY_RUN else WikiImages()
-            wi.delay = 5
             
             page = wi.wiki.pages[page_name]
             
@@ -1386,6 +1386,8 @@ async def run_wiki_upload(
             
             if page_type == 'character':
                 wi.check_character(page)
+            elif page_type == 'character_full':
+                wi.check_character_full(page)
             elif page_type == 'character_fs_skin':
                 wi.check_character_fs_skin(page)
             elif page_type == 'weapon':

@@ -38,8 +38,9 @@ See `docs/discord-slash-command-reference.md` for Discord-ready copy you can pas
 Quick overview of the available slash commands:
 
 - `/help command:<optional>` — show a concise overview of all slash commands, or detailed help for one command. The `command` field autocompletes supported slash command names.
-- `/imgupload page_type:<type> page_name:<title>` — bulk-upload all images for a wiki page (types: character, character_fs_skin, weapon, summon, class, class_skin, skin, npc, artifact, item, manatura, shield, skill_icons, bullet, advyrnture_gear, advyrnture_pal).
+- `/imgupload page_type:<type> page_name:<title>` — bulk-upload all images for a wiki page (types: character, character_full, character_fs_skin, weapon, summon, class, class_skin, skin, npc, artifact, item, manatura, shield, skill_icons, bullet, advyrnture_gear, advyrnture_pal).
   - `page_type:character` supports `{{Character|style_id=...}}` for explicit styles (`style_id >= 2`). Styled uploads use canonical CDN/wiki filenames with `_st<style_id>` after the variant index (for example `..._01_st2.png`) so they do not overwrite default-style canonicals. Redirect naming is unchanged. Character `f_skin` / `s_skin` uploads are excluded from this lighter mode.
+  - `page_type:character_full` runs both `character` and `character_fs_skin` sequentially, so it uploads the standard character families plus the heavier `f_skin` / `s_skin` families in one command.
   - `page_type:character_fs_skin` uploads only the character `f_skin` and `s_skin` asset families, including the heavier element-skin suffix coverage.
 - `/statusupload status_id:<id or id#> max_iterations:<1-100>` — upload status effect icons (use `#` to iterate sequential IDs, defaults to 10 iterations).
 - `/bannerupload banner_id:<campaign id> max_index:<1-50>` — iterate `banner_<id>_<index>.jpg` assets to upload gacha banner variants (default max index 12). `banner_id` may be the bare id, `banner_<id>`, `banner_<id>.png`, or the full CDN URL.
