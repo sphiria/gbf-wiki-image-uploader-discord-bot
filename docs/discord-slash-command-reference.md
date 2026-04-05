@@ -6,7 +6,7 @@ __General Rules__
 - Progress pings land every ~15s; final summaries include key counts and wiki links. If the bot runs in dry-run mode you will see a `[DRY RUN]` prefix.
 
 __Reference Lists (from `main.py`)__
-- `PAGE_TYPES`: `character`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `skill_icons`, `npc`, `artifact`, `item`, `manatura`, `shield`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
+- `PAGE_TYPES`: `character`, `character_full`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `skill_icons`, `npc`, `artifact`, `item`, `manatura`, `shield`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
 - `ITEM_TYPES`: `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`.
 
 **/help**
@@ -21,11 +21,12 @@ Usage: `/help command:<optional>`
   - Invalid `command`: ephemeral error with matching command suggestions when available.
 
 **/imgupload**
-Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|class_skin|skin|npc|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
+Usage: `/imgupload page_type:<character|character_full|character_fs_skin|weapon|summon|class|class_skin|skin|npc|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
 - Inputs:
   - `page_type` - pick the asset family; determines which CDN paths are scanned.
     - `character` - if `{{Character}}` includes explicit `style_id` and it is `2` or higher, character asset downloads use CDN/canonical filenames with `_st<style_id>` appended after the variant suffix (for example `3040088000_01_st2.png`) to avoid overwriting default-style canonical files. Redirect naming remains unchanged. This lighter mode excludes character `f_skin` and `s_skin`.
+    - `character_full` - runs `character` and `character_fs_skin` back-to-back for the same page, so the standard character families and the heavier `f_skin` / `s_skin` families upload in one command.
     - `character_fs_skin` - uploads only the character `f_skin` and `s_skin` asset families from the target `{{Character}}` id. `f_skin` uses canonical `npc_f_skin_*` filenames, `s_skin` uses canonical `npc_s_skin_*` filenames, and both probe the broader character-style element-skin suffix families.
     - `class_skin` - **requires** the `filter` input (numeric `id` from the `{{ClassSkin}}` template). The bot uploads the shared skin artwork plus every configured variant (MC icon/square, gendered raid/quest/talk/etc., PM, Sky Compass, skin_name, and more) under canonical `Leader_*` / `jobs_*` filenames and redirect titles such as `{name} (Gran) raid.jpg`.
     - `bullet` - searches for every `{{Bullet}}` template, reads the `id` and `name`, downloads `https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/img/sp/assets/bullet/m/<id>.jpg` and `/s/<id>.jpg`, uploads them as `Bullet_m_<id>.jpg` / `Bullet_s_<id>.jpg`, and builds redirects `<Name>_icon.jpg` / `<Name>_square.jpg`.

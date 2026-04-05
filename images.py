@@ -36,8 +36,19 @@ def _read_optional_float_env(var_name):
     raw_value = os.environ.get(var_name)
     if raw_value is None or raw_value == "":
         return None
+
+    normalized = raw_value.strip().lower()
     try:
-        return float(raw_value)
+        if normalized.endswith("ms"):
+            return float(normalized[:-2]) / 1000.0
+        if normalized.endswith("s"):
+            return float(normalized[:-1])
+
+        parsed_value = float(normalized)
+        # Bare large integers are usually supplied as milliseconds in local env files.
+        if "." not in normalized and parsed_value >= 1000:
+            return parsed_value / 1000.0
+        return parsed_value
     except ValueError as exc:
         raise RuntimeError(f"{var_name} must be a number, got {raw_value!r}") from exc
 
@@ -386,6 +397,23 @@ class WikiImages(object):
         else:
             self.delay = 25
 
+        self._proxy_url = os.environ.get("PROXY_URL")
+        self._use_paced_local_downloads = (
+            not self._proxy_url
+            and (
+                IMAGE_PROBE_DELAY is not None
+                or LOCAL_IMAGE_PROBE_DELAY is not None
+            )
+        )
+
+    def _sleep_after_failed_probe(self):
+        if self.delay and self.delay > 0:
+            time.sleep(self.delay)
+
+    async def _async_sleep_after_failed_probe(self):
+        if self.delay and self.delay > 0:
+            await asyncio.sleep(self.delay)
+
     def _item_variant_specs(self, item_type: str):
         """
         Return variant configuration tuples for the given item type.
@@ -559,10 +587,9 @@ class WikiImages(object):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
         }
-        proxy_url = os.environ.get("PROXY_URL")
         proxies = {}
-        if proxy_url:
-            proxies = {"http": proxy_url, "https": proxy_url}
+        if self._proxy_url:
+            proxies = {"http": self._proxy_url, "https": self._proxy_url}
             
         for attempt in range(max_retries + 1):
             try:
@@ -586,6 +613,7 @@ class WikiImages(object):
                     
                 elif req.status_code == 404:
                     print(f'Download failed (404 Not Found): {url}')
+                    self._sleep_after_failed_probe()
                     return False, "", 0, False
                     
                 elif req.status_code in [407, 429, 500, 502, 503, 504]:
@@ -596,9 +624,11 @@ class WikiImages(object):
                         continue
                     else:
                         print(f'Download failed ({req.status_code}) after {max_retries} retries: {url}')
+                        self._sleep_after_failed_probe()
                         return False, "", 0, False
                 else:
                     print(f'Download failed ({req.status_code}): {url}')
+                    self._sleep_after_failed_probe()
                     return False, "", 0, False
                     
             except requests.exceptions.RequestException as e:
@@ -609,6 +639,7 @@ class WikiImages(object):
                     continue
                 else:
                     print(f'Download failed after {max_retries} retries: [network error]')
+                    self._sleep_after_failed_probe()
                     return False, "", 0, False
                     
         return False, "", 0, False
@@ -619,15 +650,13 @@ class WikiImages(object):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
         }
         
-        proxy_url = os.environ.get("PROXY_URL")
-        
         async def download_single(session, url, max_retries=3):
             for attempt in range(max_retries + 1):
                 try:
                     print(f'Downloading {url}...' + (f' (retry {attempt})' if attempt > 0 else ''))
                     kwargs = {'headers': headers}
-                    if proxy_url:
-                        kwargs['proxy'] = proxy_url
+                    if self._proxy_url:
+                        kwargs['proxy'] = self._proxy_url
                     
                     async with session.get(url, **kwargs) as response:
                         if response.status == 200:
@@ -646,6 +675,7 @@ class WikiImages(object):
                         elif response.status == 404:
                             # Don't retry 404s - file genuinely doesn't exist
                             print(f'Download failed (404 Not Found): {url}')
+                            await self._async_sleep_after_failed_probe()
                             return url, False, "", 0, False
                             
                         elif response.status in [407, 429, 500, 502, 503, 504]:
@@ -657,10 +687,12 @@ class WikiImages(object):
                                 continue
                             else:
                                 print(f'Download failed ({response.status}) after {max_retries} retries: {url}')
+                                await self._async_sleep_after_failed_probe()
                                 return url, False, "", 0, False
                         else:
                             # Other HTTP errors - don't retry
                             print(f'Download failed ({response.status}): {url}')
+                            await self._async_sleep_after_failed_probe()
                             return url, False, "", 0, False
                             
                 except Exception as e:
@@ -672,6 +704,7 @@ class WikiImages(object):
                         continue
                     else:
                         print(f'Download failed after {max_retries} retries: [network error]')
+                        await self._async_sleep_after_failed_probe()
                         return url, False, "", 0, False
                         
             return url, False, "", 0, False
@@ -3462,6 +3495,10 @@ class WikiImages(object):
         }
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
 
+    def check_character_full(self, page):
+        self.check_character(page)
+        self.check_character_fs_skin(page)
+
     def check_character_fs_skin(self, page):
         self.check_sp_asset(page, 'npc', 'Character', self._character_fs_skin_paths(), False)
 
@@ -4563,26 +4600,38 @@ class WikiImages(object):
         # Download all images concurrently
         if download_tasks:
             urls = [task['url'] for task in download_tasks]
-            print(f"Starting concurrent download of {len(urls)} images...")
-            print(f"Sample URLs: {urls[:2]}...")
+            use_concurrent_downloads = not self._use_paced_local_downloads
+            if use_concurrent_downloads:
+                print(f"Starting concurrent download of {len(urls)} images...")
+                print(f"Sample URLs: {urls[:2]}...")
+            else:
+                print(
+                    f"Using paced sequential download for {len(urls)} images "
+                    f"(no proxy and probe delay configured)."
+                )
             
             download_results = []
             pending_urls = []
             concurrent_timeout = 900  # 15-minute safeguard
             
             try:
-                # Run async function in current thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    download_task = self.get_images_concurrent(
-                        urls,
-                        timeout_seconds=concurrent_timeout,
-                        progress_interval=25,
-                    )
-                    download_results, pending_urls = loop.run_until_complete(download_task)
-                finally:
-                    loop.close()
+                if use_concurrent_downloads:
+                    # Run async function in current thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        download_task = self.get_images_concurrent(
+                            urls,
+                            timeout_seconds=concurrent_timeout,
+                            progress_interval=25,
+                        )
+                        download_results, pending_urls = loop.run_until_complete(download_task)
+                    finally:
+                        loop.close()
+                else:
+                    for url in urls:
+                        success, sha1, size, io_obj = self.get_image(url)
+                        download_results.append((url, success, sha1, size, io_obj))
                 
                 completed_url_set = {url for url, _, _, _, _ in download_results}
                 
