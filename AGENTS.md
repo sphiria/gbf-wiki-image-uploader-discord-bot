@@ -358,7 +358,6 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - `/imgupload page_type:character_fs_skin` scans only the character `f_skin` and `s_skin` asset families from the target `{{Character}}` id.
 - `page_type:character` no longer owns `f_skin` or `s_skin`; those heavy skin subsets belong exclusively to `character_fs_skin`.
-- `/imgupload page_type:character_full` runs `character` and `character_fs_skin` sequentially for the same page, so it covers both the lighter standard character families and the heavier skin-only families in one command.
 - `f_skin` canonical naming:
   - `npc_f_skin_{id}{suffix}.jpg`
 - `s_skin` canonical naming:
