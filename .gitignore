@@ -6,5 +6,8 @@ Template MainPageDraw.wikitext
 Template MainPageDraw SuptixPromo.wikitext
 Template MainPageDraw SuptixPromoEndDate.wikitext
 Granblue Fantasy Versus Rising Rotation.wikitext
+run_character_summon_batch.bat
 .codex
+character_pages.txt
+batch-logs/
 __pycache__/

@@ -7,6 +7,7 @@ import mwparserfromhell
 import urllib.request
 import re
 import time
+import traceback
 from datetime import datetime
 import hashlib
 import asyncio
@@ -172,6 +173,7 @@ class DuplicateFamilyMatch:
     match_obj: re.Match
 
 class WikiImages(object):
+    PROXY_TEST_URL = 'https://prd-game-a-granbluefantasy.akamaized.net/'
     # Map of item upload types to CDN path segments
     ITEM_SINGLE_TYPE_PATHS = {
         "article": "article",
@@ -405,6 +407,7 @@ class WikiImages(object):
                 or LOCAL_IMAGE_PROBE_DELAY is not None
             )
         )
+        self._proxy_health_checked = False
 
     def _sleep_after_failed_probe(self):
         if self.delay and self.delay > 0:
@@ -413,6 +416,45 @@ class WikiImages(object):
     async def _async_sleep_after_failed_probe(self):
         if self.delay and self.delay > 0:
             await asyncio.sleep(self.delay)
+
+    def ensure_proxy_ready(self):
+        if not self._proxy_url:
+            raise RuntimeError(
+                'PROXY_URL is required for local CDN probing. Aborting before any direct requests are attempted.'
+            )
+        if self._proxy_health_checked:
+            return
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+        }
+        proxies = {"http": self._proxy_url, "https": self._proxy_url}
+
+        print(f'Verifying proxy-backed CDN access via {self.PROXY_TEST_URL}...')
+        try:
+            response = requests.get(
+                self.PROXY_TEST_URL,
+                headers=headers,
+                proxies=proxies,
+                timeout=15,
+                allow_redirects=True,
+                stream=True,
+            )
+        except requests.exceptions.RequestException as exc:
+            raise RuntimeError(
+                'Proxy preflight failed while connecting to the CDN through PROXY_URL. '
+                'Aborting before the batch can fall back to direct local traffic.'
+            ) from exc
+
+        if response.status_code == 407:
+            raise RuntimeError(
+                'Proxy preflight failed with HTTP 407 (proxy authentication required). '
+                'Check PROXY_URL credentials before running a local batch.'
+            )
+
+        print(f'Proxy preflight OK (CDN responded with HTTP {response.status_code}).')
+        self._proxy_health_checked = True
 
     def _item_variant_specs(self, item_type: str):
         """
@@ -442,6 +484,32 @@ class WikiImages(object):
                     time.sleep(wait_time)
                     continue
                 raise
+
+    def _can_move_page_to_target(self, source_name, target_name):
+        target_page = self.wiki.pages[target_name]
+        if not target_page.exists:
+            return True
+
+        if target_page.name.strip().lower() == source_name.strip().lower():
+            return True
+
+        print(
+            'Cannot move page "{0}" to "{1}" because the target title already exists.'.format(
+                source_name,
+                target_name,
+            )
+        )
+        return False
+
+    def _move_page_with_redirect_if_safe(self, source_page, target_name, reason):
+        if not self._can_move_page_to_target(source_page.name, target_name):
+            return False
+
+        backlinks = source_page.backlinks(filterredir='redirects')
+        print('Moving page "{0}" to "{1}" with redirect...'.format(source_page.name, target_name))
+        self._perform_wiki_action_with_retry(source_page.move, target_name, reason=reason)
+        self.investigate_backlinks(backlinks, source_page.name, target_name)
+        return True
 
     def _normalize_duplicate_family_part(self, value):
         return (value or '').strip().lower()
@@ -802,7 +870,6 @@ class WikiImages(object):
                 return file_name[5:]
 
             if prefer_requested_title:
-                backlinks = canonical_duplicate_page.backlinks(filterredir='redirects')
                 print(
                     'Page "{0}" is duplicate of "{1}" within family "{2}", '
                     'moving to preferred canonical title...'.format(
@@ -811,13 +878,13 @@ class WikiImages(object):
                         canonical_duplicate_match.rule.name
                     )
                 )
-                self._perform_wiki_action_with_retry(
-                    canonical_duplicate_page.move,
+                if self._move_page_with_redirect_if_safe(
+                    canonical_duplicate_page,
                     file_name,
                     reason='Batch upload file name',
-                )
-                self.investigate_backlinks(backlinks, canonical_duplicate_page.name, file_name)
-                return file_name[5:]
+                ):
+                    return file_name[5:]
+                return False
 
             print(
                 'Page "{0}" is duplicate of "{1}" within family "{2}", using stable canonical...'.format(
@@ -856,22 +923,26 @@ class WikiImages(object):
                         return dupe.name[5:]
 
             # move if single duplicate
-            backlinks = dupe.backlinks(filterredir='redirects')
-            print('Moving page "{0}" to "{1}" with redirect...'.format(dupe.name, file_name))
-            self._perform_wiki_action_with_retry(dupe.move, file_name, reason='Batch upload file name')
-            self.investigate_backlinks(backlinks, dupe.name, file_name)
-            return file_name[5:]
+            if self._move_page_with_redirect_if_safe(
+                dupe,
+                file_name,
+                reason='Batch upload file name',
+            ):
+                return file_name[5:]
+            return False
         else:
             # check related names and if any is a file move it to intended name
             if len(other_names) > 0:
                 for other_name in other_names:
                     page = self.wiki.pages["File:"+other_name]
                     if page.exists and not page.redirect:
-                        backlinks = page.backlinks(filterredir='redirects')
-                        print('Moving page "{0}" to "{1}" with redirect before upload...'.format(page.name, file_name))
-                        self._perform_wiki_action_with_retry(page.move, file_name, 'Batch upload file name (sha1 not found)')
-
-                        self.investigate_backlinks(backlinks, page.name, file_name)
+                        if self._move_page_with_redirect_if_safe(
+                            page,
+                            file_name,
+                            reason='Batch upload file name (sha1 not found)',
+                        ):
+                            return file_name[5:]
+                        return False
 
             # upload image
             print('Uploading "{0}"...'.format(file_name))
@@ -4698,6 +4769,7 @@ class WikiImages(object):
             images_uploaded = 0
             images_duplicate = 0
             images_failed = 0
+            processing_failures = []
             
             # Process tasks in original order to maintain consistency
             for task in download_tasks:
@@ -4727,6 +4799,13 @@ class WikiImages(object):
                         images_uploaded += 1
                     elif check_image_result == False:
                         images_failed += 1
+                        processing_failures.append(
+                            {
+                                "name": task['true_name'],
+                                "url": url,
+                                "reason": "check_image returned False",
+                            }
+                        )
                         print('Checking image {0} failed! Skipping...'.format(task['true_name']))
                         continue
                     else:
@@ -4750,6 +4829,12 @@ class WikiImages(object):
             print(f"  Images failed processing: {images_failed}")
             print(f"  Download failures: {failed}")
             print(f"  Total URLs checked: {total_urls_generated}")
+            if processing_failures:
+                print("  Processing failure details:")
+                for entry in processing_failures:
+                    print(
+                        f'    - {entry["name"]} | reason: {entry["reason"]} | url: {entry["url"]}'
+                    )
             
             if hasattr(self, '_status_callback'):
                 self._status_callback("completed", processed=images_processed, uploaded=images_uploaded, duplicates=images_duplicate, total_urls=total_urls_generated)
@@ -5091,7 +5176,16 @@ class WikiImages(object):
                     resume = False
                 else:
                     continue
-            self.check_character(page)
+            try:
+                self.check_character_full(page)
+            except Exception as exc:
+                print(
+                    f'BATCH_PAGE_ERROR mode=characters category="{category}" '
+                    f'page="{page.name}" rerun="python images.py character_full ""{page.name}""" '
+                    f'error="{exc}"'
+                )
+                traceback.print_exc()
+                continue
 
     def check_summons(self, category, resume_from=''):
         resume = len(resume_from) > 0
@@ -5102,7 +5196,16 @@ class WikiImages(object):
                     resume = False
                 else:
                     continue
-            self.check_summon(page)
+            try:
+                self.check_summon(page)
+            except Exception as exc:
+                print(
+                    f'BATCH_PAGE_ERROR mode=summons category="{category}" '
+                    f'page="{page.name}" rerun="python images.py summon ""{page.name}""" '
+                    f'error="{exc}"'
+                )
+                traceback.print_exc()
+                continue
 
     def check_weapons(self, category, resume_from=''):
         resume = len(resume_from) > 0
@@ -5939,6 +6042,28 @@ class WikiImages(object):
 
 def main():
     wi = WikiImages()
+    proxy_required_modes = {
+        'character',
+        'char',
+        'character_full',
+        'character_fs_skin',
+        'npc',
+        'skin',
+        'characters',
+        'chars',
+        'class',
+        'skill_icons',
+        'banner',
+        'status',
+        'item',
+        'singleitem',
+        'summon',
+        'summons',
+        'weapon',
+        'weapons',
+        'artifact',
+        'rucksack',
+    }
     #wi.weapon_images('Unsigned Kaneshige (Fire)')
 
     if len(sys.argv) < 2:
@@ -6023,10 +6148,14 @@ def main():
         return
 
     mode = sys.argv[1]
+    if mode in proxy_required_modes:
+        wi.ensure_proxy_ready()
     wi.delay = 1
 
     if (mode == 'character') or (mode == 'char'):
         wi.check_character(wi.wiki.pages[sys.argv[2]])
+    elif mode == 'character_full':
+        wi.check_character_full(wi.wiki.pages[sys.argv[2]])
     elif mode == 'character_fs_skin':
         wi.check_character_fs_skin(wi.wiki.pages[sys.argv[2]])
     elif mode == 'npc':
