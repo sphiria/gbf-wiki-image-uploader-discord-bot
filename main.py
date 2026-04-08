@@ -1366,6 +1366,10 @@ async def run_wiki_upload(
                 status["stage"] = "initializing"
                 
             wi = DryRunWikiImages() if DRY_RUN else WikiImages()
+            # Keep the Discord bot on its historical pacing. Local CLI runs use
+            # images.py env-driven safeguards, but the bot should stay at the
+            # established 5s delay so slash-command uploads do not become
+            # noticeably slower in normal operation.
             wi.delay = 5
             
             page = wi.wiki.pages[page_name]
