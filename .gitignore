@@ -9,5 +9,6 @@ Granblue Fantasy Versus Rising Rotation.wikitext
 run_character_summon_batch.bat
 .codex
 character_pages.txt
+test_images_duplicate_conflicts.py
 batch-logs/
 __pycache__/

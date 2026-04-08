@@ -511,6 +511,146 @@ class WikiImages(object):
         self.investigate_backlinks(backlinks, source_page.name, target_name)
         return True
 
+    def _resolve_existing_canonical_target_for_duplicate_family(
+        self,
+        requested_file_name,
+        existing_target_name,
+        source_duplicate_page,
+    ):
+        requested_match = self._match_duplicate_family(requested_file_name)
+        if requested_match is None:
+            return None
+
+        existing_target_page = self.wiki.pages[existing_target_name]
+        if not existing_target_page.exists:
+            return None
+
+        existing_target_match = self._match_duplicate_family(existing_target_name)
+        if existing_target_match is None:
+            return None
+
+        if existing_target_match.rule.name != requested_match.rule.name:
+            return None
+
+        if existing_target_match.family_signature != requested_match.family_signature:
+            return None
+
+        if existing_target_match.page_name.strip().lower() != requested_match.page_name.strip().lower():
+            return None
+
+        print(
+            'Legacy duplicate move conflict for "{0}" resolved via existing canonical '
+            'target "{1}" from source "{2}".'.format(
+                requested_file_name,
+                existing_target_name,
+                source_duplicate_page.name,
+            )
+        )
+        self.check_redirect(existing_target_page.name, requested_file_name)
+        return existing_target_match.page_name
+
+    def _move_duplicate_to_requested_title_or_resolve_existing_canonical(
+        self,
+        source_duplicate_page,
+        requested_file_name,
+        reason,
+    ):
+        if self._move_page_with_redirect_if_safe(
+            source_duplicate_page,
+            requested_file_name,
+            reason=reason,
+        ):
+            return requested_file_name[5:]
+
+        return self._resolve_existing_canonical_target_for_duplicate_family(
+            requested_file_name=requested_file_name,
+            existing_target_name=requested_file_name,
+            source_duplicate_page=source_duplicate_page,
+        )
+
+    def _extract_upload_result(self, response):
+        if not isinstance(response, dict):
+            return None
+
+        direct_result = response.get('result')
+        if direct_result is not None:
+            return direct_result
+
+        upload_data = response.get('upload')
+        if isinstance(upload_data, dict):
+            nested_result = upload_data.get('result')
+            if nested_result is not None:
+                return nested_result
+
+        return None
+
+    def _describe_upload_response(self, response):
+        if isinstance(response, dict):
+            upload_data = response.get('upload')
+            if isinstance(upload_data, dict):
+                error_data = upload_data.get('error')
+                warning_data = upload_data.get('warnings')
+                if error_data:
+                    return f"upload.error={error_data!r}"
+                if warning_data:
+                    return f"upload.warnings={warning_data!r}"
+            if response.get('error'):
+                return f"error={response.get('error')!r}"
+            if response.get('warnings'):
+                return f"warnings={response.get('warnings')!r}"
+
+        return repr(response)
+
+    def _upload_image(self, io, true_name, description_text=None, file_size=None):
+        upload_kwargs = {"filename": true_name, "ignore": True}
+        if description_text:
+            upload_kwargs["description"] = description_text
+        if description_text and description_text.startswith('[[Category:'):
+            upload_kwargs["description"] = UPLOAD_COMMENT
+
+        response = self.wiki.upload(io, **upload_kwargs)
+        result = self._extract_upload_result(response)
+        response_description = self._describe_upload_response(response)
+
+        if result is None:
+            print(
+                'Upload response for "{0}" did not include a top-level result '
+                '(size={1} bytes): {2}'.format(
+                    true_name,
+                    file_size if file_size is not None else 'unknown',
+                    response_description,
+                )
+            )
+            if isinstance(response, dict):
+                upload_data = response.get('upload')
+                if isinstance(upload_data, dict):
+                    if upload_data.get('error'):
+                        return False
+                    if upload_data.get('warnings'):
+                        return true_name
+                if response.get('error'):
+                    return False
+                if response.get('warnings'):
+                    return true_name
+            return False
+
+        print(result + ': ' + true_name.lower())
+        if result == 'Warning':
+            return true_name
+        if result == 'Success':
+            return True
+
+        print(
+            'Upload returned unexpected result "{0}" for "{1}" '
+            '(size={2} bytes): {3}'.format(
+                result,
+                true_name,
+                file_size if file_size is not None else 'unknown',
+                response_description,
+            )
+        )
+        return False
+
     def _normalize_duplicate_family_part(self, value):
         return (value or '').strip().lower()
 
@@ -878,12 +1018,13 @@ class WikiImages(object):
                         canonical_duplicate_match.rule.name
                     )
                 )
-                if self._move_page_with_redirect_if_safe(
+                resolved_name = self._move_duplicate_to_requested_title_or_resolve_existing_canonical(
                     canonical_duplicate_page,
                     file_name,
                     reason='Batch upload file name',
-                ):
-                    return file_name[5:]
+                )
+                if resolved_name:
+                    return resolved_name
                 return False
 
             print(
@@ -923,12 +1064,13 @@ class WikiImages(object):
                         return dupe.name[5:]
 
             # move if single duplicate
-            if self._move_page_with_redirect_if_safe(
+            resolved_name = self._move_duplicate_to_requested_title_or_resolve_existing_canonical(
                 dupe,
                 file_name,
                 reason='Batch upload file name',
-            ):
-                return file_name[5:]
+            )
+            if resolved_name:
+                return resolved_name
             return False
         else:
             # check related names and if any is a file move it to intended name
@@ -948,19 +1090,16 @@ class WikiImages(object):
             print('Uploading "{0}"...'.format(file_name))
             io.seek(0)
             try:
-                upload_kwargs = {"filename": true_name, "ignore": True}
-                if description_text:
-                    upload_kwargs["description"] = description_text
-                if description_text and description_text.startswith('[[Category:'):
-                    upload_kwargs["description"] = UPLOAD_COMMENT
-                response = self.wiki.upload(io, **upload_kwargs)
-                print(response['result'] + ': ' + name)
+                upload_result = self._upload_image(
+                    io,
+                    true_name,
+                    description_text=description_text,
+                    file_size=size,
+                )
             except Exception as e:
                 print(f'Upload failed for {file_name}: {e}')
                 return False
-            if response['result'] == 'Warning':
-                return False
-            return True
+            return upload_result
 
     def _find_image_duplicates_by_hash(self, sha1, size):
         """Return non-archived File: pages that match the given sha1/size."""
@@ -4961,8 +5100,24 @@ class WikiImages(object):
         wikicode = mwparserfromhell.parse(pagetext)
         templates = wikicode.filter_templates()
         def emit_status(stage, **kwargs):
-            if hasattr(self, '_status_callback'):
+            if hasattr(self, '_status_callback') and self._status_callback:
                 self._status_callback(stage, **kwargs)
+
+        def download_skin_asset(url):
+            nonlocal successful_downloads, download_failures, total_urls
+            total_urls += 1
+            success, sha1, size, io = self.get_image(url)
+            if success:
+                successful_downloads += 1
+            else:
+                download_failures += 1
+            emit_status(
+                'downloading',
+                successful=successful_downloads,
+                failed=download_failures,
+                total=total_urls
+            )
+            return success, sha1, size, io
 
         successful_downloads = 0
         download_failures = 0
@@ -5008,6 +5163,7 @@ class WikiImages(object):
                     versions = len(params[2])
                     version = 0
                     while version < versions:
+                        resolved_ext = params[0]
                         if section == 'wsp':
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -5049,32 +5205,31 @@ class WikiImages(object):
                                 params[0]
                             )
 
-                        total_urls += 1
-                        success, sha1, size, io = self.get_image(url)
-                        if success:
-                            successful_downloads += 1
-                        else:
-                            download_failures += 1
-                        emit_status(
-                            'downloading',
-                            successful=successful_downloads,
-                            failed=download_failures,
-                            total=total_urls
-                        )
+                        success, sha1, size, io = download_skin_asset(url)
+                        if (not success) and section == 'f' and params[0] == 'jpg':
+                            png_url = url[:-4] + '.png'
+                            print(
+                                'Retrying skin tall asset with png fallback: {0}'.format(
+                                    png_url
+                                )
+                            )
+                            success, sha1, size, io = download_skin_asset(png_url)
+                            if success:
+                                resolved_ext = 'png'
                         if success:
                             if section == 'f_skin':
                                 true_name = "{0}_f_skin_{1}{2}.{3}".format(
                                     asset_type.lower(),
                                     asset_id,
                                     params[2][version],
-                                    params[0]
+                                    resolved_ext
                                 )
                             elif section == 's_skin':
                                 true_name = "{0}_s_skin_{1}{2}.{3}".format(
                                     asset_type.lower(),
                                     asset_id,
                                     params[2][version],
-                                    params[0]
+                                    resolved_ext
                                 )
                             else:
                                 true_name = "{0} {1} {2}{3}.{4}".format(
@@ -5082,7 +5237,7 @@ class WikiImages(object):
                                     section,
                                     asset_id,
                                     params[2][version],
-                                    params[0]
+                                    resolved_ext
                                 )
                             other_names = []
 
@@ -5095,7 +5250,7 @@ class WikiImages(object):
                                             base_name,
                                             params[1],
                                             element_label,
-                                            params[0]
+                                            resolved_ext
                                         )
                                     )
                             else:
@@ -5105,7 +5260,7 @@ class WikiImages(object):
                                             asset_name,
                                             base_name,
                                             params[1],
-                                            params[0]
+                                            resolved_ext
                                         )
                                     )
                                 #  'skin':          ['png', '_skin',   ['_01'], ['A'], ['Outfit Images', 'Skin Outfit Images'  ]],
@@ -5116,7 +5271,7 @@ class WikiImages(object):
                                             base_name,
                                             params[1],
                                             (' ' if params[1] == '' else '') + params[3][version], # removed space from first quote
-                                            params[0]
+                                            resolved_ext
                                         )
                                     )
 
@@ -5555,6 +5710,7 @@ class WikiImages(object):
                 ),
                 lambda variant, gender, alias: [
                     f'leader_sd_{variant["id_num"]}_{gender}_01.png',
+                    f'{class_data["name"]}_{alias}_sprite.png',
                     *([f'{page.name} ({alias.title()}) SD.png'] if not variant['is_lvl50'] else []),
                     *([f'{page.name} ({alias.title()}) SD2.png'] if variant['is_lvl50'] else []),
                 ],
@@ -6240,4 +6396,5 @@ def main():
     elif mode == 'rucksack':
         wi.check_rucksack(wi.wiki.pages[sys.argv[2]])
 
-main()
+if __name__ == "__main__":
+    main()
