@@ -5710,7 +5710,8 @@ class WikiImages(object):
                 ),
                 lambda variant, gender, alias: [
                     f'leader_sd_{variant["id_num"]}_{gender}_01.png',
-                    f'{class_data["name"]}_{alias}_sprite.png',
+                    *([f'{class_data["name"]}_{alias}_sprite.png'] if not variant['is_lvl50'] else []),
+                    *([f'{class_data["name"]}_{alias}_sprite2.png'] if variant['is_lvl50'] else []),
                     *([f'{page.name} ({alias.title()}) SD.png'] if not variant['is_lvl50'] else []),
                     *([f'{page.name} ({alias.title()}) SD2.png'] if variant['is_lvl50'] else []),
                 ],
