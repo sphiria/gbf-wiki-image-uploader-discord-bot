@@ -139,6 +139,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `ALLOWED_ROLES` is runtime-configurable.
 - `IMAGE_PROBE_DELAY` is a supported runtime flag for slowing image probe/upload pacing in `images.py` across all environments.
 - `LOCAL_IMAGE_PROBE_DELAY` is a supported runtime flag for slowing image probe/upload pacing only when `PROXY_URL` is unset; this is preferred for local runs so the deployed bot keeps its normal pacing.
+- Discord bot upload commands in `main.py` intentionally override `WikiImages.delay` to `5` seconds for historical pacing. Keep that bot-side override unless there is an explicit decision to change slash-command throughput; local CLI safety throttles should be handled separately in `images.py`.
 - `ENABLE_EVENTUPLOAD` was temporary and has been removed. Do not reintroduce a feature gate for `/eventupload` unless explicitly requested.
 
 ## Event Upload Contract
