@@ -3839,6 +3839,21 @@ class WikiImages(object):
         }
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
 
+        asset_ids = self._extract_asset_ids_from_template(page, 'Character')
+        if not asset_ids:
+            return
+
+        balloon_tasks = self._build_asset_download_tasks(
+            'npc',
+            page.name,
+            asset_ids,
+            self._get_character_balloon_asset_specs(),
+        )
+        if not balloon_tasks:
+            return
+
+        self._process_download_tasks_sequential(balloon_tasks, 'Character balloon')
+
     def check_character_full(self, page):
         self.check_character(page)
         self.check_character_fs_skin(page)
@@ -4089,6 +4104,29 @@ class WikiImages(object):
             'm': ['jpg', '_icon', ['_01'], [''], ['NPC Images', 'Icon NPC Images']],
         }
         return self._build_asset_specs_from_paths(raw_paths)
+
+    def _get_character_balloon_asset_specs(self):
+        return [
+            AssetSpec(
+                section='balloon_s',
+                extension='png',
+                filename_suffix='',
+                variants=(AssetVariant('_01', 'A'),),
+                categories=('Character Images', 'Balloon Character Images'),
+                section_label='balloon_s',
+                url_builder=lambda asset_type, asset_id, variant, spec: (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/gacha/assets/balloon_s/{asset_id}{variant.suffix}.png'
+                ),
+                canonical_name_builder=lambda asset_type, asset_id, variant, spec: (
+                    f'balloon_s_{asset_id}_01.png'
+                ),
+                other_names_builder=lambda asset_name, asset_type, canonical_name, variant, variant_count, spec: [
+                    f'{asset_name}_balloon.png',
+                    f'{asset_name}_balloonA.png',
+                ],
+            )
+        ]
 
     def _get_summon_asset_specs(self):
         raw_paths = {
