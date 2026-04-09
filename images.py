@@ -1235,6 +1235,9 @@ class WikiImages(object):
     def check_redirect(self, redirect_to, redirect_from):
         redirect_from = redirect_from.replace("_", " ")
         redirect_to = redirect_to.replace("_", " ")
+        if redirect_from.strip().lower() == redirect_to.strip().lower():
+            print('Skipping self-redirect for "{0}".'.format(redirect_from))
+            return False
         page = self.wiki.pages[redirect_from]
         if page.exists:
             page_text = self.db.pagetext(self.wiki, page.name, page.revision)
