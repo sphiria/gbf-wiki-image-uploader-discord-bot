@@ -493,6 +493,29 @@ class WikiImages(object):
         if target_page.name.strip().lower() == source_name.strip().lower():
             return True
 
+        target_text = ''
+        if getattr(target_page, 'revision', None):
+            target_text = self.db.pagetext(self.wiki, target_page.name, target_page.revision)
+        if not target_text:
+            try:
+                target_text = target_page.text()
+            except Exception:
+                target_text = ''
+
+        target_is_redirect = (
+            getattr(target_page, 'redirect', False)
+            or (target_text or '').lstrip().upper().startswith('#REDIRECT [[')
+        )
+
+        if target_is_redirect:
+            print(
+                'Allowing move of "{0}" to redirect target "{1}".'.format(
+                    source_name,
+                    target_name,
+                )
+            )
+            return True
+
         print(
             'Cannot move page "{0}" to "{1}" because the target title already exists.'.format(
                 source_name,
@@ -507,7 +530,37 @@ class WikiImages(object):
 
         backlinks = source_page.backlinks(filterredir='redirects')
         print('Moving page "{0}" to "{1}" with redirect...'.format(source_page.name, target_name))
-        self._perform_wiki_action_with_retry(source_page.move, target_name, reason=reason)
+        try:
+            self._perform_wiki_action_with_retry(source_page.move, target_name, reason=reason)
+        except APIError as api_error:
+            if api_error.code != 'articleexists':
+                raise
+
+            target_page = self.wiki.pages[target_name]
+            target_text = ''
+            if target_page.exists:
+                if getattr(target_page, 'revision', None):
+                    target_text = self.db.pagetext(self.wiki, target_page.name, target_page.revision)
+                if not target_text:
+                    try:
+                        target_text = target_page.text()
+                    except Exception:
+                        target_text = ''
+
+            if (target_text or '').lstrip().upper().startswith('#REDIRECT [['):
+                print(
+                    'Deleting redirect-only target "{0}" so move from "{1}" can be retried.'.format(
+                        target_name,
+                        source_page.name,
+                    )
+                )
+                self._perform_wiki_action_with_retry(
+                    target_page.delete,
+                    reason='Removing redirect-only file page so canonical file can be moved into place',
+                )
+                self._perform_wiki_action_with_retry(source_page.move, target_name, reason=reason)
+            else:
+                raise
         self.investigate_backlinks(backlinks, source_page.name, target_name)
         return True
 
@@ -524,6 +577,67 @@ class WikiImages(object):
         existing_target_page = self.wiki.pages[existing_target_name]
         if not existing_target_page.exists:
             return None
+
+        source_match = self._match_duplicate_family(source_duplicate_page.name)
+        existing_target_text = ''
+        if getattr(existing_target_page, 'revision', None):
+            existing_target_text = self.db.pagetext(
+                self.wiki,
+                existing_target_page.name,
+                existing_target_page.revision,
+            )
+        if not existing_target_text:
+            try:
+                existing_target_text = existing_target_page.text()
+            except Exception:
+                existing_target_text = ''
+        normalized_target_text = (existing_target_text or '').lstrip().upper()
+        existing_target_is_redirect = (
+            getattr(existing_target_page, 'redirect', False)
+            or normalized_target_text.startswith('#REDIRECT [[')
+        )
+
+        if existing_target_is_redirect:
+            if (
+                source_match is not None
+                and source_match.rule.name == requested_match.rule.name
+                and source_match.family_signature == requested_match.family_signature
+                and source_duplicate_page.name.strip().lower() != requested_file_name.strip().lower()
+            ):
+                print(
+                    'Existing target "{0}" is already a redirect; using surviving duplicate '
+                    '"{1}" as canonical for "{2}".'.format(
+                        existing_target_name,
+                        source_duplicate_page.name,
+                        requested_file_name,
+                    )
+                )
+                self.check_redirect(source_duplicate_page.name, requested_file_name)
+                return source_match.page_name
+
+        if (
+            source_match is not None
+            and source_match.rule.name == requested_match.rule.name
+            and source_match.family_signature == requested_match.family_signature
+            and source_duplicate_page.name.strip().lower() != requested_file_name.strip().lower()
+        ):
+            try:
+                existing_target_image = self.wiki.images[existing_target_name[5:]]
+                existing_target_has_file = bool(getattr(existing_target_image, 'exists', False))
+            except Exception:
+                existing_target_has_file = False
+
+            if not existing_target_has_file:
+                print(
+                    'Existing target "{0}" has no backing file; using surviving duplicate '
+                    '"{1}" as canonical for "{2}".'.format(
+                        existing_target_name,
+                        source_duplicate_page.name,
+                        requested_file_name,
+                    )
+                )
+                self.check_redirect(source_duplicate_page.name, requested_file_name)
+                return source_match.page_name
 
         existing_target_match = self._match_duplicate_family(existing_target_name)
         if existing_target_match is None:
@@ -1008,6 +1122,23 @@ class WikiImages(object):
             canonical_name = canonical_duplicate_match.page_name
             if canonical_duplicate_page.page_title.strip().lower() == true_name.replace("_", " ").lower():
                 return file_name[5:]
+
+            requested_page = self.wiki.pages[file_name]
+            if (
+                prefer_requested_title
+                and getattr(requested_page, 'exists', False)
+                and getattr(requested_page, 'redirect', False)
+                and canonical_duplicate_page.name.strip().lower() != file_name.strip().lower()
+            ):
+                print(
+                    'Requested canonical "{0}" is currently a redirect; using existing '
+                    'duplicate "{1}" as canonical target.'.format(
+                        file_name,
+                        canonical_duplicate_page.name,
+                    )
+                )
+                self.check_redirect(canonical_duplicate_page.name, file_name)
+                return canonical_duplicate_page.name[5:]
 
             if prefer_requested_title:
                 print(
