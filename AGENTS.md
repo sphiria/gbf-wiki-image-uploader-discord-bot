@@ -25,6 +25,13 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `images.py` now uses a centralized duplicate-family registry inside `check_image()` for supported ID-based canonical filenames.
 - For supported families, duplicate binaries should not be re-uploaded and should not trigger repeated canonical file moves on reruns.
 - Supported duplicate resolution should prefer a stable canonical file and redirect later duplicate canonical titles to it.
+- Any deletion behavior in duplicate repair flows must stay narrow and defensive.
+- Deletions are only acceptable when all of the following are true:
+  - the target is a `File:` page blocking a canonical move
+  - the target page is confirmed to be redirect-only wikitext
+  - the deletion is only being used to clear the redirect shell so an existing real file can be moved into the canonical title
+- Do not broaden deletion logic into general duplicate cleanup, page replacement, or non-redirect page removal.
+- If a future change needs broader deletion behavior, require an explicit product decision and document the new scope here.
 - Canonical winner rule:
   - numeric lowest ID token when comparable numerically
   - lexical lowest normalized ID token otherwise
