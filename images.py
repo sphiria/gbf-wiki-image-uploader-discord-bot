@@ -5148,7 +5148,15 @@ class WikiImages(object):
                     )
             
             if hasattr(self, '_status_callback'):
-                self._status_callback("completed", processed=images_processed, uploaded=images_uploaded, duplicates=images_duplicate, total_urls=total_urls_generated)
+                self._status_callback(
+                    "completed",
+                    successful=successful,
+                    processed=images_processed,
+                    uploaded=images_uploaded,
+                    duplicates=images_duplicate,
+                    failed=failed,
+                    total_urls=total_urls_generated,
+                )
 
 
     def check_sp_rucksack_asset(self, page, asset_type, asset_template, paths, check_inherit=False):

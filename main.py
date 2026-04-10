@@ -402,9 +402,38 @@ async def edit_or_followup_long_message(
 ) -> None:
     """Edit the original message, then send follow-ups if content exceeds 2000 chars."""
     chunks = chunk_text_for_discord(content, limit=2000)
-    await msg.edit(content=chunks[0] if chunks else "")
+    msg = await edit_public_message(msg, chunks[0] if chunks else "")
     for chunk in chunks[1:]:
         await msg.channel.send(content=chunk)
+
+async def get_persistent_response_message(interaction: discord.Interaction) -> discord.Message:
+    """Return a normal channel message when possible so edits survive interaction token expiry."""
+    response_message = await interaction.original_response()
+    channel = interaction.channel
+    if channel is None:
+        return response_message
+
+    try:
+        return await channel.fetch_message(response_message.id)
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        return response_message
+
+async def edit_public_message(msg: discord.Message, content: str) -> discord.Message:
+    """
+    Edit a public bot message.
+    Falls back to a channel-fetched message if the interaction-backed message can no longer edit.
+    """
+    try:
+        await msg.edit(content=content)
+        return msg
+    except (discord.NotFound, discord.HTTPException):
+        channel = getattr(msg, "channel", None)
+        if channel is None:
+            raise
+
+        refreshed = await channel.fetch_message(msg.id)
+        await refreshed.edit(content=content)
+        return refreshed
 
 async def edit_or_followup_long_message_ephemeral(
     msg: discord.Message, interaction: discord.Interaction, content: str
@@ -1890,7 +1919,7 @@ async def upload(
         await interaction.response.send_message(
             f"{dry_run_prefix}Upload started for `{display_target}` ({page_type.value}). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -1899,6 +1928,7 @@ async def upload(
         
         # define updater function here
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -1917,7 +1947,7 @@ async def upload(
                 else:
                     content = f"{dry_run_prefix}Upload for `{display_target}` ({page_type.value}) still running... ({elapsed}s elapsed)"
                 
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         # start the updater task
         updater_task = asyncio.create_task(progress_updater())
@@ -1951,9 +1981,9 @@ async def upload(
             summary += f"• Download failures: {failed}\n"
             summary += f"• Total URLs checked: {total_checked}"
             
-            await msg.edit(content=summary)
+            msg = await edit_public_message(msg, summary)
         else:
-            await msg.edit(content=f"{dry_run_prefix}Upload failed for `{display_target}` ({page_type.value}) in {elapsed}s!")
+            msg = await edit_public_message(msg, f"{dry_run_prefix}Upload failed for `{display_target}` ({page_type.value}) in {elapsed}s!")
             # Show error details in Discord if there were errors
             if stderr.strip():
                 error_preview = stderr.strip()[:500]  # First 500 chars
@@ -1961,7 +1991,7 @@ async def upload(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @bot.tree.command(
@@ -2022,7 +2052,7 @@ async def statusupload(
         await interaction.response.send_message(
             f"{dry_run_prefix}Status upload started for `{cleaned_status_id}`{range_text}. This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -2037,6 +2067,7 @@ async def statusupload(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -2065,7 +2096,7 @@ async def statusupload(
                         f"is {stage} ({elapsed}s elapsed)"
                     )
 
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_status_upload(cleaned_status_id, max_index_value, status_info)
@@ -2098,7 +2129,8 @@ async def statusupload(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(
+            msg = await edit_public_message(
+                msg,
                 content=(
                     f"{dry_run_prefix}Status upload failed for `{cleaned_status_id}` in {elapsed}s!"
                 )
@@ -2109,7 +2141,7 @@ async def statusupload(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @bot.tree.command(
@@ -2168,7 +2200,7 @@ async def bannerupload(
             f"{dry_run_prefix}Banner upload started for `{cleaned_banner_id}` "
             f"(up to index {max_index_value}). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -2183,6 +2215,7 @@ async def bannerupload(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -2210,7 +2243,7 @@ async def bannerupload(
                         f"is {stage} ({elapsed}s elapsed)"
                     )
 
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_banner_upload(
@@ -2270,7 +2303,8 @@ async def bannerupload(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(
+            msg = await edit_public_message(
+                msg,
                 content=f"{dry_run_prefix}Banner upload failed for `{cleaned_banner_id}` in {elapsed}s!"
             )
             if stderr.strip():
@@ -2279,7 +2313,7 @@ async def bannerupload(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @bot.tree.command(
@@ -2429,7 +2463,7 @@ async def drawupdate(
             f"{dry_run_prefix}Draw update started for mode `{mode_value}` "
             f"(left: `{cleaned_left_banner}`, element_start: `{element_start_value}`). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -2441,6 +2475,7 @@ async def drawupdate(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -2464,7 +2499,7 @@ async def drawupdate(
                     content = (
                         f"{dry_run_prefix}Draw update is {stage} ({elapsed}s elapsed)"
                     )
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_draw_update(
@@ -2532,14 +2567,14 @@ async def drawupdate(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(content=f"{dry_run_prefix}Draw update failed in {elapsed}s.")
+            msg = await edit_public_message(msg, f"{dry_run_prefix}Draw update failed in {elapsed}s.")
             if stderr.strip():
                 error_preview = stderr.strip()[:500]
                 await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @drawupdate.autocomplete("end_time")
@@ -2639,7 +2674,7 @@ async def promoupdate(
             f"{dry_run_prefix}Promo update started for `{promo_type_value}` "
             f"using `{cleaned_promo_id}`. This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -2650,6 +2685,7 @@ async def promoupdate(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -2674,7 +2710,7 @@ async def promoupdate(
                     content = (
                         f"{dry_run_prefix}Promo update is {stage} ({elapsed}s elapsed)"
                     )
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_promo_update(
@@ -2717,7 +2753,8 @@ async def promoupdate(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(
+            msg = await edit_public_message(
+                msg,
                 content=f"{dry_run_prefix}Promo update failed for `{promo_type_value}` in {elapsed}s."
             )
             if stderr.strip():
@@ -2726,7 +2763,7 @@ async def promoupdate(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @promoupdate.autocomplete("end_time")
@@ -2831,7 +2868,7 @@ async def rateup(
             f"{dry_run_prefix}Rate-up update started "
             f"(rateups: `{len(rateup_names)}`, sparkable: `{len(sparkable_names)}`). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -2843,6 +2880,7 @@ async def rateup(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -2861,7 +2899,7 @@ async def rateup(
                     content = (
                         f"{dry_run_prefix}Rate-up update is {stage} ({elapsed}s elapsed)"
                     )
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_rateup_update(
@@ -2897,14 +2935,14 @@ async def rateup(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(content=f"{dry_run_prefix}Rate-up update failed in {elapsed}s.")
+            msg = await edit_public_message(msg, f"{dry_run_prefix}Rate-up update failed in {elapsed}s.")
             if stderr.strip():
                 error_preview = stderr.strip()[:500]
                 await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @rateup.autocomplete("end_time")
@@ -3060,7 +3098,7 @@ async def risingrotation(
         await interaction.response.send_message(
             f"{dry_run_prefix}GBVSR rotation update started for `{RISING_ROTATION_PAGE}`. This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -3075,6 +3113,7 @@ async def risingrotation(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -3098,7 +3137,7 @@ async def risingrotation(
                     content = (
                         f"{dry_run_prefix}GBVSR rotation update is {stage} ({elapsed}s elapsed)"
                     )
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_rising_rotation_update(
@@ -3147,14 +3186,14 @@ async def risingrotation(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(content=f"{dry_run_prefix}GBVSR rotation update failed in {elapsed}s.")
+            msg = await edit_public_message(msg, f"{dry_run_prefix}GBVSR rotation update failed in {elapsed}s.")
             if stderr.strip():
                 error_preview = stderr.strip()[:500]
                 await interaction.followup.send(f"Error details:\n```\n{error_preview}\n```")
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @risingrotation.autocomplete("c1")
@@ -3351,7 +3390,7 @@ async def itemupload(
             f"{dry_run_prefix}Single-item upload started for `{cleaned_name}` "
             f"(type: `{item_type_value}`, ID: `{cleaned_id}`). This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -3359,6 +3398,7 @@ async def itemupload(
         status = {"stage": "starting", "details": "", "item_type": item_type_value}
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -3382,7 +3422,7 @@ async def itemupload(
                         f"is running... ({elapsed}s elapsed)"
                     )
 
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_item_upload(item_type_value, cleaned_id, cleaned_name, status)
@@ -3424,7 +3464,8 @@ async def itemupload(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(
+            msg = await edit_public_message(
+                msg,
                 content=(
                     f"{dry_run_prefix}Item upload failed for `{cleaned_name}` "
                     f"(type: `{item_type_value}`, ID: `{cleaned_id}`) in {elapsed}s!"
@@ -3436,7 +3477,7 @@ async def itemupload(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 
@@ -3524,7 +3565,7 @@ async def eventupload(
             f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`, max index: `{max_index}`). "
             "This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -3536,6 +3577,7 @@ async def eventupload(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -3559,7 +3601,7 @@ async def eventupload(
                         f"is running... ({elapsed}s elapsed)"
                     )
 
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_event_upload(
@@ -3638,7 +3680,8 @@ async def eventupload(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(
+            msg = await edit_public_message(
+                msg,
                 content=(
                     f"{dry_run_prefix}Event upload failed for `{cleaned_event_name}` "
                     f"(event id: `{cleaned_event_id}`, asset type: `{asset_type_value}`) in {elapsed}s!"
@@ -3650,7 +3693,7 @@ async def eventupload(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 @itemupload.autocomplete("item_type")
@@ -3718,7 +3761,7 @@ async def enemyupload(
         await interaction.response.send_message(
             f"{dry_run_prefix}Enemy upload started for id `{cleaned_enemy_id}`. This may take a while..."
         )
-        msg = await interaction.original_response()
+        msg = await get_persistent_response_message(interaction)
 
     try:
         start_time = time.time()
@@ -3729,6 +3772,7 @@ async def enemyupload(
         }
 
         async def progress_updater():
+            nonlocal msg
             while True:
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
@@ -3750,7 +3794,7 @@ async def enemyupload(
                         f"is running... ({elapsed}s elapsed)"
                     )
 
-                await msg.edit(content=content)
+                msg = await edit_public_message(msg, content)
 
         updater_task = asyncio.create_task(progress_updater())
         return_code, stdout, stderr = await run_enemy_upload(cleaned_enemy_id, status)
@@ -3803,7 +3847,8 @@ async def enemyupload(
 
             await edit_or_followup_long_message(msg, interaction, "\n".join(summary_lines))
         else:
-            await msg.edit(
+            msg = await edit_public_message(
+                msg,
                 content=(
                     f"{dry_run_prefix}Enemy upload failed for `{cleaned_enemy_id}` "
                     f"in {elapsed}s!"
@@ -3815,7 +3860,7 @@ async def enemyupload(
 
     except Exception as e:
         elapsed = int(time.time() - start_time)
-        await msg.edit(content=f"Error while running script after {elapsed}s:\n```{e}```")
+        msg = await edit_public_message(msg, f"Error while running script after {elapsed}s:\n```{e}```")
 
 
 # --- START BOT ---
