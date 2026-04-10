@@ -3839,21 +3839,6 @@ class WikiImages(object):
         }
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
 
-        asset_ids = self._extract_asset_ids_from_template(page, 'Character')
-        if not asset_ids:
-            return
-
-        balloon_tasks = self._build_asset_download_tasks(
-            'npc',
-            page.name,
-            asset_ids,
-            self._get_character_balloon_asset_specs(),
-        )
-        if not balloon_tasks:
-            return
-
-        self._process_download_tasks_sequential(balloon_tasks, 'Character balloon')
-
     def check_character_full(self, page):
         self.check_character(page)
         self.check_character_fs_skin(page)
@@ -4978,6 +4963,16 @@ class WikiImages(object):
                             'categories': params[4],
                         })
                         total_urls_generated += 1
+
+            if asset_template == 'Character' and asset_type == 'npc' and asset_ids:
+                balloon_tasks = self._build_asset_download_tasks(
+                    asset_type,
+                    asset_name,
+                    asset_ids,
+                    self._get_character_balloon_asset_specs(),
+                )
+                download_tasks.extend(balloon_tasks)
+                total_urls_generated += len(balloon_tasks)
         
         # Download all images concurrently
         if download_tasks:
