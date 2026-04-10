@@ -1966,7 +1966,7 @@ async def upload(
         if return_code == 0:
             # Create summary from final status
             downloaded = status.get("successful", 0)
-            processed = status.get("processed", 0) 
+            processed = status.get("processed", 0)
             uploaded = status.get("uploaded", 0)
             duplicates = status.get("duplicates", 0)
             failed = status.get("failed", 0)
