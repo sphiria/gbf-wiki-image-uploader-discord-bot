@@ -293,8 +293,8 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='profile_room_sticker',
             pattern=re.compile(
-                r'^File:(?P<prefix>Memorial_frame_sticker|Thumbnail_sticker)_'
-                r'(?P<id>[A-Za-z0-9_]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
+                r'^File:(?P<prefix>Memorial[ _]frame[ _]sticker|Thumbnail[ _]sticker)[ _]'
+                r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
             signature_parts=('prefix', 'ext'),
@@ -799,6 +799,8 @@ class WikiImages(object):
 
     def _normalize_duplicate_signature_value(self, rule, match, part):
         value = self._normalize_duplicate_family_part(match.group(part))
+        if rule.name == 'profile_room_sticker':
+            return value.replace(' ', '_')
         if part == 'suffix' and self._is_npc_duplicate_family(rule, match):
             return self._normalize_npc_duplicate_suffix(value)
         return value
@@ -807,7 +809,7 @@ class WikiImages(object):
         if match.rule.name == 'profile_room_sticker':
             locale = self._normalize_duplicate_family_part(match.match_obj.groupdict().get('locale'))
             locale_penalty = 1 if locale == 'jp' else 0
-            return (locale_penalty, self._normalize_duplicate_family_part(match.page_name))
+            return (locale_penalty, self._normalize_duplicate_family_part(match.page_name).replace(' ', '_'))
 
         if not self._is_npc_duplicate_family(match.rule, match.match_obj):
             return (0, self._normalize_duplicate_family_part(match.page_name))
@@ -850,7 +852,7 @@ class WikiImages(object):
         return None
 
     def _duplicate_id_sort_key(self, id_token):
-        normalized = self._normalize_duplicate_family_part(id_token)
+        normalized = self._normalize_duplicate_family_part(id_token).replace(' ', '_')
         if normalized.isdigit():
             return (0, int(normalized), normalized)
         return (1, normalized)
