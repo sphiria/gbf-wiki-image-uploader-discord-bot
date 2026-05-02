@@ -570,10 +570,14 @@ Most changes should preserve existing command contracts, wiki filename conventio
 ## Profile Room Upload Contract
 
 - `/imgupload page_type:profile_stickers` uploads Profile Room sticker assets from `{{ProfileRoom/Sticker/Row}}` templates on the supplied page.
-- Required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- `/imgupload page_type:profile_backgrounds` uploads Profile Room background assets from `{{ProfileRoom/Background/Row}}` templates on the supplied page.
+- Sticker required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- Background required row params: `id`, `image_key`, `thumbnail_key`.
 - All Profile Room uploads should add `[[Category:Profile Room Images]]`.
 - Sticker uploads should also add `[[Category:Profile Room Sticker Images]]`.
+- Background uploads should also add `[[Category:Profile Room Background Images]]`.
 - Sticker EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP sticker pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Background EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP background pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - For each row, upload four files:
   - EN sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
   - EN sticker canonical: `Memorial_frame_sticker_{image_key}.png`
@@ -587,3 +591,16 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg`
   - JP thumbnail canonical: `Thumbnail_sticker_{thumbnail_key}jp.jpg`
   - JP thumbnail redirect: `{name}_(Profile JP)_square.jpg`
+- For each background row, upload four files:
+  - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png`
+  - EN thumbnail canonical: `thumbnail_bg_{thumbnail_key}.png`
+  - EN thumbnail redirect: none
+  - EN background URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/bg/{image_key}.jpg`
+  - EN background canonical: `Profile_card_bg_{image_key}.jpg`
+  - EN background redirect: none
+  - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png`
+  - JP thumbnail canonical: `thumbnail_bg_{thumbnail_key}jp.png`
+  - JP thumbnail redirect: none
+  - JP background URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/bg/{image_key}.jpg`
+  - JP background canonical: `Profile_card_bg_{image_key}jp.jpg`
+  - JP background redirect: none

@@ -300,6 +300,15 @@ class WikiImages(object):
             signature_parts=('prefix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='profile_room_background',
+            pattern=re.compile(
+                r'^File:(?P<prefix>Profile[ _]card[ _]bg|thumbnail[ _]bg)[ _]'
+                r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='event_banner',
             pattern=re.compile(
                 r'^File:(?P<id>[A-Za-z0-9_]+)_banner_event_(?P<banner_kind>notice|start)_'
@@ -799,14 +808,14 @@ class WikiImages(object):
 
     def _normalize_duplicate_signature_value(self, rule, match, part):
         value = self._normalize_duplicate_family_part(match.group(part))
-        if rule.name == 'profile_room_sticker':
+        if rule.name in ('profile_room_sticker', 'profile_room_background'):
             return value.replace(' ', '_')
         if part == 'suffix' and self._is_npc_duplicate_family(rule, match):
             return self._normalize_npc_duplicate_suffix(value)
         return value
 
     def _duplicate_canonical_preference_key(self, match):
-        if match.rule.name == 'profile_room_sticker':
+        if match.rule.name in ('profile_room_sticker', 'profile_room_background'):
             locale = self._normalize_duplicate_family_part(match.match_obj.groupdict().get('locale'))
             locale_penalty = 1 if locale == 'jp' else 0
             return (locale_penalty, self._normalize_duplicate_family_part(match.page_name).replace(' ', '_'))
@@ -1142,7 +1151,7 @@ class WikiImages(object):
             requested_page = self.wiki.pages[file_name]
             if (
                 prefer_requested_title
-                and canonical_duplicate_match.rule.name != 'profile_room_sticker'
+                and canonical_duplicate_match.rule.name not in ('profile_room_sticker', 'profile_room_background')
                 and getattr(requested_page, 'exists', False)
                 and getattr(requested_page, 'redirect', False)
                 and canonical_duplicate_page.name.strip().lower() != file_name.strip().lower()
@@ -1761,6 +1770,7 @@ class WikiImages(object):
 
     PROFILE_ROOM_CATEGORY = "Profile Room Images"
     PROFILE_STICKER_CATEGORY = "Profile Room Sticker Images"
+    PROFILE_BACKGROUND_CATEGORY = "Profile Room Background Images"
 
     PROFILE_STICKER_ASSETS = (
         {
@@ -1793,28 +1803,60 @@ class WikiImages(object):
         },
     )
 
-    def _extract_profile_room_sticker_rows(self, page):
+    PROFILE_BACKGROUND_ASSETS = (
+        {
+            "label": "EN background thumbnail",
+            "url_prefix": "assets_en",
+            "path": "profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png",
+            "canonical": "thumbnail_bg_{thumbnail_key}.png",
+            "redirect": None,
+        },
+        {
+            "label": "EN background",
+            "url_prefix": "assets_en",
+            "path": "profile_room/profile_card/bg/{image_key}.jpg",
+            "canonical": "Profile_card_bg_{image_key}.jpg",
+            "redirect": None,
+        },
+        {
+            "label": "JP background thumbnail",
+            "url_prefix": "assets",
+            "path": "profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png",
+            "canonical": "thumbnail_bg_{thumbnail_key}jp.png",
+            "redirect": None,
+        },
+        {
+            "label": "JP background",
+            "url_prefix": "assets",
+            "path": "profile_room/profile_card/bg/{image_key}.jpg",
+            "canonical": "Profile_card_bg_{image_key}jp.jpg",
+            "redirect": None,
+        },
+    )
+
+    def _extract_profile_room_rows(self, page, template_name, required_params, label):
         pagetext = page.text()
         wikicode = mwparserfromhell.parse(pagetext)
         rows = []
         seen_ids = set()
 
         for template in wikicode.filter_templates():
-            template_name = template.name.strip().lower().replace(' ', '_')
-            if template_name != 'profileroom/sticker/row':
+            current_template_name = template.name.strip().lower().replace(' ', '_')
+            if current_template_name != template_name:
                 continue
 
             row = {}
             for param in template.params:
                 param_name = param.name.strip()
                 value = str(param.value).strip()
-                if param_name in {'id', 'name', 'image_key', 'thumbnail_key'}:
+                if param_name in required_params:
                     row[param_name] = mwparserfromhell.parse(value).strip_code().strip()
 
-            missing = [key for key in ('id', 'name', 'image_key', 'thumbnail_key') if not row.get(key)]
+            missing = [key for key in required_params if not row.get(key)]
             if missing:
                 print(
-                    'Skipping ProfileRoom/Sticker/Row with missing {0}: {1}'.format(
+                    'Skipping {0} with missing {1}: {2}'.format(
+                        label,
                         ', '.join(missing),
                         row or '(no parsed params)',
                     )
@@ -1822,7 +1864,7 @@ class WikiImages(object):
                 continue
 
             if row['id'] in seen_ids:
-                print(f'Skipping duplicate ProfileRoom sticker id "{row["id"]}".')
+                print(f'Skipping duplicate {label} id "{row["id"]}".')
                 continue
 
             seen_ids.add(row['id'])
@@ -1830,12 +1872,28 @@ class WikiImages(object):
 
         return rows
 
-    def _build_profile_sticker_asset_tasks(self, rows):
+    def _extract_profile_room_sticker_rows(self, page):
+        return self._extract_profile_room_rows(
+            page,
+            'profileroom/sticker/row',
+            {'id', 'name', 'image_key', 'thumbnail_key'},
+            'ProfileRoom/Sticker/Row',
+        )
+
+    def _extract_profile_room_background_rows(self, page):
+        return self._extract_profile_room_rows(
+            page,
+            'profileroom/background/row',
+            {'id', 'image_key', 'thumbnail_key'},
+            'ProfileRoom/Background/Row',
+        )
+
+    def _build_profile_asset_tasks(self, rows, asset_specs, categories):
         tasks = []
-        categories = [self.PROFILE_ROOM_CATEGORY, self.PROFILE_STICKER_CATEGORY]
         for row in rows:
-            for spec in self.PROFILE_STICKER_ASSETS:
+            for spec in asset_specs:
                 path = spec['path'].format(**row)
+                redirect = spec.get('redirect')
                 tasks.append({
                     'label': spec['label'],
                     'row': row,
@@ -1844,28 +1902,41 @@ class WikiImages(object):
                         f"{spec['url_prefix']}/img/sp/assets/{path}"
                     ),
                     'canonical': spec['canonical'].format(**row),
-                    'redirects': [spec['redirect'].format(**row)],
+                    'redirects': [redirect.format(**row)] if redirect else [],
                     'categories': categories,
                 })
         return tasks
+
+    def _build_profile_sticker_asset_tasks(self, rows):
+        return self._build_profile_asset_tasks(
+            rows,
+            self.PROFILE_STICKER_ASSETS,
+            [self.PROFILE_ROOM_CATEGORY, self.PROFILE_STICKER_CATEGORY],
+        )
+
+    def _build_profile_background_asset_tasks(self, rows):
+        return self._build_profile_asset_tasks(
+            rows,
+            self.PROFILE_BACKGROUND_ASSETS,
+            [self.PROFILE_ROOM_CATEGORY, self.PROFILE_BACKGROUND_CATEGORY],
+        )
 
     def check_profile(self, page, profile_type='stickers'):
         """Dispatch Profile Room uploads by collection subtype."""
         if profile_type == 'stickers':
             return self.check_profile_stickers(page)
+        if profile_type == 'backgrounds':
+            return self.check_profile_backgrounds(page)
         raise ValueError(f"Unknown Profile Room upload type: {profile_type}")
 
-    def check_profile_stickers(self, page):
-        """Upload Profile Room sticker images from {{ProfileRoom/Sticker/Row}} templates."""
-        print(f'Processing Profile Room sticker templates on page "{page.name}"...')
-        rows = self._extract_profile_room_sticker_rows(page)
+    def _check_profile_assets(self, page, profile_label, template_label, rows, tasks):
+        print(f'Processing Profile Room {profile_label} templates on page "{page.name}"...')
         if not rows:
-            print('No valid {{ProfileRoom/Sticker/Row}} templates found.')
+            print(f'No valid {{{{{template_label}}}}} templates found.')
             if hasattr(self, '_status_callback'):
                 self._status_callback('completed', processed=0, uploaded=0, duplicates=0, failed=0, total_urls=0)
             return
 
-        tasks = self._build_profile_sticker_asset_tasks(rows)
         total = len(tasks)
         successful_downloads = 0
         failed = 0
@@ -1878,9 +1949,10 @@ class WikiImages(object):
 
         for task in tasks:
             print(
-                'Downloading {0} for Profile Room sticker "{1}" ({2})...'.format(
+                'Downloading {0} for Profile Room {1} "{2}" ({3})...'.format(
                     task['url'],
-                    task['row']['name'],
+                    profile_label,
+                    task['row'].get('name') or task['row']['id'],
                     task['label'],
                 )
             )
@@ -1925,8 +1997,8 @@ class WikiImages(object):
             time.sleep(self.delay)
 
         print(
-            'Profile Room sticker processing summary - uploaded: {0}, duplicates: {1}, '
-            'failed: {2}, total requested: {3}.'.format(uploaded, duplicates, failed, total)
+            'Profile Room {0} processing summary - uploaded: {1}, duplicates: {2}, '
+            'failed: {3}, total requested: {4}.'.format(profile_label, uploaded, duplicates, failed, total)
         )
         if hasattr(self, '_status_callback'):
             self._status_callback(
@@ -1938,6 +2010,18 @@ class WikiImages(object):
                 total_urls=total,
                 successful=successful_downloads,
             )
+
+    def check_profile_stickers(self, page):
+        """Upload Profile Room sticker images from {{ProfileRoom/Sticker/Row}} templates."""
+        rows = self._extract_profile_room_sticker_rows(page)
+        tasks = self._build_profile_sticker_asset_tasks(rows)
+        return self._check_profile_assets(page, 'sticker', 'ProfileRoom/Sticker/Row', rows, tasks)
+
+    def check_profile_backgrounds(self, page):
+        """Upload Profile Room background images from {{ProfileRoom/Background/Row}} templates."""
+        rows = self._extract_profile_room_background_rows(page)
+        tasks = self._build_profile_background_asset_tasks(rows)
+        return self._check_profile_assets(page, 'background', 'ProfileRoom/Background/Row', rows, tasks)
 
     def upload_item_article_images(self, page):
         """
