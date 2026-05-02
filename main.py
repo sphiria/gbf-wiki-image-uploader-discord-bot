@@ -95,6 +95,7 @@ PAGE_TYPE_CHOICES = [
     app_commands.Choice(name="skin", value="skin"),
     app_commands.Choice(name="npc", value="npc"),
     app_commands.Choice(name="profile (stickers)", value="profile_stickers"),
+    app_commands.Choice(name="profile (backgrounds)", value="profile_backgrounds"),
     app_commands.Choice(name="artifact", value="artifact"),
     app_commands.Choice(name="item", value="item"),
     app_commands.Choice(name="manatura", value="manatura"),
@@ -224,7 +225,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - optional everywhere except `class_skin`, where it is required.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `profile_stickers` (shown as `profile (stickers)`) uploads Profile Room sticker rows.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; Profile Room types upload sticker or background rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -1441,6 +1442,8 @@ async def run_wiki_upload(
                 wi.check_npc(page)
             elif page_type == 'profile_stickers':
                 wi.check_profile(page, 'stickers')
+            elif page_type == 'profile_backgrounds':
+                wi.check_profile(page, 'backgrounds')
             elif page_type == 'item':
                 wi.upload_item_article_images(page)
             elif page_type == 'artifact':
