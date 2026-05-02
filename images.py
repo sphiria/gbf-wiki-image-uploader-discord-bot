@@ -291,6 +291,15 @@ class WikiImages(object):
             signature_parts=('prefix', 'suffix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='profile_room_sticker',
+            pattern=re.compile(
+                r'^File:(?P<prefix>Memorial_frame_sticker|Thumbnail_sticker)_'
+                r'(?P<id>[A-Za-z0-9_]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='event_banner',
             pattern=re.compile(
                 r'^File:(?P<id>[A-Za-z0-9_]+)_banner_event_(?P<banner_kind>notice|start)_'
@@ -795,6 +804,11 @@ class WikiImages(object):
         return value
 
     def _duplicate_canonical_preference_key(self, match):
+        if match.rule.name == 'profile_room_sticker':
+            locale = self._normalize_duplicate_family_part(match.match_obj.groupdict().get('locale'))
+            locale_penalty = 1 if locale == 'jp' else 0
+            return (locale_penalty, self._normalize_duplicate_family_part(match.page_name))
+
         if not self._is_npc_duplicate_family(match.rule, match.match_obj):
             return (0, self._normalize_duplicate_family_part(match.page_name))
 
@@ -1126,6 +1140,7 @@ class WikiImages(object):
             requested_page = self.wiki.pages[file_name]
             if (
                 prefer_requested_title
+                and canonical_duplicate_match.rule.name != 'profile_room_sticker'
                 and getattr(requested_page, 'exists', False)
                 and getattr(requested_page, 'redirect', False)
                 and canonical_duplicate_page.name.strip().lower() != file_name.strip().lower()
@@ -1742,6 +1757,9 @@ class WikiImages(object):
         """Backward-compatible wrapper for article item uploads."""
         return self._process_item_variant("article", item_id, item_name, variant, redirect_suffix)
 
+    PROFILE_ROOM_CATEGORY = "Profile Room Images"
+    PROFILE_STICKER_CATEGORY = "Profile Room Sticker Images"
+
     PROFILE_STICKER_ASSETS = (
         {
             "label": "EN sticker",
@@ -1812,6 +1830,7 @@ class WikiImages(object):
 
     def _build_profile_sticker_asset_tasks(self, rows):
         tasks = []
+        categories = [self.PROFILE_ROOM_CATEGORY, self.PROFILE_STICKER_CATEGORY]
         for row in rows:
             for spec in self.PROFILE_STICKER_ASSETS:
                 path = spec['path'].format(**row)
@@ -1824,6 +1843,7 @@ class WikiImages(object):
                     ),
                     'canonical': spec['canonical'].format(**row),
                     'redirects': [spec['redirect'].format(**row)],
+                    'categories': categories,
                 })
         return tasks
 
@@ -1889,6 +1909,7 @@ class WikiImages(object):
             if check_image_result is not False:
                 for redirect_name in task['redirects']:
                     self.check_file_redirect(final_name, redirect_name)
+                self.check_image_categories(final_name, task['categories'])
                 self.check_file_double_redirect(final_name)
 
             if hasattr(self, '_status_callback'):
