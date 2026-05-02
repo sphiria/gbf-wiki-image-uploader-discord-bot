@@ -571,6 +571,9 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - `/imgupload page_type:profile_stickers` uploads Profile Room sticker assets from `{{ProfileRoom/Sticker/Row}}` templates on the supplied page.
 - Required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- All Profile Room uploads should add `[[Category:Profile Room Images]]`.
+- Sticker uploads should also add `[[Category:Profile Room Sticker Images]]`.
+- Sticker EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP sticker pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - For each row, upload four files:
   - EN sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
   - EN sticker canonical: `Memorial_frame_sticker_{image_key}.png`
