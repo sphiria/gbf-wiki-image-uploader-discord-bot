@@ -566,3 +566,21 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Run at least:
   - `python3 -m py_compile main.py images.py`
 - In the final response, mention any required deploy or `/synccommands` step when command registration may be affected.
+
+## Profile Room Upload Contract
+
+- `/imgupload page_type:profile_stickers` uploads Profile Room sticker assets from `{{ProfileRoom/Sticker/Row}}` templates on the supplied page.
+- Required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- For each row, upload four files:
+  - EN sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
+  - EN sticker canonical: `Memorial_frame_sticker_{image_key}.png`
+  - EN sticker redirect: `{name}_(Profile).jpg`
+  - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg`
+  - EN thumbnail canonical: `Thumbnail_sticker_{thumbnail_key}.jpg`
+  - EN thumbnail redirect: `{name}_(Profile)_square.jpg`
+  - JP sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
+  - JP sticker canonical: `Memorial_frame_sticker_{image_key}jp.png`
+  - JP sticker redirect: `{name}_(Profile JP).jpg`
+  - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg`
+  - JP thumbnail canonical: `Thumbnail_sticker_{thumbnail_key}jp.jpg`
+  - JP thumbnail redirect: `{name}_(Profile JP)_square.jpg`

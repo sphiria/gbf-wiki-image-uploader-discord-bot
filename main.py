@@ -84,25 +84,27 @@ ALLOWED_ROLES = [r.strip() for r in os.getenv("ALLOWED_ROLES", "Wiki Editor,Wiki
 # Enable dry-run mode (no actual uploads, just logging)
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("true", "1", "yes")
 
-# Valid page types
-PAGE_TYPES = [
-    "character",
-    "character_fs_skin",
-    "weapon",
-    "summon",
-    "class",
-    "class_skin",
-    "skin",
-    "npc",
-    "artifact",
-    "item",
-    "manatura",
-    "shield",
-    "skill_icons",
-    "bullet",
-    "advyrnture_gear",
-    "advyrnture_pal",
+# Valid page types. Choice names are shown in Discord; values are used by the dispatcher.
+PAGE_TYPE_CHOICES = [
+    app_commands.Choice(name="character", value="character"),
+    app_commands.Choice(name="character_fs_skin", value="character_fs_skin"),
+    app_commands.Choice(name="weapon", value="weapon"),
+    app_commands.Choice(name="summon", value="summon"),
+    app_commands.Choice(name="class", value="class"),
+    app_commands.Choice(name="class_skin", value="class_skin"),
+    app_commands.Choice(name="skin", value="skin"),
+    app_commands.Choice(name="npc", value="npc"),
+    app_commands.Choice(name="profile (stickers)", value="profile_stickers"),
+    app_commands.Choice(name="artifact", value="artifact"),
+    app_commands.Choice(name="item", value="item"),
+    app_commands.Choice(name="manatura", value="manatura"),
+    app_commands.Choice(name="shield", value="shield"),
+    app_commands.Choice(name="skill_icons", value="skill_icons"),
+    app_commands.Choice(name="bullet", value="bullet"),
+    app_commands.Choice(name="advyrnture_gear", value="advyrnture_gear"),
+    app_commands.Choice(name="advyrnture_pal", value="advyrnture_pal"),
 ]
+PAGE_TYPES = [choice.value for choice in PAGE_TYPE_CHOICES]
 
 # Supported single-item upload types (CDN path segments)
 ITEM_TYPES = ["article", "normal", "recycling", "skillplus", "evolution", "lottery", "npcaugment", "set", "ticket", "campaign", "npcarousal", "memorial"]
@@ -222,7 +224,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - optional everywhere except `class_skin`, where it is required.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `profile_stickers` (shown as `profile (stickers)`) uploads Profile Room sticker rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -1437,6 +1439,8 @@ async def run_wiki_upload(
                 wi.check_skin(page)
             elif page_type == 'npc':
                 wi.check_npc(page)
+            elif page_type == 'profile_stickers':
+                wi.check_profile(page, 'stickers')
             elif page_type == 'item':
                 wi.upload_item_article_images(page)
             elif page_type == 'artifact':
@@ -1856,7 +1860,7 @@ from discord import app_commands
     page_filter="Additional filter parameter (required for class skin uploads)",
 )
 @app_commands.rename(page_filter="filter")
-@app_commands.choices(page_type=[app_commands.Choice(name=pt, value=pt) for pt in PAGE_TYPES])
+@app_commands.choices(page_type=PAGE_TYPE_CHOICES)
 async def upload(
     interaction: discord.Interaction,
     page_type: app_commands.Choice[str],
