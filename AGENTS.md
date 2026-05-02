@@ -578,6 +578,9 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Background uploads should also add `[[Category:Profile Room Background Images]]`.
 - Sticker EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP sticker pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Background EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP background pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Profile Room duplicate-family rules must match both underscore canonical filenames and MediaWiki-normalized page titles with spaces, such as `Thumbnail_bg_thum_501.png` and `Thumbnail bg thum 501.png`.
+- Profile Room duplicate-family rules must tolerate first-letter capitalization differences caused by `check_image()` and MediaWiki title normalization, such as `thumbnail_bg_*`, `Thumbnail_bg_*`, `memorial_frame_sticker_*`, and `Memorial_frame_sticker_*`.
+- For future Profile Room asset types, if EN and JP canonicals differ only by a trailing `jp` before the extension, duplicate handling should prefer the non-`jp` EN canonical and redirect the JP canonical when the binaries are identical.
 - For each row, upload four files:
   - EN sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
   - EN sticker canonical: `Memorial_frame_sticker_{image_key}.png`

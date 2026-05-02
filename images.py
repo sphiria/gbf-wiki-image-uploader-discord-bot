@@ -293,7 +293,7 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='profile_room_sticker',
             pattern=re.compile(
-                r'^File:(?P<prefix>Memorial[ _]frame[ _]sticker|Thumbnail[ _]sticker)[ _]'
+                r'^File:(?P<prefix>[Mm]emorial[ _]frame[ _]sticker|[Tt]humbnail[ _]sticker)[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
@@ -302,7 +302,7 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='profile_room_background',
             pattern=re.compile(
-                r'^File:(?P<prefix>Profile[ _]card[ _]bg|thumbnail[ _]bg)[ _]'
+                r'^File:(?P<prefix>Profile[ _]card[ _]bg|[Tt]humbnail[ _]bg)[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
