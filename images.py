@@ -1742,6 +1742,180 @@ class WikiImages(object):
         """Backward-compatible wrapper for article item uploads."""
         return self._process_item_variant("article", item_id, item_name, variant, redirect_suffix)
 
+    PROFILE_STICKER_ASSETS = (
+        {
+            "label": "EN sticker",
+            "url_prefix": "assets_en",
+            "path": "profile_room/memorial_frame/sticker/{image_key}.png",
+            "canonical": "Memorial_frame_sticker_{image_key}.png",
+            "redirect": "{name}_(Profile).jpg",
+        },
+        {
+            "label": "EN sticker thumbnail",
+            "url_prefix": "assets_en",
+            "path": "profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg",
+            "canonical": "Thumbnail_sticker_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_square.jpg",
+        },
+        {
+            "label": "JP sticker",
+            "url_prefix": "assets",
+            "path": "profile_room/memorial_frame/sticker/{image_key}.png",
+            "canonical": "Memorial_frame_sticker_{image_key}jp.png",
+            "redirect": "{name}_(Profile JP).jpg",
+        },
+        {
+            "label": "JP sticker thumbnail",
+            "url_prefix": "assets",
+            "path": "profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg",
+            "canonical": "Thumbnail_sticker_{thumbnail_key}jp.jpg",
+            "redirect": "{name}_(Profile JP)_square.jpg",
+        },
+    )
+
+    def _extract_profile_room_sticker_rows(self, page):
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        rows = []
+        seen_ids = set()
+
+        for template in wikicode.filter_templates():
+            template_name = template.name.strip().lower().replace(' ', '_')
+            if template_name != 'profileroom/sticker/row':
+                continue
+
+            row = {}
+            for param in template.params:
+                param_name = param.name.strip()
+                value = str(param.value).strip()
+                if param_name in {'id', 'name', 'image_key', 'thumbnail_key'}:
+                    row[param_name] = mwparserfromhell.parse(value).strip_code().strip()
+
+            missing = [key for key in ('id', 'name', 'image_key', 'thumbnail_key') if not row.get(key)]
+            if missing:
+                print(
+                    'Skipping ProfileRoom/Sticker/Row with missing {0}: {1}'.format(
+                        ', '.join(missing),
+                        row or '(no parsed params)',
+                    )
+                )
+                continue
+
+            if row['id'] in seen_ids:
+                print(f'Skipping duplicate ProfileRoom sticker id "{row["id"]}".')
+                continue
+
+            seen_ids.add(row['id'])
+            rows.append(row)
+
+        return rows
+
+    def _build_profile_sticker_asset_tasks(self, rows):
+        tasks = []
+        for row in rows:
+            for spec in self.PROFILE_STICKER_ASSETS:
+                path = spec['path'].format(**row)
+                tasks.append({
+                    'label': spec['label'],
+                    'row': row,
+                    'url': (
+                        'https://prd-game-a-granbluefantasy.akamaized.net/'
+                        f"{spec['url_prefix']}/img/sp/assets/{path}"
+                    ),
+                    'canonical': spec['canonical'].format(**row),
+                    'redirects': [spec['redirect'].format(**row)],
+                })
+        return tasks
+
+    def check_profile(self, page, profile_type='stickers'):
+        """Dispatch Profile Room uploads by collection subtype."""
+        if profile_type == 'stickers':
+            return self.check_profile_stickers(page)
+        raise ValueError(f"Unknown Profile Room upload type: {profile_type}")
+
+    def check_profile_stickers(self, page):
+        """Upload Profile Room sticker images from {{ProfileRoom/Sticker/Row}} templates."""
+        print(f'Processing Profile Room sticker templates on page "{page.name}"...')
+        rows = self._extract_profile_room_sticker_rows(page)
+        if not rows:
+            print('No valid {{ProfileRoom/Sticker/Row}} templates found.')
+            if hasattr(self, '_status_callback'):
+                self._status_callback('completed', processed=0, uploaded=0, duplicates=0, failed=0, total_urls=0)
+            return
+
+        tasks = self._build_profile_sticker_asset_tasks(rows)
+        total = len(tasks)
+        successful_downloads = 0
+        failed = 0
+        uploaded = 0
+        duplicates = 0
+        processed = 0
+
+        if hasattr(self, '_status_callback'):
+            self._status_callback('downloading', successful=0, failed=0, total=total)
+
+        for task in tasks:
+            print(
+                'Downloading {0} for Profile Room sticker "{1}" ({2})...'.format(
+                    task['url'],
+                    task['row']['name'],
+                    task['label'],
+                )
+            )
+            success, sha1, size, io_obj = self.get_image(task['url'])
+            if not success:
+                failed += 1
+                print(f"Failed to download {task['canonical']}.")
+                if hasattr(self, '_status_callback'):
+                    self._status_callback('downloading', successful=successful_downloads, failed=failed, total=total)
+                continue
+
+            successful_downloads += 1
+            if hasattr(self, '_status_callback'):
+                self._status_callback('downloading', successful=successful_downloads, failed=failed, total=total)
+
+            check_image_result = self.check_image(task['canonical'], sha1, size, io_obj, task['redirects'])
+            processed += 1
+            if check_image_result is False:
+                failed += 1
+                print(f"Upload validation failed for {task['canonical']}.")
+            elif check_image_result is True:
+                uploaded += 1
+                final_name = task['canonical']
+            else:
+                duplicates += 1
+                final_name = check_image_result
+
+            if check_image_result is not False:
+                for redirect_name in task['redirects']:
+                    self.check_file_redirect(final_name, redirect_name)
+                self.check_file_double_redirect(final_name)
+
+            if hasattr(self, '_status_callback'):
+                self._status_callback(
+                    'processing',
+                    processed=processed,
+                    total=successful_downloads,
+                    current_image=task['canonical'],
+                )
+
+            time.sleep(self.delay)
+
+        print(
+            'Profile Room sticker processing summary - uploaded: {0}, duplicates: {1}, '
+            'failed: {2}, total requested: {3}.'.format(uploaded, duplicates, failed, total)
+        )
+        if hasattr(self, '_status_callback'):
+            self._status_callback(
+                'completed',
+                processed=processed,
+                uploaded=uploaded,
+                duplicates=duplicates,
+                failed=failed,
+                total_urls=total,
+                successful=successful_downloads,
+            )
+
     def upload_item_article_images(self, page):
         """
         Upload item images for each {{Item}} template found on a page.
