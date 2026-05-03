@@ -309,6 +309,16 @@ class WikiImages(object):
             signature_parts=('prefix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='profile_room_other_character',
+            pattern=re.compile(
+                r'^File:(?P<prefix>[Pp]rofile[ _]room[ _]character[ _]other|'
+                r'[Cc]haracter[ _]thumbnail[ _]other[ _][ms])[ _]'
+                r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='event_banner',
             pattern=re.compile(
                 r'^File:(?P<id>[A-Za-z0-9_]+)_banner_event_(?P<banner_kind>notice|start)_'
@@ -808,14 +818,14 @@ class WikiImages(object):
 
     def _normalize_duplicate_signature_value(self, rule, match, part):
         value = self._normalize_duplicate_family_part(match.group(part))
-        if rule.name in ('profile_room_sticker', 'profile_room_background'):
+        if rule.name in ('profile_room_sticker', 'profile_room_background', 'profile_room_other_character'):
             return value.replace(' ', '_')
         if part == 'suffix' and self._is_npc_duplicate_family(rule, match):
             return self._normalize_npc_duplicate_suffix(value)
         return value
 
     def _duplicate_canonical_preference_key(self, match):
-        if match.rule.name in ('profile_room_sticker', 'profile_room_background'):
+        if match.rule.name in ('profile_room_sticker', 'profile_room_background', 'profile_room_other_character'):
             locale = self._normalize_duplicate_family_part(match.match_obj.groupdict().get('locale'))
             locale_penalty = 1 if locale == 'jp' else 0
             return (locale_penalty, self._normalize_duplicate_family_part(match.page_name).replace(' ', '_'))
@@ -1151,7 +1161,11 @@ class WikiImages(object):
             requested_page = self.wiki.pages[file_name]
             if (
                 prefer_requested_title
-                and canonical_duplicate_match.rule.name not in ('profile_room_sticker', 'profile_room_background')
+                and canonical_duplicate_match.rule.name not in (
+                    'profile_room_sticker',
+                    'profile_room_background',
+                    'profile_room_other_character',
+                )
                 and getattr(requested_page, 'exists', False)
                 and getattr(requested_page, 'redirect', False)
                 and canonical_duplicate_page.name.strip().lower() != file_name.strip().lower()
@@ -1771,6 +1785,7 @@ class WikiImages(object):
     PROFILE_ROOM_CATEGORY = "Profile Room Images"
     PROFILE_STICKER_CATEGORY = "Profile Room Sticker Images"
     PROFILE_BACKGROUND_CATEGORY = "Profile Room Background Images"
+    PROFILE_OTHER_CHARACTER_CATEGORY = "Profile Room Other Character Images"
 
     PROFILE_STICKER_ASSETS = (
         {
@@ -1809,7 +1824,7 @@ class WikiImages(object):
             "url_prefix": "assets_en",
             "path": "profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png",
             "canonical": "thumbnail_bg_{thumbnail_key}.png",
-            "redirect": None,
+            "redirect": "{name}_(Profile)_square.png",
         },
         {
             "label": "EN background",
@@ -1830,6 +1845,51 @@ class WikiImages(object):
             "url_prefix": "assets",
             "path": "profile_room/profile_card/bg/{image_key}.jpg",
             "canonical": "Profile_card_bg_{image_key}jp.jpg",
+            "redirect": None,
+        },
+    )
+
+    PROFILE_OTHER_CHARACTER_ASSETS = (
+        {
+            "label": "EN other character image",
+            "url_prefix": "assets_en",
+            "path": "profile_room/character/other/{image_key}.png",
+            "canonical": "profile_room_character_other_{image_key}.png",
+            "redirect": "{name}_(Profile).png",
+        },
+        {
+            "label": "EN other character icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/character/thumbnail/other/m/{thumbnail_key}.jpg",
+            "canonical": "character_thumbnail_other_m_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_icon.jpg",
+        },
+        {
+            "label": "EN other character square",
+            "url_prefix": "assets_en",
+            "path": "profile_room/character/thumbnail/other/s/{image_key}.jpg",
+            "canonical": "character_thumbnail_other_s_{image_key}.jpg",
+            "redirect": "{name}_(Profile)_square.jpg",
+        },
+        {
+            "label": "JP other character image",
+            "url_prefix": "assets",
+            "path": "profile_room/character/other/{image_key}.png",
+            "canonical": "profile_room_character_other_{image_key}jp.png",
+            "redirect": None,
+        },
+        {
+            "label": "JP other character icon",
+            "url_prefix": "assets",
+            "path": "profile_room/character/thumbnail/other/m/{thumbnail_key}.jpg",
+            "canonical": "character_thumbnail_other_m_{thumbnail_key}jp.jpg",
+            "redirect": None,
+        },
+        {
+            "label": "JP other character square",
+            "url_prefix": "assets",
+            "path": "profile_room/character/thumbnail/other/s/{image_key}.jpg",
+            "canonical": "character_thumbnail_other_s_{image_key}jp.jpg",
             "redirect": None,
         },
     )
@@ -1884,8 +1944,16 @@ class WikiImages(object):
         return self._extract_profile_room_rows(
             page,
             'profileroom/background/row',
-            {'id', 'image_key', 'thumbnail_key'},
+            {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/Background/Row',
+        )
+
+    def _extract_profile_room_other_character_rows(self, page):
+        return self._extract_profile_room_rows(
+            page,
+            'profileroom/othercharacter/row',
+            {'id', 'name', 'image_key', 'thumbnail_key'},
+            'ProfileRoom/OtherCharacter/Row',
         )
 
     def _build_profile_asset_tasks(self, rows, asset_specs, categories):
@@ -1921,12 +1989,21 @@ class WikiImages(object):
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_BACKGROUND_CATEGORY],
         )
 
+    def _build_profile_other_character_asset_tasks(self, rows):
+        return self._build_profile_asset_tasks(
+            rows,
+            self.PROFILE_OTHER_CHARACTER_ASSETS,
+            [self.PROFILE_ROOM_CATEGORY, self.PROFILE_OTHER_CHARACTER_CATEGORY],
+        )
+
     def check_profile(self, page, profile_type='stickers'):
         """Dispatch Profile Room uploads by collection subtype."""
         if profile_type == 'stickers':
             return self.check_profile_stickers(page)
         if profile_type == 'backgrounds':
             return self.check_profile_backgrounds(page)
+        if profile_type == 'other_characters':
+            return self.check_profile_other_characters(page)
         raise ValueError(f"Unknown Profile Room upload type: {profile_type}")
 
     def _check_profile_assets(self, page, profile_label, template_label, rows, tasks):
@@ -2022,6 +2099,18 @@ class WikiImages(object):
         rows = self._extract_profile_room_background_rows(page)
         tasks = self._build_profile_background_asset_tasks(rows)
         return self._check_profile_assets(page, 'background', 'ProfileRoom/Background/Row', rows, tasks)
+
+    def check_profile_other_characters(self, page):
+        """Upload Profile Room other-character images from {{ProfileRoom/OtherCharacter/Row}} templates."""
+        rows = self._extract_profile_room_other_character_rows(page)
+        tasks = self._build_profile_other_character_asset_tasks(rows)
+        return self._check_profile_assets(
+            page,
+            'other character',
+            'ProfileRoom/OtherCharacter/Row',
+            rows,
+            tasks,
+        )
 
     def upload_item_article_images(self, page):
         """

@@ -571,13 +571,17 @@ Most changes should preserve existing command contracts, wiki filename conventio
 
 - `/imgupload page_type:profile_stickers` uploads Profile Room sticker assets from `{{ProfileRoom/Sticker/Row}}` templates on the supplied page.
 - `/imgupload page_type:profile_backgrounds` uploads Profile Room background assets from `{{ProfileRoom/Background/Row}}` templates on the supplied page.
+- `/imgupload page_type:profile_other_characters` uploads Profile Room other-character assets from `{{ProfileRoom/OtherCharacter/Row}}` templates on the supplied page.
 - Sticker required row params: `id`, `name`, `image_key`, `thumbnail_key`.
-- Background required row params: `id`, `image_key`, `thumbnail_key`.
+- Background required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- Other-character required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - All Profile Room uploads should add `[[Category:Profile Room Images]]`.
 - Sticker uploads should also add `[[Category:Profile Room Sticker Images]]`.
 - Background uploads should also add `[[Category:Profile Room Background Images]]`.
+- Other-character uploads should also add `[[Category:Profile Room Other Character Images]]`.
 - Sticker EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP sticker pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Background EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP background pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Other-character EN and JP assets are expected to be binary-identical, but JP URLs should still be checked. When duplicate handling finds a matching EN/JP other-character pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Profile Room duplicate-family rules must match both underscore canonical filenames and MediaWiki-normalized page titles with spaces, such as `Thumbnail_bg_thum_501.png` and `Thumbnail bg thum 501.png`.
 - Profile Room duplicate-family rules must tolerate first-letter capitalization differences caused by `check_image()` and MediaWiki title normalization, such as `thumbnail_bg_*`, `Thumbnail_bg_*`, `memorial_frame_sticker_*`, and `Memorial_frame_sticker_*`.
 - For future Profile Room asset types, if EN and JP canonicals differ only by a trailing `jp` before the extension, duplicate handling should prefer the non-`jp` EN canonical and redirect the JP canonical when the binaries are identical.
@@ -597,7 +601,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - For each background row, upload four files:
   - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png`
   - EN thumbnail canonical: `thumbnail_bg_{thumbnail_key}.png`
-  - EN thumbnail redirect: none
+  - EN thumbnail redirect: `{name}_(Profile)_square.png`
   - EN background URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/bg/{image_key}.jpg`
   - EN background canonical: `Profile_card_bg_{image_key}.jpg`
   - EN background redirect: none
@@ -607,3 +611,22 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP background URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/bg/{image_key}.jpg`
   - JP background canonical: `Profile_card_bg_{image_key}jp.jpg`
   - JP background redirect: none
+- For each other-character row, upload six files:
+  - EN image URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/character/other/{image_key}.png`
+  - EN image canonical: `profile_room_character_other_{image_key}.png`
+  - EN image redirect: `{name}_(Profile).png`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/character/thumbnail/other/m/{thumbnail_key}.jpg`
+  - EN icon canonical: `character_thumbnail_other_m_{thumbnail_key}.jpg`
+  - EN icon redirect: `{name}_(Profile)_icon.jpg`
+  - EN square URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/character/thumbnail/other/s/{image_key}.jpg`
+  - EN square canonical: `character_thumbnail_other_s_{image_key}.jpg`
+  - EN square redirect: `{name}_(Profile)_square.jpg`
+  - JP image URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/character/other/{image_key}.png`
+  - JP image canonical: `profile_room_character_other_{image_key}jp.png`
+  - JP image redirect: none
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/character/thumbnail/other/m/{thumbnail_key}.jpg`
+  - JP icon canonical: `character_thumbnail_other_m_{thumbnail_key}jp.jpg`
+  - JP icon redirect: none
+  - JP square URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/character/thumbnail/other/s/{image_key}.jpg`
+  - JP square canonical: `character_thumbnail_other_s_{image_key}jp.jpg`
+  - JP square redirect: none
