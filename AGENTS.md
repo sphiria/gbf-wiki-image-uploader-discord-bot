@@ -573,26 +573,44 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `/imgupload page_type:profile_backgrounds` uploads Profile Room background assets from `{{ProfileRoom/Background/Row}}` templates on the supplied page.
 - `/imgupload page_type:profile_other_characters` uploads Profile Room other-character assets from `{{ProfileRoom/OtherCharacter/Row}}` templates on the supplied page.
 - `/imgupload page_type:profile_favorite_art` uploads Profile Room favorite-art assets from `{{ProfileRoom/FavoriteArt/Row}}` templates on the supplied page.
-- Local CLI supports `python images.py profile <stickers|backgrounds|other_characters|favorite_art> <page name>`.
-- Local CLI also supports direct aliases: `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, and `profile_favorite_art`.
+- `/imgupload page_type:profile_trophies` uploads Profile Room trophy assets from `{{ProfileRoom/RoomTrophy/Row}}` templates on the supplied page.
+- `/imgupload page_type:profile_trinkets` uploads Profile Room trinket assets from `{{ProfileRoom/Trinket/Row}}` templates on the supplied page.
+- `/imgupload page_type:profile_frames` uploads Profile Room frame assets from `{{ProfileRoom/Frame/Row}}` templates on the supplied page.
+- `/imgupload page_type:profile_designs` uploads Profile Room design assets from `{{ProfileRoom/Design/Row}}` templates on the supplied page.
+- Local CLI supports `python images.py profile <stickers|backgrounds|other_characters|favorite_art|trophies|trinkets|frames|designs> <page name>`.
+- Local CLI also supports direct aliases: `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `profile_trophies`, `profile_trinkets`, `profile_frames`, and `profile_designs`.
 - Sticker required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Background required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Other-character required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Favorite-art required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- Trophy required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- Trinket required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- Frame required row params: `id`, `name`, `image_key`, `thumbnail_key`.
+- Design required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - All Profile Room uploads should add `[[Category:Profile Room Images]]`.
 - Sticker uploads should also add `[[Category:Profile Room Sticker Images]]`.
 - Background uploads should also add `[[Category:Profile Room Background Images]]`.
 - Other-character uploads should also add `[[Category:Profile Room Other Character Images]]`.
 - Favorite-art uploads should also add `[[Category:Profile Room Favorite Art Images]]`.
+- Trophy uploads should also add `[[Category:Profile Room Trophy Images]]`.
+- Trinket uploads should also add `[[Category:Profile Room Trinket Images]]`.
+- Frame uploads should also add `[[Category:Profile Room Frame Images]]`.
+- Design uploads should also add `[[Category:Profile Room Design Images]]`.
 - Sticker EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP sticker pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Background EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP background pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Other-character EN and JP assets are expected to be binary-identical, but JP URLs should still be checked. When duplicate handling finds a matching EN/JP other-character pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Favorite-art EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP favorite-art pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Trophy EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP trophy pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Trinket EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP trinket pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Frame EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP frame pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Design EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP design pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
+- Frame thumbnail files are shared across color variants. Frame upload task building should process each EN/JP thumbnail canonical only once per unique `thumbnail_key`.
+- Design thumbnail files are shared across color variants. Design upload task building should process each EN/JP thumbnail canonical only once per unique `thumbnail_key`.
 - Profile Room canonical filenames use full CDN path-style lowercase names starting with `profile_room_`.
 - Old pre-rename canonical filenames must remain legacy redirects and duplicate-family aliases so reruns can repair files into the new `profile_room_...` canonical titles.
 - Profile Room duplicate-family rules must match new canonicals, old legacy canonicals, and MediaWiki-normalized page titles with spaces.
 - Profile Room duplicate-family rules must tolerate first-letter capitalization differences caused by `check_image()` and MediaWiki title normalization.
-- Future frame and design upload flows should default to canonical uploads only with no display redirects because `name` is not unique across color variants.
+- Frame and design upload flows use canonical uploads only with no display redirects because `name` is not unique across color variants.
 - If frame/design redirects are requested later, require an explicit redirect naming scheme that disambiguates variants using stable row data such as `id`, `base_id`, or `color_type`; do not silently use `{name}` alone.
 - For each row, upload four files:
   - EN sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
@@ -668,3 +686,71 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}jp.png`
   - JP thumbnail legacy redirect: `Thumbnail_painting_{thumbnail_key}jp.png`
   - JP thumbnail redirect: none
+- For each trophy row, upload four files:
+  - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/thumbnail/trophy/{thumbnail_key}.jpg`
+  - EN thumbnail canonical: `profile_room_cabinet_thumbnail_trophy_{thumbnail_key}.jpg`
+  - EN thumbnail legacy redirect: `Thumbnail_trophy_{thumbnail_key}.jpg`
+  - EN thumbnail redirect: `{name}_(Profile)_square.jpg`
+  - EN trophy URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/trophy/{image_key}.png`
+  - EN trophy canonical: `profile_room_cabinet_trophy_{image_key}.png`
+  - EN trophy legacy redirect: `Cabinet_trophy_{image_key}.png`
+  - EN trophy redirect: `{name}_(Profile).png`
+  - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/cabinet/thumbnail/trophy/{thumbnail_key}.jpg`
+  - JP thumbnail canonical: `profile_room_cabinet_thumbnail_trophy_{thumbnail_key}jp.jpg`
+  - JP thumbnail legacy redirect: `Thumbnail_trophy_{thumbnail_key}jp.jpg`
+  - JP thumbnail redirect: none
+  - JP trophy URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/cabinet/trophy/{image_key}.png`
+  - JP trophy canonical: `profile_room_cabinet_trophy_{image_key}jp.png`
+  - JP trophy legacy redirect: `Cabinet_trophy_{image_key}jp.png`
+  - JP trophy redirect: none
+- For each trinket row, upload four files:
+  - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/thumbnail/ornament/{thumbnail_key}.jpg`
+  - EN thumbnail canonical: `profile_room_cabinet_thumbnail_ornament_{thumbnail_key}.jpg`
+  - EN thumbnail legacy redirect: `Thumbnail_ornament_{thumbnail_key}.jpg`
+  - EN thumbnail redirect: `{name}_(Profile)_square.jpg`
+  - EN trinket URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/ornament/{image_key}.png`
+  - EN trinket canonical: `profile_room_cabinet_ornament_{image_key}.png`
+  - EN trinket legacy redirect: `Cabinet_ornament_{image_key}.png`
+  - EN trinket redirect: `{name}_(Profile).png`
+  - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/cabinet/thumbnail/ornament/{thumbnail_key}.jpg`
+  - JP thumbnail canonical: `profile_room_cabinet_thumbnail_ornament_{thumbnail_key}jp.jpg`
+  - JP thumbnail legacy redirect: `Thumbnail_ornament_{thumbnail_key}jp.jpg`
+  - JP thumbnail redirect: none
+  - JP trinket URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/cabinet/ornament/{image_key}.png`
+  - JP trinket canonical: `profile_room_cabinet_ornament_{image_key}jp.png`
+  - JP trinket legacy redirect: `Cabinet_ornament_{image_key}jp.png`
+  - JP trinket redirect: none
+- For each frame row, upload color-specific frame files and de-duped shared thumbnails:
+  - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/frame/{thumbnail_key}.png`
+  - EN thumbnail canonical: `profile_room_profile_card_thumbnail_frame_{thumbnail_key}.png`
+  - EN thumbnail legacy redirect: `thumbnail_frame_{thumbnail_key}.png`
+  - EN thumbnail redirect: none
+  - EN frame URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/frame/{image_key}.png`
+  - EN frame canonical: `profile_room_profile_card_frame_{image_key}.png`
+  - EN frame legacy redirect: `Profile_card_frame_{image_key}.png`
+  - EN frame redirect: none
+  - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/thumbnail/frame/{thumbnail_key}.png`
+  - JP thumbnail canonical: `profile_room_profile_card_thumbnail_frame_{thumbnail_key}jp.png`
+  - JP thumbnail legacy redirect: `thumbnail_frame_{thumbnail_key}jp.png`
+  - JP thumbnail redirect: none
+  - JP frame URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/frame/{image_key}.png`
+  - JP frame canonical: `profile_room_profile_card_frame_{image_key}jp.png`
+  - JP frame legacy redirect: `Profile_card_frame_{image_key}jp.png`
+  - JP frame redirect: none
+- For each design row, upload color-specific design files and de-duped shared thumbnails:
+  - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/decoration/{thumbnail_key}.png`
+  - EN thumbnail canonical: `profile_room_profile_card_thumbnail_decoration_{thumbnail_key}.png`
+  - EN thumbnail legacy redirect: `thumbnail_decoration_{thumbnail_key}.png`
+  - EN thumbnail redirect: none
+  - EN design URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/decoration/{image_key}.png`
+  - EN design canonical: `profile_room_profile_card_decoration_{image_key}.png`
+  - EN design legacy redirect: `Profile_card_decoration_{image_key}.png`
+  - EN design redirect: none
+  - JP thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/thumbnail/decoration/{thumbnail_key}.png`
+  - JP thumbnail canonical: `profile_room_profile_card_thumbnail_decoration_{thumbnail_key}jp.png`
+  - JP thumbnail legacy redirect: `thumbnail_decoration_{thumbnail_key}jp.png`
+  - JP thumbnail redirect: none
+  - JP design URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/decoration/{image_key}.png`
+  - JP design canonical: `profile_room_profile_card_decoration_{image_key}jp.png`
+  - JP design legacy redirect: `Profile_card_decoration_{image_key}jp.png`
+  - JP design redirect: none

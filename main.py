@@ -98,6 +98,10 @@ PAGE_TYPE_CHOICES = [
     app_commands.Choice(name="profile (backgrounds)", value="profile_backgrounds"),
     app_commands.Choice(name="profile (other characters)", value="profile_other_characters"),
     app_commands.Choice(name="profile (favorite art)", value="profile_favorite_art"),
+    app_commands.Choice(name="profile (trophies)", value="profile_trophies"),
+    app_commands.Choice(name="profile (trinkets)", value="profile_trinkets"),
+    app_commands.Choice(name="profile (frames)", value="profile_frames"),
+    app_commands.Choice(name="profile (designs)", value="profile_designs"),
     app_commands.Choice(name="artifact", value="artifact"),
     app_commands.Choice(name="item", value="item"),
     app_commands.Choice(name="manatura", value="manatura"),
@@ -227,7 +231,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - optional everywhere except `class_skin`, where it is required.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; Profile Room types upload sticker, background, other-character, or favorite-art rows.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -1450,6 +1454,14 @@ async def run_wiki_upload(
                 wi.check_profile(page, 'other_characters')
             elif page_type == 'profile_favorite_art':
                 wi.check_profile(page, 'favorite_art')
+            elif page_type == 'profile_trophies':
+                wi.check_profile(page, 'trophies')
+            elif page_type == 'profile_trinkets':
+                wi.check_profile(page, 'trinkets')
+            elif page_type == 'profile_frames':
+                wi.check_profile(page, 'frames')
+            elif page_type == 'profile_designs':
+                wi.check_profile(page, 'designs')
             elif page_type == 'item':
                 wi.upload_item_article_images(page)
             elif page_type == 'artifact':

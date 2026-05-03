@@ -6,7 +6,7 @@ __General Rules__
 - Progress pings land every ~15s; final summaries include key counts and wiki links. If the bot runs in dry-run mode you will see a `[DRY RUN]` prefix.
 
 __Reference Lists (from `main.py`)__
-- `PAGE_TYPES`: `character`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `npc`, `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `artifact`, `item`, `manatura`, `shield`, `skill_icons`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
+- `PAGE_TYPES`: `character`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `npc`, `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `profile_trophies`, `profile_trinkets`, `profile_frames`, `profile_designs`, `artifact`, `item`, `manatura`, `shield`, `skill_icons`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
 - `ITEM_TYPES`: `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`.
 
 **/help**
@@ -21,7 +21,7 @@ Usage: `/help command:<optional>`
   - Invalid `command`: ephemeral error with matching command suggestions when available.
 
 **/imgupload**
-Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|class_skin|skin|npc|profile_stickers|profile_backgrounds|profile_other_characters|profile_favorite_art|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
+Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|class_skin|skin|npc|profile_stickers|profile_backgrounds|profile_other_characters|profile_favorite_art|profile_trophies|profile_trinkets|profile_frames|profile_designs|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
 - Inputs:
   - `page_type` - pick the asset family; determines which CDN paths are scanned.
@@ -31,6 +31,10 @@ Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|cl
     - `profile_backgrounds` (shown in Discord as `profile (backgrounds)`) - uploads Profile Room background images and thumbnails from `{{ProfileRoom/Background/Row}}` rows, creates EN thumbnail redirects like `{name}_(Profile)_square.png`, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Background Images]]`.
     - `profile_other_characters` (shown in Discord as `profile (other characters)`) - uploads Profile Room other-character images, icons, and squares from `{{ProfileRoom/OtherCharacter/Row}}` rows, creates EN redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Other Character Images]]`.
     - `profile_favorite_art` (shown in Discord as `profile (favorite art)`) - uploads Profile Room favorite-art images and thumbnails from `{{ProfileRoom/FavoriteArt/Row}}` rows, creates EN redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Favorite Art Images]]`.
+    - `profile_trophies` (shown in Discord as `profile (trophies)`) - uploads Profile Room trophy images and thumbnails from `{{ProfileRoom/RoomTrophy/Row}}` rows, creates EN redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Trophy Images]]`.
+    - `profile_trinkets` (shown in Discord as `profile (trinkets)`) - uploads Profile Room trinket images and thumbnails from `{{ProfileRoom/Trinket/Row}}` rows, creates EN redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Trinket Images]]`.
+    - `profile_frames` (shown in Discord as `profile (frames)`) - uploads Profile Room frame images and shared thumbnails from `{{ProfileRoom/Frame/Row}}` rows without display redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Frame Images]]`.
+    - `profile_designs` (shown in Discord as `profile (designs)`) - uploads Profile Room design images and shared thumbnails from `{{ProfileRoom/Design/Row}}` rows without display redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Design Images]]`.
     - `class_skin` - **requires** the `filter` input (numeric `id` from the `{{ClassSkin}}` template). The bot uploads the shared skin artwork plus every configured variant (MC icon/square, gendered raid/quest/talk/etc., PM, Sky Compass, skin_name, and more) under canonical `Leader_*` / `jobs_*` filenames and redirect titles such as `{name} (Gran) raid.jpg`.
     - `bullet` - searches for every `{{Bullet}}` template, reads the `id` and `name`, downloads `https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/img/sp/assets/bullet/m/<id>.jpg` and `/s/<id>.jpg`, uploads them as `Bullet_m_<id>.jpg` / `Bullet_s_<id>.jpg`, and builds redirects `<Name>_icon.jpg` / `<Name>_square.jpg`.
     - `advyrnture_gear` - searches for every `{{Advyrnture/Cosmetic/Row}}` template, reads `id` and `name`, downloads `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/cosmetic/m/<id>.jpg` and `/s/<id>.jpg`, uploads them as `cosmetic_m_<id>.jpg` / `cosmetic_s_<id>.jpg`, creates redirects `<Name> (Advyrnture) icon.jpg` / `<Name> (Advyrnture) square.jpg` when `name` is present, and also ensures the page redirect `<Name> (Advyrnture)` -> `Let's Go, Advyrnturers!#<Name>`. If `name` is blank, the canonical uploads still run but redirect creation is skipped.
