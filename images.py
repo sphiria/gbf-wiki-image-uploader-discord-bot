@@ -2205,11 +2205,12 @@ class WikiImages(object):
         },
     )
 
-    def _extract_profile_room_rows(self, page, template_name, required_params, label):
+    def _extract_profile_room_rows(self, page, template_name, required_params, label, filter_id=None):
         pagetext = page.text()
         wikicode = mwparserfromhell.parse(pagetext)
         rows = []
         seen_ids = set()
+        filter_id = (filter_id or '').strip()
 
         for template in wikicode.filter_templates():
             current_template_name = template.name.strip().lower().replace(' ', '_')
@@ -2234,6 +2235,9 @@ class WikiImages(object):
                 )
                 continue
 
+            if filter_id and row['id'] != filter_id:
+                continue
+
             if row['id'] in seen_ids:
                 print(f'Skipping duplicate {label} id "{row["id"]}".')
                 continue
@@ -2241,70 +2245,81 @@ class WikiImages(object):
             seen_ids.add(row['id'])
             rows.append(row)
 
+        if filter_id and not rows:
+            print(f'No {label} with id "{filter_id}" found.')
+
         return rows
 
-    def _extract_profile_room_sticker_rows(self, page):
+    def _extract_profile_room_sticker_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/sticker/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/Sticker/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_background_rows(self, page):
+    def _extract_profile_room_background_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/background/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/Background/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_other_character_rows(self, page):
+    def _extract_profile_room_other_character_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/othercharacter/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/OtherCharacter/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_favorite_art_rows(self, page):
+    def _extract_profile_room_favorite_art_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/favoriteart/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/FavoriteArt/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_trophy_rows(self, page):
+    def _extract_profile_room_trophy_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/roomtrophy/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/RoomTrophy/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_trinket_rows(self, page):
+    def _extract_profile_room_trinket_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/trinket/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/Trinket/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_frame_rows(self, page):
+    def _extract_profile_room_frame_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/frame/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/Frame/Row',
+            filter_id,
         )
 
-    def _extract_profile_room_design_rows(self, page):
+    def _extract_profile_room_design_rows(self, page, filter_id=None):
         return self._extract_profile_room_rows(
             page,
             'profileroom/design/row',
             {'id', 'name', 'image_key', 'thumbnail_key'},
             'ProfileRoom/Design/Row',
+            filter_id,
         )
 
     def _build_profile_asset_tasks(self, rows, asset_specs, categories, dedupe_canonicals=False):
@@ -2396,24 +2411,24 @@ class WikiImages(object):
             dedupe_canonicals=True,
         )
 
-    def check_profile(self, page, profile_type='stickers'):
+    def check_profile(self, page, profile_type='stickers', filter_id=None):
         """Dispatch Profile Room uploads by collection subtype."""
         if profile_type == 'stickers':
-            return self.check_profile_stickers(page)
+            return self.check_profile_stickers(page, filter_id)
         if profile_type == 'backgrounds':
-            return self.check_profile_backgrounds(page)
+            return self.check_profile_backgrounds(page, filter_id)
         if profile_type == 'other_characters':
-            return self.check_profile_other_characters(page)
+            return self.check_profile_other_characters(page, filter_id)
         if profile_type == 'favorite_art':
-            return self.check_profile_favorite_art(page)
+            return self.check_profile_favorite_art(page, filter_id)
         if profile_type == 'trophies':
-            return self.check_profile_trophies(page)
+            return self.check_profile_trophies(page, filter_id)
         if profile_type == 'trinkets':
-            return self.check_profile_trinkets(page)
+            return self.check_profile_trinkets(page, filter_id)
         if profile_type == 'frames':
-            return self.check_profile_frames(page)
+            return self.check_profile_frames(page, filter_id)
         if profile_type == 'designs':
-            return self.check_profile_designs(page)
+            return self.check_profile_designs(page, filter_id)
         raise ValueError(f"Unknown Profile Room upload type: {profile_type}")
 
     def _check_profile_assets(self, page, profile_label, template_label, rows, tasks):
@@ -2498,21 +2513,21 @@ class WikiImages(object):
                 successful=successful_downloads,
             )
 
-    def check_profile_stickers(self, page):
+    def check_profile_stickers(self, page, filter_id=None):
         """Upload Profile Room sticker images from {{ProfileRoom/Sticker/Row}} templates."""
-        rows = self._extract_profile_room_sticker_rows(page)
+        rows = self._extract_profile_room_sticker_rows(page, filter_id)
         tasks = self._build_profile_sticker_asset_tasks(rows)
         return self._check_profile_assets(page, 'sticker', 'ProfileRoom/Sticker/Row', rows, tasks)
 
-    def check_profile_backgrounds(self, page):
+    def check_profile_backgrounds(self, page, filter_id=None):
         """Upload Profile Room background images from {{ProfileRoom/Background/Row}} templates."""
-        rows = self._extract_profile_room_background_rows(page)
+        rows = self._extract_profile_room_background_rows(page, filter_id)
         tasks = self._build_profile_background_asset_tasks(rows)
         return self._check_profile_assets(page, 'background', 'ProfileRoom/Background/Row', rows, tasks)
 
-    def check_profile_other_characters(self, page):
+    def check_profile_other_characters(self, page, filter_id=None):
         """Upload Profile Room other-character images from {{ProfileRoom/OtherCharacter/Row}} templates."""
-        rows = self._extract_profile_room_other_character_rows(page)
+        rows = self._extract_profile_room_other_character_rows(page, filter_id)
         tasks = self._build_profile_other_character_asset_tasks(rows)
         return self._check_profile_assets(
             page,
@@ -2522,9 +2537,9 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_favorite_art(self, page):
+    def check_profile_favorite_art(self, page, filter_id=None):
         """Upload Profile Room favorite-art images from {{ProfileRoom/FavoriteArt/Row}} templates."""
-        rows = self._extract_profile_room_favorite_art_rows(page)
+        rows = self._extract_profile_room_favorite_art_rows(page, filter_id)
         tasks = self._build_profile_favorite_art_asset_tasks(rows)
         return self._check_profile_assets(
             page,
@@ -2534,9 +2549,9 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_trophies(self, page):
+    def check_profile_trophies(self, page, filter_id=None):
         """Upload Profile Room trophy images from {{ProfileRoom/RoomTrophy/Row}} templates."""
-        rows = self._extract_profile_room_trophy_rows(page)
+        rows = self._extract_profile_room_trophy_rows(page, filter_id)
         tasks = self._build_profile_trophy_asset_tasks(rows)
         return self._check_profile_assets(
             page,
@@ -2546,9 +2561,9 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_trinkets(self, page):
+    def check_profile_trinkets(self, page, filter_id=None):
         """Upload Profile Room trinket images from {{ProfileRoom/Trinket/Row}} templates."""
-        rows = self._extract_profile_room_trinket_rows(page)
+        rows = self._extract_profile_room_trinket_rows(page, filter_id)
         tasks = self._build_profile_trinket_asset_tasks(rows)
         return self._check_profile_assets(
             page,
@@ -2558,9 +2573,9 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_frames(self, page):
+    def check_profile_frames(self, page, filter_id=None):
         """Upload Profile Room frame images from {{ProfileRoom/Frame/Row}} templates."""
-        rows = self._extract_profile_room_frame_rows(page)
+        rows = self._extract_profile_room_frame_rows(page, filter_id)
         tasks = self._build_profile_frame_asset_tasks(rows)
         return self._check_profile_assets(
             page,
@@ -2570,9 +2585,9 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_designs(self, page):
+    def check_profile_designs(self, page, filter_id=None):
         """Upload Profile Room design images from {{ProfileRoom/Design/Row}} templates."""
-        rows = self._extract_profile_room_design_rows(page)
+        rows = self._extract_profile_room_design_rows(page, filter_id)
         tasks = self._build_profile_design_asset_tasks(rows)
         return self._check_profile_assets(
             page,
@@ -7214,6 +7229,35 @@ class WikiImages(object):
 
 def main():
     wi = WikiImages()
+
+    def parse_profile_page_args(args):
+        page_parts = []
+        filter_id = None
+        index = 0
+        while index < len(args):
+            arg = args[index]
+            if arg == '--filter':
+                if index + 1 >= len(args):
+                    raise ValueError('Missing value after --filter.')
+                filter_id = args[index + 1].strip()
+                index += 2
+                continue
+            if arg.startswith('--filter='):
+                filter_id = arg.split('=', 1)[1].strip()
+                index += 1
+                continue
+            if arg.startswith('filter='):
+                filter_id = arg.split('=', 1)[1].strip()
+                index += 1
+                continue
+            page_parts.append(arg)
+            index += 1
+
+        page_name = ' '.join(page_parts).strip()
+        if filter_id and filter_id.lower() == 'all':
+            filter_id = None
+        return page_name, filter_id
+
     proxy_required_modes = {
         'character',
         'char',
@@ -7422,11 +7466,15 @@ def main():
                 f'Supported types: {", ".join(sorted(profile_types.keys()))}'
             )
             return
-        page_name = ' '.join(sys.argv[3:]).strip()
+        try:
+            page_name, filter_id = parse_profile_page_args(sys.argv[3:])
+        except ValueError as exc:
+            print(str(exc))
+            return
         if not page_name:
             print('Please supply a Profile Room wiki page name.')
             return
-        wi.check_profile(wi.wiki.pages[page_name], profile_types[profile_type])
+        wi.check_profile(wi.wiki.pages[page_name], profile_types[profile_type], filter_id)
     elif mode.startswith('profile_'):
         profile_modes = {
             'profile_stickers': 'stickers',
@@ -7447,11 +7495,15 @@ def main():
         if len(sys.argv) < 3:
             print(f'Usage: python images.py {mode} <page name>')
             return
-        page_name = ' '.join(sys.argv[2:]).strip()
+        try:
+            page_name, filter_id = parse_profile_page_args(sys.argv[2:])
+        except ValueError as exc:
+            print(str(exc))
+            return
         if not page_name:
             print('Please supply a Profile Room wiki page name.')
             return
-        wi.check_profile(wi.wiki.pages[page_name], profile_modes[mode])
+        wi.check_profile(wi.wiki.pages[page_name], profile_modes[mode], filter_id)
     elif mode == 'summon':
         wi.check_summon(wi.wiki.pages[sys.argv[2]])
     elif mode == 'summons':

@@ -577,8 +577,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - `/imgupload page_type:profile_trinkets` uploads Profile Room trinket assets from `{{ProfileRoom/Trinket/Row}}` templates on the supplied page.
 - `/imgupload page_type:profile_frames` uploads Profile Room frame assets from `{{ProfileRoom/Frame/Row}}` templates on the supplied page.
 - `/imgupload page_type:profile_designs` uploads Profile Room design assets from `{{ProfileRoom/Design/Row}}` templates on the supplied page.
-- Local CLI supports `python images.py profile <stickers|backgrounds|other_characters|favorite_art|trophies|trinkets|frames|designs> <page name>`.
+- `/imgupload filter:<id>` is optional for all Profile Room page types and exact-matches the row `id`; when provided, only that row is uploaded. `filter:all` is a special no-filter value and processes the full table.
+- Local CLI supports `python images.py profile <stickers|backgrounds|other_characters|favorite_art|trophies|trinkets|frames|designs> <page name> [--filter <id>]`.
 - Local CLI also supports direct aliases: `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `profile_trophies`, `profile_trinkets`, `profile_frames`, and `profile_designs`.
+- Direct Profile Room CLI aliases also support `--filter <id>`, `--filter=<id>`, or `filter=<id>` after the page name.
 - Sticker required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Background required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Other-character required row params: `id`, `name`, `image_key`, `thumbnail_key`.
