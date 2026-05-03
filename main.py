@@ -230,7 +230,7 @@ HELP_COMMAND_DETAILS = {
             "- Inputs:",
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
-            "  - `filter` - optional everywhere except `class_skin`, where it is required.",
+            "  - `filter` - required for `class_skin`; optional for Profile Room types where it exact-matches a row `id`.",
             "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
@@ -570,6 +570,21 @@ def validate_class_skin_filter(filter_value: str) -> tuple[bool, str]:
 
     if not VALID_CLASS_SKIN_ID_REGEX.match(filter_value):
         return False, "Invalid filter id. Only digits are allowed."
+
+    return True, filter_value
+
+def validate_profile_filter(filter_value: str) -> tuple[bool, str]:
+    """Validate a Profile Room row id filter input."""
+    filter_value = (filter_value or "").strip()
+
+    if filter_value.lower() == "all":
+        return True, ""
+
+    if len(filter_value) == 0 or len(filter_value) > MAX_ITEM_ID_LEN:
+        return False, f"Invalid profile filter id. Must be between 1 and {MAX_ITEM_ID_LEN} characters."
+
+    if not VALID_ITEM_ID_REGEX.match(filter_value):
+        return False, "Invalid profile filter id. Only letters, numbers, underscores, and hyphens are allowed."
 
     return True, filter_value
 
@@ -1447,21 +1462,21 @@ async def run_wiki_upload(
             elif page_type == 'npc':
                 wi.check_npc(page)
             elif page_type == 'profile_stickers':
-                wi.check_profile(page, 'stickers')
+                wi.check_profile(page, 'stickers', filter_value)
             elif page_type == 'profile_backgrounds':
-                wi.check_profile(page, 'backgrounds')
+                wi.check_profile(page, 'backgrounds', filter_value)
             elif page_type == 'profile_other_characters':
-                wi.check_profile(page, 'other_characters')
+                wi.check_profile(page, 'other_characters', filter_value)
             elif page_type == 'profile_favorite_art':
-                wi.check_profile(page, 'favorite_art')
+                wi.check_profile(page, 'favorite_art', filter_value)
             elif page_type == 'profile_trophies':
-                wi.check_profile(page, 'trophies')
+                wi.check_profile(page, 'trophies', filter_value)
             elif page_type == 'profile_trinkets':
-                wi.check_profile(page, 'trinkets')
+                wi.check_profile(page, 'trinkets', filter_value)
             elif page_type == 'profile_frames':
-                wi.check_profile(page, 'frames')
+                wi.check_profile(page, 'frames', filter_value)
             elif page_type == 'profile_designs':
-                wi.check_profile(page, 'designs')
+                wi.check_profile(page, 'designs', filter_value)
             elif page_type == 'item':
                 wi.upload_item_article_images(page)
             elif page_type == 'artifact':
@@ -1878,7 +1893,7 @@ from discord import app_commands
 @app_commands.describe(
     page_type="Type of page",
     page_name="Wiki page name",
-    page_filter="Additional filter parameter (required for class skin uploads)",
+    page_filter="Filter id (required for class_skin; optional Profile Room row id)",
 )
 @app_commands.rename(page_filter="filter")
 @app_commands.choices(page_type=PAGE_TYPE_CHOICES)
@@ -1905,17 +1920,23 @@ async def upload(
         return
     page_name = result  # validated + stripped
 
-    class_skin_filter = None
+    upload_filter = None
     if page_type.value == "class_skin":
         is_valid_filter, filter_result = validate_class_skin_filter(page_filter or "")
         if not is_valid_filter:
             await interaction.response.send_message(filter_result, ephemeral=True)
             return
-        class_skin_filter = filter_result
+        upload_filter = filter_result
+    elif page_type.value.startswith("profile_") and page_filter:
+        is_valid_filter, filter_result = validate_profile_filter(page_filter)
+        if not is_valid_filter:
+            await interaction.response.send_message(filter_result, ephemeral=True)
+            return
+        upload_filter = filter_result
 
     display_target = (
-        f"{page_name} [filter: {class_skin_filter}]"
-        if class_skin_filter
+        f"{page_name} [filter: {upload_filter}]"
+        if upload_filter
         else page_name
     )
 
@@ -1977,12 +1998,11 @@ async def upload(
         # start the updater task
         updater_task = asyncio.create_task(progress_updater())
 
-        filter_arg = class_skin_filter if page_type.value == "class_skin" else None
         return_code, stdout, stderr = await run_wiki_upload(
             page_type.value,
             page_name,
             status,
-            filter_value=filter_arg,
+            filter_value=upload_filter,
         )
         
         updater_task.cancel()
