@@ -293,7 +293,11 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='profile_room_sticker',
             pattern=re.compile(
-                r'^File:(?P<prefix>[Mm]emorial[ _]frame[ _]sticker|[Tt]humbnail[ _]sticker)[ _]'
+                r'^File:(?P<prefix>'
+                r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]sticker|'
+                r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]thumbnail[ _]sticker|'
+                r'[Tt]humbnail[ _]sticker'
+                r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
@@ -302,7 +306,11 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='profile_room_background',
             pattern=re.compile(
-                r'^File:(?P<prefix>Profile[ _]card[ _]bg|[Tt]humbnail[ _]bg)[ _]'
+                r'^File:(?P<prefix>'
+                r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]bg|'
+                r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]thumbnail[ _]bg|'
+                r'[Tt]humbnail[ _]bg'
+                r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
@@ -311,8 +319,23 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='profile_room_other_character',
             pattern=re.compile(
-                r'^File:(?P<prefix>[Pp]rofile[ _]room[ _]character[ _]other|'
-                r'[Cc]haracter[ _]thumbnail[ _]other[ _][ms])[ _]'
+                r'^File:(?P<prefix>'
+                r'[Pp]rofile[ _]room[ _]character[ _]other|'
+                r'(?:[Pp]rofile[ _]room[ _])?[Cc]haracter[ _]thumbnail[ _]other[ _][ms]'
+                r')[ _]'
+                r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'ext'),
+        ),
+        DuplicateFamilyRule(
+            name='profile_room_favorite_art',
+            pattern=re.compile(
+                r'^File:(?P<prefix>'
+                r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]painting|'
+                r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]thumbnail[ _]painting|'
+                r'[Tt]humbnail[ _]painting'
+                r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
@@ -816,19 +839,44 @@ class WikiImages(object):
         )
         return normalized
 
+    def _is_profile_room_duplicate_family(self, rule_name):
+        return rule_name in (
+            'profile_room_sticker',
+            'profile_room_background',
+            'profile_room_other_character',
+            'profile_room_favorite_art',
+        )
+
+    def _normalize_profile_room_duplicate_part(self, value):
+        normalized = self._normalize_duplicate_family_part(value).replace(' ', '_')
+        legacy_prefixes = {
+            'memorial_frame_sticker': 'profile_room_memorial_frame_sticker',
+            'thumbnail_sticker': 'profile_room_memorial_frame_thumbnail_sticker',
+            'profile_card_bg': 'profile_room_profile_card_bg',
+            'thumbnail_bg': 'profile_room_profile_card_thumbnail_bg',
+            'character_thumbnail_other_m': 'profile_room_character_thumbnail_other_m',
+            'character_thumbnail_other_s': 'profile_room_character_thumbnail_other_s',
+            'memorial_frame_painting': 'profile_room_memorial_frame_painting',
+            'thumbnail_painting': 'profile_room_memorial_frame_thumbnail_painting',
+        }
+        return legacy_prefixes.get(normalized, normalized)
+
     def _normalize_duplicate_signature_value(self, rule, match, part):
         value = self._normalize_duplicate_family_part(match.group(part))
-        if rule.name in ('profile_room_sticker', 'profile_room_background', 'profile_room_other_character'):
-            return value.replace(' ', '_')
+        if self._is_profile_room_duplicate_family(rule.name):
+            return self._normalize_profile_room_duplicate_part(value)
         if part == 'suffix' and self._is_npc_duplicate_family(rule, match):
             return self._normalize_npc_duplicate_suffix(value)
         return value
 
     def _duplicate_canonical_preference_key(self, match):
-        if match.rule.name in ('profile_room_sticker', 'profile_room_background', 'profile_room_other_character'):
+        if self._is_profile_room_duplicate_family(match.rule.name):
             locale = self._normalize_duplicate_family_part(match.match_obj.groupdict().get('locale'))
             locale_penalty = 1 if locale == 'jp' else 0
-            return (locale_penalty, self._normalize_duplicate_family_part(match.page_name).replace(' ', '_'))
+            raw_page_name = self._normalize_duplicate_family_part(match.page_name).replace(' ', '_')
+            page_name = self._normalize_profile_room_duplicate_part(match.page_name)
+            legacy_penalty = 0 if raw_page_name.startswith('profile_room_') else 1
+            return (locale_penalty, legacy_penalty, page_name)
 
         if not self._is_npc_duplicate_family(match.rule, match.match_obj):
             return (0, self._normalize_duplicate_family_part(match.page_name))
@@ -1165,6 +1213,7 @@ class WikiImages(object):
                     'profile_room_sticker',
                     'profile_room_background',
                     'profile_room_other_character',
+                    'profile_room_favorite_art',
                 )
                 and getattr(requested_page, 'exists', False)
                 and getattr(requested_page, 'redirect', False)
@@ -1786,35 +1835,40 @@ class WikiImages(object):
     PROFILE_STICKER_CATEGORY = "Profile Room Sticker Images"
     PROFILE_BACKGROUND_CATEGORY = "Profile Room Background Images"
     PROFILE_OTHER_CHARACTER_CATEGORY = "Profile Room Other Character Images"
+    PROFILE_FAVORITE_ART_CATEGORY = "Profile Room Favorite Art Images"
 
     PROFILE_STICKER_ASSETS = (
         {
             "label": "EN sticker",
             "url_prefix": "assets_en",
             "path": "profile_room/memorial_frame/sticker/{image_key}.png",
-            "canonical": "Memorial_frame_sticker_{image_key}.png",
+            "canonical": "profile_room_memorial_frame_sticker_{image_key}.png",
             "redirect": "{name}_(Profile).jpg",
+            "legacy_redirects": ["Memorial_frame_sticker_{image_key}.png"],
         },
         {
             "label": "EN sticker thumbnail",
             "url_prefix": "assets_en",
             "path": "profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg",
-            "canonical": "Thumbnail_sticker_{thumbnail_key}.jpg",
+            "canonical": "profile_room_memorial_frame_thumbnail_sticker_{thumbnail_key}.jpg",
             "redirect": "{name}_(Profile)_square.jpg",
+            "legacy_redirects": ["Thumbnail_sticker_{thumbnail_key}.jpg"],
         },
         {
             "label": "JP sticker",
             "url_prefix": "assets",
             "path": "profile_room/memorial_frame/sticker/{image_key}.png",
-            "canonical": "Memorial_frame_sticker_{image_key}jp.png",
+            "canonical": "profile_room_memorial_frame_sticker_{image_key}jp.png",
             "redirect": "{name}_(Profile JP).jpg",
+            "legacy_redirects": ["Memorial_frame_sticker_{image_key}jp.png"],
         },
         {
             "label": "JP sticker thumbnail",
             "url_prefix": "assets",
             "path": "profile_room/memorial_frame/thumbnail/sticker/{thumbnail_key}.jpg",
-            "canonical": "Thumbnail_sticker_{thumbnail_key}jp.jpg",
+            "canonical": "profile_room_memorial_frame_thumbnail_sticker_{thumbnail_key}jp.jpg",
             "redirect": "{name}_(Profile JP)_square.jpg",
+            "legacy_redirects": ["Thumbnail_sticker_{thumbnail_key}jp.jpg"],
         },
     )
 
@@ -1823,29 +1877,33 @@ class WikiImages(object):
             "label": "EN background thumbnail",
             "url_prefix": "assets_en",
             "path": "profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png",
-            "canonical": "thumbnail_bg_{thumbnail_key}.png",
+            "canonical": "profile_room_profile_card_thumbnail_bg_{thumbnail_key}.png",
             "redirect": "{name}_(Profile)_square.png",
+            "legacy_redirects": ["thumbnail_bg_{thumbnail_key}.png"],
         },
         {
             "label": "EN background",
             "url_prefix": "assets_en",
             "path": "profile_room/profile_card/bg/{image_key}.jpg",
-            "canonical": "Profile_card_bg_{image_key}.jpg",
+            "canonical": "profile_room_profile_card_bg_{image_key}.jpg",
             "redirect": None,
+            "legacy_redirects": ["Profile_card_bg_{image_key}.jpg"],
         },
         {
             "label": "JP background thumbnail",
             "url_prefix": "assets",
             "path": "profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png",
-            "canonical": "thumbnail_bg_{thumbnail_key}jp.png",
+            "canonical": "profile_room_profile_card_thumbnail_bg_{thumbnail_key}jp.png",
             "redirect": None,
+            "legacy_redirects": ["thumbnail_bg_{thumbnail_key}jp.png"],
         },
         {
             "label": "JP background",
             "url_prefix": "assets",
             "path": "profile_room/profile_card/bg/{image_key}.jpg",
-            "canonical": "Profile_card_bg_{image_key}jp.jpg",
+            "canonical": "profile_room_profile_card_bg_{image_key}jp.jpg",
             "redirect": None,
+            "legacy_redirects": ["Profile_card_bg_{image_key}jp.jpg"],
         },
     )
 
@@ -1856,20 +1914,23 @@ class WikiImages(object):
             "path": "profile_room/character/other/{image_key}.png",
             "canonical": "profile_room_character_other_{image_key}.png",
             "redirect": "{name}_(Profile).png",
+            "legacy_redirects": [],
         },
         {
             "label": "EN other character icon",
             "url_prefix": "assets_en",
             "path": "profile_room/character/thumbnail/other/m/{thumbnail_key}.jpg",
-            "canonical": "character_thumbnail_other_m_{thumbnail_key}.jpg",
+            "canonical": "profile_room_character_thumbnail_other_m_{thumbnail_key}.jpg",
             "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": ["character_thumbnail_other_m_{thumbnail_key}.jpg"],
         },
         {
             "label": "EN other character square",
             "url_prefix": "assets_en",
             "path": "profile_room/character/thumbnail/other/s/{image_key}.jpg",
-            "canonical": "character_thumbnail_other_s_{image_key}.jpg",
+            "canonical": "profile_room_character_thumbnail_other_s_{image_key}.jpg",
             "redirect": "{name}_(Profile)_square.jpg",
+            "legacy_redirects": ["character_thumbnail_other_s_{image_key}.jpg"],
         },
         {
             "label": "JP other character image",
@@ -1877,20 +1938,58 @@ class WikiImages(object):
             "path": "profile_room/character/other/{image_key}.png",
             "canonical": "profile_room_character_other_{image_key}jp.png",
             "redirect": None,
+            "legacy_redirects": [],
         },
         {
             "label": "JP other character icon",
             "url_prefix": "assets",
             "path": "profile_room/character/thumbnail/other/m/{thumbnail_key}.jpg",
-            "canonical": "character_thumbnail_other_m_{thumbnail_key}jp.jpg",
+            "canonical": "profile_room_character_thumbnail_other_m_{thumbnail_key}jp.jpg",
             "redirect": None,
+            "legacy_redirects": ["character_thumbnail_other_m_{thumbnail_key}jp.jpg"],
         },
         {
             "label": "JP other character square",
             "url_prefix": "assets",
             "path": "profile_room/character/thumbnail/other/s/{image_key}.jpg",
-            "canonical": "character_thumbnail_other_s_{image_key}jp.jpg",
+            "canonical": "profile_room_character_thumbnail_other_s_{image_key}jp.jpg",
             "redirect": None,
+            "legacy_redirects": ["character_thumbnail_other_s_{image_key}jp.jpg"],
+        },
+    )
+
+    PROFILE_FAVORITE_ART_ASSETS = (
+        {
+            "label": "EN favorite art image",
+            "url_prefix": "assets_en",
+            "path": "profile_room/memorial_frame/painting/{image_key}.png",
+            "canonical": "profile_room_memorial_frame_painting_{image_key}.png",
+            "redirect": "{name}_(Profile).png",
+            "legacy_redirects": ["Memorial_frame_painting_{image_key}.png"],
+        },
+        {
+            "label": "EN favorite art thumbnail",
+            "url_prefix": "assets_en",
+            "path": "profile_room/memorial_frame/thumbnail/painting/{thumbnail_key}.png",
+            "canonical": "profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}.png",
+            "redirect": "{name}_(Profile)_square.png",
+            "legacy_redirects": ["Thumbnail_painting_{thumbnail_key}.png"],
+        },
+        {
+            "label": "JP favorite art image",
+            "url_prefix": "assets",
+            "path": "profile_room/memorial_frame/painting/{image_key}.png",
+            "canonical": "profile_room_memorial_frame_painting_{image_key}jp.png",
+            "redirect": None,
+            "legacy_redirects": ["Memorial_frame_painting_{image_key}jp.png"],
+        },
+        {
+            "label": "JP favorite art thumbnail",
+            "url_prefix": "assets",
+            "path": "profile_room/memorial_frame/thumbnail/painting/{thumbnail_key}.png",
+            "canonical": "profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}jp.png",
+            "redirect": None,
+            "legacy_redirects": ["Thumbnail_painting_{thumbnail_key}jp.png"],
         },
     )
 
@@ -1956,12 +2055,27 @@ class WikiImages(object):
             'ProfileRoom/OtherCharacter/Row',
         )
 
+    def _extract_profile_room_favorite_art_rows(self, page):
+        return self._extract_profile_room_rows(
+            page,
+            'profileroom/favoriteart/row',
+            {'id', 'name', 'image_key', 'thumbnail_key'},
+            'ProfileRoom/FavoriteArt/Row',
+        )
+
     def _build_profile_asset_tasks(self, rows, asset_specs, categories):
         tasks = []
         for row in rows:
             for spec in asset_specs:
                 path = spec['path'].format(**row)
                 redirect = spec.get('redirect')
+                legacy_redirects = [
+                    legacy_redirect.format(**row)
+                    for legacy_redirect in spec.get('legacy_redirects', [])
+                ]
+                redirects = legacy_redirects
+                if redirect:
+                    redirects.append(redirect.format(**row))
                 tasks.append({
                     'label': spec['label'],
                     'row': row,
@@ -1970,7 +2084,7 @@ class WikiImages(object):
                         f"{spec['url_prefix']}/img/sp/assets/{path}"
                     ),
                     'canonical': spec['canonical'].format(**row),
-                    'redirects': [redirect.format(**row)] if redirect else [],
+                    'redirects': redirects,
                     'categories': categories,
                 })
         return tasks
@@ -1996,6 +2110,13 @@ class WikiImages(object):
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_OTHER_CHARACTER_CATEGORY],
         )
 
+    def _build_profile_favorite_art_asset_tasks(self, rows):
+        return self._build_profile_asset_tasks(
+            rows,
+            self.PROFILE_FAVORITE_ART_ASSETS,
+            [self.PROFILE_ROOM_CATEGORY, self.PROFILE_FAVORITE_ART_CATEGORY],
+        )
+
     def check_profile(self, page, profile_type='stickers'):
         """Dispatch Profile Room uploads by collection subtype."""
         if profile_type == 'stickers':
@@ -2004,6 +2125,8 @@ class WikiImages(object):
             return self.check_profile_backgrounds(page)
         if profile_type == 'other_characters':
             return self.check_profile_other_characters(page)
+        if profile_type == 'favorite_art':
+            return self.check_profile_favorite_art(page)
         raise ValueError(f"Unknown Profile Room upload type: {profile_type}")
 
     def _check_profile_assets(self, page, profile_label, template_label, rows, tasks):
@@ -2108,6 +2231,18 @@ class WikiImages(object):
             page,
             'other character',
             'ProfileRoom/OtherCharacter/Row',
+            rows,
+            tasks,
+        )
+
+    def check_profile_favorite_art(self, page):
+        """Upload Profile Room favorite-art images from {{ProfileRoom/FavoriteArt/Row}} templates."""
+        rows = self._extract_profile_room_favorite_art_rows(page)
+        tasks = self._build_profile_favorite_art_asset_tasks(rows)
+        return self._check_profile_assets(
+            page,
+            'favorite art',
+            'ProfileRoom/FavoriteArt/Row',
             rows,
             tasks,
         )
@@ -6759,6 +6894,11 @@ def main():
         'status',
         'item',
         'singleitem',
+        'profile',
+        'profile_stickers',
+        'profile_backgrounds',
+        'profile_other_characters',
+        'profile_favorite_art',
         'summon',
         'summons',
         'weapon',
@@ -6922,6 +7062,49 @@ def main():
             print('Item id and item name are required for single item upload.')
             return
         wi.upload_single_item_images(item_type, item_id, item_name)
+    elif mode == 'profile':
+        profile_types = {
+            'stickers': 'stickers',
+            'backgrounds': 'backgrounds',
+            'other_characters': 'other_characters',
+            'favorite_art': 'favorite_art',
+        }
+        if len(sys.argv) < 4:
+            print('Usage: python images.py profile <stickers|backgrounds|other_characters|favorite_art> <page name>')
+            return
+        profile_type = sys.argv[2].lower()
+        if profile_type not in profile_types:
+            print(
+                f'Unsupported Profile Room type "{profile_type}". '
+                f'Supported types: {", ".join(sorted(profile_types.keys()))}'
+            )
+            return
+        page_name = ' '.join(sys.argv[3:]).strip()
+        if not page_name:
+            print('Please supply a Profile Room wiki page name.')
+            return
+        wi.check_profile(wi.wiki.pages[page_name], profile_types[profile_type])
+    elif mode.startswith('profile_'):
+        profile_modes = {
+            'profile_stickers': 'stickers',
+            'profile_backgrounds': 'backgrounds',
+            'profile_other_characters': 'other_characters',
+            'profile_favorite_art': 'favorite_art',
+        }
+        if mode not in profile_modes:
+            print(
+                f'Unsupported Profile Room mode "{mode}". '
+                f'Supported modes: {", ".join(sorted(profile_modes.keys()))}'
+            )
+            return
+        if len(sys.argv) < 3:
+            print(f'Usage: python images.py {mode} <page name>')
+            return
+        page_name = ' '.join(sys.argv[2:]).strip()
+        if not page_name:
+            print('Please supply a Profile Room wiki page name.')
+            return
+        wi.check_profile(wi.wiki.pages[page_name], profile_modes[mode])
     elif mode == 'summon':
         wi.check_summon(wi.wiki.pages[sys.argv[2]])
     elif mode == 'summons':
