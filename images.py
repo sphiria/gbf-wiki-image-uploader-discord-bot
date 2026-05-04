@@ -296,6 +296,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]sticker|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]thumbnail[ _]sticker|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]sticker[ _]m|'
                 r'[Tt]humbnail[ _]sticker'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -309,6 +310,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]bg|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]thumbnail[ _]bg|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]bg[ _]m|'
                 r'[Tt]humbnail[ _]bg'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -334,6 +336,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]painting|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Mm]emorial[ _]frame[ _]thumbnail[ _]painting|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]painting[ _]m|'
                 r'[Tt]humbnail[ _]painting'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -347,6 +350,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Cc]abinet[ _]trophy|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Cc]abinet[ _]thumbnail[ _]trophy|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]trophy[ _]m|'
                 r'[Tt]humbnail[ _]trophy'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -360,6 +364,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Cc]abinet[ _]ornament|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Cc]abinet[ _]thumbnail[ _]ornament|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]ornament[ _]m|'
                 r'[Tt]humbnail[ _]ornament'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -373,6 +378,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]frame|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]thumbnail[ _]frame|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]frame[ _]m|'
                 r'[Tt]humbnail[ _]frame'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -386,6 +392,7 @@ class WikiImages(object):
                 r'^File:(?P<prefix>'
                 r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]decoration|'
                 r'(?:[Pp]rofile[ _]room[ _])?[Pp]rofile[ _]card[ _]thumbnail[ _]decoration|'
+                r'[Pp]rofile[ _]room[ _]item[ _]thumbnail[ _]decoration[ _]m|'
                 r'[Tt]humbnail[ _]decoration'
                 r')[ _]'
                 r'(?P<id>[A-Za-z0-9_ ]+?)(?P<locale>jp)?\.(?P<ext>[A-Za-z0-9]+)$'
@@ -1927,6 +1934,14 @@ class WikiImages(object):
             "legacy_redirects": ["Thumbnail_sticker_{thumbnail_key}.jpg"],
         },
         {
+            "label": "EN sticker icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/sticker/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_sticker_m_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
+        },
+        {
             "label": "JP sticker",
             "url_prefix": "assets",
             "path": "profile_room/memorial_frame/sticker/{image_key}.png",
@@ -1942,6 +1957,14 @@ class WikiImages(object):
             "redirect": "{name}_(Profile JP)_square.jpg",
             "legacy_redirects": ["Thumbnail_sticker_{thumbnail_key}jp.jpg"],
         },
+        {
+            "label": "JP sticker icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/sticker/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_sticker_m_{thumbnail_key}jp.jpg",
+            "redirect": "{name}_(Profile JP)_icon.jpg",
+            "legacy_redirects": [],
+        },
     )
 
     PROFILE_BACKGROUND_ASSETS = (
@@ -1952,6 +1975,14 @@ class WikiImages(object):
             "canonical": "profile_room_profile_card_thumbnail_bg_{thumbnail_key}.png",
             "redirect": "{name}_(Profile)_square.png",
             "legacy_redirects": ["thumbnail_bg_{thumbnail_key}.png"],
+        },
+        {
+            "label": "EN background icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/bg/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_bg_m_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
         },
         {
             "label": "EN background",
@@ -1968,6 +1999,14 @@ class WikiImages(object):
             "canonical": "profile_room_profile_card_thumbnail_bg_{thumbnail_key}jp.png",
             "redirect": None,
             "legacy_redirects": ["thumbnail_bg_{thumbnail_key}jp.png"],
+        },
+        {
+            "label": "JP background icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/bg/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_bg_m_{thumbnail_key}jp.jpg",
+            "redirect": None,
+            "legacy_redirects": [],
         },
         {
             "label": "JP background",
@@ -2048,6 +2087,14 @@ class WikiImages(object):
             "legacy_redirects": ["Thumbnail_painting_{thumbnail_key}.png"],
         },
         {
+            "label": "EN favorite art icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_painting_m_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
+        },
+        {
             "label": "JP favorite art image",
             "url_prefix": "assets",
             "path": "profile_room/memorial_frame/painting/{image_key}.png",
@@ -2063,6 +2110,14 @@ class WikiImages(object):
             "redirect": None,
             "legacy_redirects": ["Thumbnail_painting_{thumbnail_key}jp.png"],
         },
+        {
+            "label": "JP favorite art icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_painting_m_{thumbnail_key}jp.jpg",
+            "redirect": None,
+            "legacy_redirects": [],
+        },
     )
 
     PROFILE_TROPHY_ASSETS = (
@@ -2073,6 +2128,14 @@ class WikiImages(object):
             "canonical": "profile_room_cabinet_thumbnail_trophy_{thumbnail_key}.jpg",
             "redirect": "{name}_(Profile)_square.jpg",
             "legacy_redirects": ["Thumbnail_trophy_{thumbnail_key}.jpg"],
+        },
+        {
+            "label": "EN trophy icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/trophy/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_trophy_m_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
         },
         {
             "label": "EN trophy image",
@@ -2089,6 +2152,14 @@ class WikiImages(object):
             "canonical": "profile_room_cabinet_thumbnail_trophy_{thumbnail_key}jp.jpg",
             "redirect": None,
             "legacy_redirects": ["Thumbnail_trophy_{thumbnail_key}jp.jpg"],
+        },
+        {
+            "label": "JP trophy icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/trophy/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_trophy_m_{thumbnail_key}jp.jpg",
+            "redirect": None,
+            "legacy_redirects": [],
         },
         {
             "label": "JP trophy image",
@@ -2110,6 +2181,14 @@ class WikiImages(object):
             "legacy_redirects": ["Thumbnail_ornament_{thumbnail_key}.jpg"],
         },
         {
+            "label": "EN trinket icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/ornament/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_ornament_m_{thumbnail_key}.jpg",
+            "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
+        },
+        {
             "label": "EN trinket image",
             "url_prefix": "assets_en",
             "path": "profile_room/cabinet/ornament/{image_key}.png",
@@ -2124,6 +2203,14 @@ class WikiImages(object):
             "canonical": "profile_room_cabinet_thumbnail_ornament_{thumbnail_key}jp.jpg",
             "redirect": None,
             "legacy_redirects": ["Thumbnail_ornament_{thumbnail_key}jp.jpg"],
+        },
+        {
+            "label": "JP trinket icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/ornament/m/{thumbnail_key}.jpg",
+            "canonical": "profile_room_item_thumbnail_ornament_m_{thumbnail_key}jp.jpg",
+            "redirect": None,
+            "legacy_redirects": [],
         },
         {
             "label": "JP trinket image",
@@ -2141,8 +2228,16 @@ class WikiImages(object):
             "url_prefix": "assets_en",
             "path": "profile_room/profile_card/thumbnail/frame/{thumbnail_key}.png",
             "canonical": "profile_room_profile_card_thumbnail_frame_{thumbnail_key}.png",
-            "redirect": None,
+            "redirect": "{name}_{color}_(Profile)_square.png",
             "legacy_redirects": ["thumbnail_frame_{thumbnail_key}.png"],
+        },
+        {
+            "label": "EN frame icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/frame/m/{id}.jpg",
+            "canonical": "profile_room_item_thumbnail_frame_m_{id}.jpg",
+            "redirect": "{name}_{color}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
         },
         {
             "label": "EN frame image",
@@ -2161,6 +2256,14 @@ class WikiImages(object):
             "legacy_redirects": ["thumbnail_frame_{thumbnail_key}jp.png"],
         },
         {
+            "label": "JP frame icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/frame/m/{id}.jpg",
+            "canonical": "profile_room_item_thumbnail_frame_m_{id}jp.jpg",
+            "redirect": None,
+            "legacy_redirects": [],
+        },
+        {
             "label": "JP frame image",
             "url_prefix": "assets",
             "path": "profile_room/profile_card/frame/{image_key}.png",
@@ -2176,8 +2279,16 @@ class WikiImages(object):
             "url_prefix": "assets_en",
             "path": "profile_room/profile_card/thumbnail/decoration/{thumbnail_key}.png",
             "canonical": "profile_room_profile_card_thumbnail_decoration_{thumbnail_key}.png",
-            "redirect": None,
+            "redirect": "{name}_{color}_(Profile)_square.png",
             "legacy_redirects": ["thumbnail_decoration_{thumbnail_key}.png"],
+        },
+        {
+            "label": "EN design icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/item_thumbnail/decoration/m/{id}.jpg",
+            "canonical": "profile_room_item_thumbnail_decoration_m_{id}.jpg",
+            "redirect": "{name}_{color}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
         },
         {
             "label": "EN design image",
@@ -2194,6 +2305,14 @@ class WikiImages(object):
             "canonical": "profile_room_profile_card_thumbnail_decoration_{thumbnail_key}jp.png",
             "redirect": None,
             "legacy_redirects": ["thumbnail_decoration_{thumbnail_key}jp.png"],
+        },
+        {
+            "label": "JP design icon",
+            "url_prefix": "assets",
+            "path": "profile_room/item_thumbnail/decoration/m/{id}.jpg",
+            "canonical": "profile_room_item_thumbnail_decoration_m_{id}jp.jpg",
+            "redirect": None,
+            "legacy_redirects": [],
         },
         {
             "label": "JP design image",
@@ -2322,25 +2441,44 @@ class WikiImages(object):
             filter_id,
         )
 
-    def _build_profile_asset_tasks(self, rows, asset_specs, categories, dedupe_canonicals=False):
+    def _get_profile_room_color(self, row):
+        image_key = row.get('image_key', '')
+        color = image_key.rsplit('_', 1)[-1] if '_' in image_key else image_key
+        return color[:1].upper() + color[1:] if color else ''
+
+    def _build_profile_asset_tasks(
+        self,
+        rows,
+        asset_specs,
+        categories,
+        dedupe_canonicals=False,
+        icons_only=False,
+    ):
         tasks = []
-        seen_canonicals = set()
+        tasks_by_canonical = {}
         for row in rows:
+            format_values = row.copy()
+            format_values['color'] = self._get_profile_room_color(row)
             for spec in asset_specs:
-                path = spec['path'].format(**row)
-                canonical = spec['canonical'].format(**row)
-                if dedupe_canonicals and canonical in seen_canonicals:
+                if icons_only and ' icon' not in spec['label']:
                     continue
-                seen_canonicals.add(canonical)
+                path = spec['path'].format(**format_values)
+                canonical = spec['canonical'].format(**format_values)
                 redirect = spec.get('redirect')
                 legacy_redirects = [
-                    legacy_redirect.format(**row)
+                    legacy_redirect.format(**format_values)
                     for legacy_redirect in spec.get('legacy_redirects', [])
                 ]
                 redirects = legacy_redirects
                 if redirect:
-                    redirects.append(redirect.format(**row))
-                tasks.append({
+                    redirects.append(redirect.format(**format_values))
+                if dedupe_canonicals and canonical in tasks_by_canonical:
+                    existing_redirects = tasks_by_canonical[canonical]['redirects']
+                    for redirect_name in redirects:
+                        if redirect_name not in existing_redirects:
+                            existing_redirects.append(redirect_name)
+                    continue
+                task = {
                     'label': spec['label'],
                     'row': row,
                     'url': (
@@ -2350,85 +2488,96 @@ class WikiImages(object):
                     'canonical': canonical,
                     'redirects': redirects,
                     'categories': categories,
-                })
+                }
+                tasks.append(task)
+                if dedupe_canonicals:
+                    tasks_by_canonical[canonical] = task
         return tasks
 
-    def _build_profile_sticker_asset_tasks(self, rows):
+    def _build_profile_sticker_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_STICKER_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_STICKER_CATEGORY],
+            icons_only=icons_only,
         )
 
-    def _build_profile_background_asset_tasks(self, rows):
+    def _build_profile_background_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_BACKGROUND_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_BACKGROUND_CATEGORY],
+            icons_only=icons_only,
         )
 
-    def _build_profile_other_character_asset_tasks(self, rows):
+    def _build_profile_other_character_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_OTHER_CHARACTER_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_OTHER_CHARACTER_CATEGORY],
+            icons_only=icons_only,
         )
 
-    def _build_profile_favorite_art_asset_tasks(self, rows):
+    def _build_profile_favorite_art_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_FAVORITE_ART_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_FAVORITE_ART_CATEGORY],
+            icons_only=icons_only,
         )
 
-    def _build_profile_trophy_asset_tasks(self, rows):
+    def _build_profile_trophy_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_TROPHY_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_TROPHY_CATEGORY],
+            icons_only=icons_only,
         )
 
-    def _build_profile_trinket_asset_tasks(self, rows):
+    def _build_profile_trinket_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_TRINKET_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_TRINKET_CATEGORY],
+            icons_only=icons_only,
         )
 
-    def _build_profile_frame_asset_tasks(self, rows):
+    def _build_profile_frame_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_FRAME_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_FRAME_CATEGORY],
             dedupe_canonicals=True,
+            icons_only=icons_only,
         )
 
-    def _build_profile_design_asset_tasks(self, rows):
+    def _build_profile_design_asset_tasks(self, rows, icons_only=False):
         return self._build_profile_asset_tasks(
             rows,
             self.PROFILE_DESIGN_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_DESIGN_CATEGORY],
             dedupe_canonicals=True,
+            icons_only=icons_only,
         )
 
-    def check_profile(self, page, profile_type='stickers', filter_id=None):
+    def check_profile(self, page, profile_type='stickers', filter_id=None, icons_only=False):
         """Dispatch Profile Room uploads by collection subtype."""
         if profile_type == 'stickers':
-            return self.check_profile_stickers(page, filter_id)
+            return self.check_profile_stickers(page, filter_id, icons_only)
         if profile_type == 'backgrounds':
-            return self.check_profile_backgrounds(page, filter_id)
+            return self.check_profile_backgrounds(page, filter_id, icons_only)
         if profile_type == 'other_characters':
-            return self.check_profile_other_characters(page, filter_id)
+            return self.check_profile_other_characters(page, filter_id, icons_only)
         if profile_type == 'favorite_art':
-            return self.check_profile_favorite_art(page, filter_id)
+            return self.check_profile_favorite_art(page, filter_id, icons_only)
         if profile_type == 'trophies':
-            return self.check_profile_trophies(page, filter_id)
+            return self.check_profile_trophies(page, filter_id, icons_only)
         if profile_type == 'trinkets':
-            return self.check_profile_trinkets(page, filter_id)
+            return self.check_profile_trinkets(page, filter_id, icons_only)
         if profile_type == 'frames':
-            return self.check_profile_frames(page, filter_id)
+            return self.check_profile_frames(page, filter_id, icons_only)
         if profile_type == 'designs':
-            return self.check_profile_designs(page, filter_id)
+            return self.check_profile_designs(page, filter_id, icons_only)
         raise ValueError(f"Unknown Profile Room upload type: {profile_type}")
 
     def _check_profile_assets(self, page, profile_label, template_label, rows, tasks):
@@ -2513,22 +2662,22 @@ class WikiImages(object):
                 successful=successful_downloads,
             )
 
-    def check_profile_stickers(self, page, filter_id=None):
+    def check_profile_stickers(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room sticker images from {{ProfileRoom/Sticker/Row}} templates."""
         rows = self._extract_profile_room_sticker_rows(page, filter_id)
-        tasks = self._build_profile_sticker_asset_tasks(rows)
+        tasks = self._build_profile_sticker_asset_tasks(rows, icons_only)
         return self._check_profile_assets(page, 'sticker', 'ProfileRoom/Sticker/Row', rows, tasks)
 
-    def check_profile_backgrounds(self, page, filter_id=None):
+    def check_profile_backgrounds(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room background images from {{ProfileRoom/Background/Row}} templates."""
         rows = self._extract_profile_room_background_rows(page, filter_id)
-        tasks = self._build_profile_background_asset_tasks(rows)
+        tasks = self._build_profile_background_asset_tasks(rows, icons_only)
         return self._check_profile_assets(page, 'background', 'ProfileRoom/Background/Row', rows, tasks)
 
-    def check_profile_other_characters(self, page, filter_id=None):
+    def check_profile_other_characters(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room other-character images from {{ProfileRoom/OtherCharacter/Row}} templates."""
         rows = self._extract_profile_room_other_character_rows(page, filter_id)
-        tasks = self._build_profile_other_character_asset_tasks(rows)
+        tasks = self._build_profile_other_character_asset_tasks(rows, icons_only)
         return self._check_profile_assets(
             page,
             'other character',
@@ -2537,10 +2686,10 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_favorite_art(self, page, filter_id=None):
+    def check_profile_favorite_art(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room favorite-art images from {{ProfileRoom/FavoriteArt/Row}} templates."""
         rows = self._extract_profile_room_favorite_art_rows(page, filter_id)
-        tasks = self._build_profile_favorite_art_asset_tasks(rows)
+        tasks = self._build_profile_favorite_art_asset_tasks(rows, icons_only)
         return self._check_profile_assets(
             page,
             'favorite art',
@@ -2549,10 +2698,10 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_trophies(self, page, filter_id=None):
+    def check_profile_trophies(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room trophy images from {{ProfileRoom/RoomTrophy/Row}} templates."""
         rows = self._extract_profile_room_trophy_rows(page, filter_id)
-        tasks = self._build_profile_trophy_asset_tasks(rows)
+        tasks = self._build_profile_trophy_asset_tasks(rows, icons_only)
         return self._check_profile_assets(
             page,
             'trophy',
@@ -2561,10 +2710,10 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_trinkets(self, page, filter_id=None):
+    def check_profile_trinkets(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room trinket images from {{ProfileRoom/Trinket/Row}} templates."""
         rows = self._extract_profile_room_trinket_rows(page, filter_id)
-        tasks = self._build_profile_trinket_asset_tasks(rows)
+        tasks = self._build_profile_trinket_asset_tasks(rows, icons_only)
         return self._check_profile_assets(
             page,
             'trinket',
@@ -2573,10 +2722,10 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_frames(self, page, filter_id=None):
+    def check_profile_frames(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room frame images from {{ProfileRoom/Frame/Row}} templates."""
         rows = self._extract_profile_room_frame_rows(page, filter_id)
-        tasks = self._build_profile_frame_asset_tasks(rows)
+        tasks = self._build_profile_frame_asset_tasks(rows, icons_only)
         return self._check_profile_assets(
             page,
             'frame',
@@ -2585,10 +2734,10 @@ class WikiImages(object):
             tasks,
         )
 
-    def check_profile_designs(self, page, filter_id=None):
+    def check_profile_designs(self, page, filter_id=None, icons_only=False):
         """Upload Profile Room design images from {{ProfileRoom/Design/Row}} templates."""
         rows = self._extract_profile_room_design_rows(page, filter_id)
-        tasks = self._build_profile_design_asset_tasks(rows)
+        tasks = self._build_profile_design_asset_tasks(rows, icons_only)
         return self._check_profile_assets(
             page,
             'design',
@@ -7233,9 +7382,14 @@ def main():
     def parse_profile_page_args(args):
         page_parts = []
         filter_id = None
+        icons_only = False
         index = 0
         while index < len(args):
             arg = args[index]
+            if arg == '--icons-only':
+                icons_only = True
+                index += 1
+                continue
             if arg == '--filter':
                 if index + 1 >= len(args):
                     raise ValueError('Missing value after --filter.')
@@ -7256,7 +7410,50 @@ def main():
         page_name = ' '.join(page_parts).strip()
         if filter_id and filter_id.lower() == 'all':
             filter_id = None
-        return page_name, filter_id
+        return page_name, filter_id, icons_only
+
+    def parse_profile_icons_batch_args(args):
+        page_specs = []
+        filter_id = None
+        for arg in args:
+            if arg == '--icons-only':
+                continue
+            if arg == '--filter':
+                raise ValueError('Use --filter=<id> or filter=<id> for profile_icons.')
+            if arg.startswith('--filter='):
+                filter_id = arg.split('=', 1)[1].strip()
+                continue
+            if arg.startswith('filter='):
+                filter_id = arg.split('=', 1)[1].strip()
+                continue
+            if '=' not in arg:
+                raise ValueError(
+                    'Profile icon batch entries must be type=page pairs, '
+                    f'got "{arg}".'
+                )
+            profile_type, page_name = arg.split('=', 1)
+            profile_type = profile_type.strip().lower()
+            page_name = page_name.strip()
+            if not profile_type or not page_name:
+                raise ValueError(
+                    'Profile icon batch entries must include both type and page name.'
+                )
+            page_specs.append((profile_type, page_name))
+
+        if filter_id and filter_id.lower() == 'all':
+            filter_id = None
+        return page_specs, filter_id
+
+    profile_cli_types = {
+        'stickers': 'stickers',
+        'backgrounds': 'backgrounds',
+        'other_characters': 'other_characters',
+        'favorite_art': 'favorite_art',
+        'trophies': 'trophies',
+        'trinkets': 'trinkets',
+        'frames': 'frames',
+        'designs': 'designs',
+    }
 
     proxy_required_modes = {
         'character',
@@ -7282,6 +7479,7 @@ def main():
         'profile_trinkets',
         'profile_frames',
         'profile_designs',
+        'profile_icons',
         'summon',
         'summons',
         'weapon',
@@ -7446,35 +7644,61 @@ def main():
             return
         wi.upload_single_item_images(item_type, item_id, item_name)
     elif mode == 'profile':
-        profile_types = {
-            'stickers': 'stickers',
-            'backgrounds': 'backgrounds',
-            'other_characters': 'other_characters',
-            'favorite_art': 'favorite_art',
-            'trophies': 'trophies',
-            'trinkets': 'trinkets',
-            'frames': 'frames',
-            'designs': 'designs',
-        }
         if len(sys.argv) < 4:
-            print('Usage: python images.py profile <stickers|backgrounds|other_characters|favorite_art|trophies|trinkets|frames|designs> <page name>')
+            print('Usage: python images.py profile <stickers|backgrounds|other_characters|favorite_art|trophies|trinkets|frames|designs> <page name> [--filter <id>] [--icons-only]')
             return
         profile_type = sys.argv[2].lower()
-        if profile_type not in profile_types:
+        if profile_type not in profile_cli_types:
             print(
                 f'Unsupported Profile Room type "{profile_type}". '
-                f'Supported types: {", ".join(sorted(profile_types.keys()))}'
+                f'Supported types: {", ".join(sorted(profile_cli_types.keys()))}'
             )
             return
         try:
-            page_name, filter_id = parse_profile_page_args(sys.argv[3:])
+            page_name, filter_id, icons_only = parse_profile_page_args(sys.argv[3:])
         except ValueError as exc:
             print(str(exc))
             return
         if not page_name:
             print('Please supply a Profile Room wiki page name.')
             return
-        wi.check_profile(wi.wiki.pages[page_name], profile_types[profile_type], filter_id)
+        wi.check_profile(wi.wiki.pages[page_name], profile_cli_types[profile_type], filter_id, icons_only)
+    elif mode == 'profile_icons':
+        if len(sys.argv) < 3:
+            print(
+                'Usage: python images.py profile_icons '
+                '<stickers=page> [backgrounds=page] [...] [--filter=<id>]'
+            )
+            return
+        try:
+            page_specs, filter_id = parse_profile_icons_batch_args(sys.argv[2:])
+        except ValueError as exc:
+            print(str(exc))
+            return
+        if not page_specs:
+            print('Please supply at least one Profile Room type=page pair.')
+            return
+        for profile_type, page_name in page_specs:
+            if profile_type.startswith('profile_'):
+                profile_type = profile_type[len('profile_'):]
+            if profile_type not in profile_cli_types:
+                print(
+                    f'Unsupported Profile Room type "{profile_type}". '
+                    f'Supported types: {", ".join(sorted(profile_cli_types.keys()))}'
+                )
+                return
+            print(
+                'Processing icon-only Profile Room {0} page "{1}"...'.format(
+                    profile_type,
+                    page_name,
+                )
+            )
+            wi.check_profile(
+                wi.wiki.pages[page_name],
+                profile_cli_types[profile_type],
+                filter_id,
+                icons_only=True,
+            )
     elif mode.startswith('profile_'):
         profile_modes = {
             'profile_stickers': 'stickers',
@@ -7496,14 +7720,14 @@ def main():
             print(f'Usage: python images.py {mode} <page name>')
             return
         try:
-            page_name, filter_id = parse_profile_page_args(sys.argv[2:])
+            page_name, filter_id, icons_only = parse_profile_page_args(sys.argv[2:])
         except ValueError as exc:
             print(str(exc))
             return
         if not page_name:
             print('Please supply a Profile Room wiki page name.')
             return
-        wi.check_profile(wi.wiki.pages[page_name], profile_modes[mode], filter_id)
+        wi.check_profile(wi.wiki.pages[page_name], profile_modes[mode], filter_id, icons_only)
     elif mode == 'summon':
         wi.check_summon(wi.wiki.pages[sys.argv[2]])
     elif mode == 'summons':

@@ -581,6 +581,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Local CLI supports `python images.py profile <stickers|backgrounds|other_characters|favorite_art|trophies|trinkets|frames|designs> <page name> [--filter <id>]`.
 - Local CLI also supports direct aliases: `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `profile_trophies`, `profile_trinkets`, `profile_frames`, and `profile_designs`.
 - Direct Profile Room CLI aliases also support `--filter <id>`, `--filter=<id>`, or `filter=<id>` after the page name.
+- Temporary local CLI icon-only support exists for backfilling newly added rectangle icons without reprocessing full Profile Room asset sets:
+  - add `--icons-only` to `python images.py profile ...` or a direct `profile_*` alias
+  - use `python images.py profile_icons <type=page> [<type=page> ...] [--filter=<id>]` to iterate multiple Profile Room page/type pairs in one command
+  - this is CLI-only and should not be surfaced through Discord
 - Sticker required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Background required row params: `id`, `name`, `image_key`, `thumbnail_key`.
 - Other-character required row params: `id`, `name`, `image_key`, `thumbnail_key`.
@@ -606,15 +610,15 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - Trinket EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP trinket pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Frame EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP frame pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
 - Design EN and JP assets may be binary-identical. When duplicate handling finds a matching EN/JP design pair, the non-`jp` EN canonical filename is the stable winner and the `jp` canonical title should redirect to it.
-- Frame thumbnail files are shared across color variants. Frame upload task building should process each EN/JP thumbnail canonical only once per unique `thumbnail_key`.
-- Design thumbnail files are shared across color variants. Design upload task building should process each EN/JP thumbnail canonical only once per unique `thumbnail_key`.
+- Frame thumbnail files are shared across color variants. Frame upload task building should process each EN/JP thumbnail canonical only once per unique `thumbnail_key` while preserving all color-specific EN square redirects.
+- Design thumbnail files are shared across color variants. Design upload task building should process each EN/JP thumbnail canonical only once per unique `thumbnail_key` while preserving all color-specific EN square redirects.
 - Profile Room canonical filenames use full CDN path-style lowercase names starting with `profile_room_`.
 - Old pre-rename canonical filenames must remain legacy redirects and duplicate-family aliases so reruns can repair files into the new `profile_room_...` canonical titles.
 - Profile Room duplicate-family rules must match new canonicals, old legacy canonicals, and MediaWiki-normalized page titles with spaces.
 - Profile Room duplicate-family rules must tolerate first-letter capitalization differences caused by `check_image()` and MediaWiki title normalization.
-- Frame and design upload flows use canonical uploads only with no display redirects because `name` is not unique across color variants.
-- If frame/design redirects are requested later, require an explicit redirect naming scheme that disambiguates variants using stable row data such as `id`, `base_id`, or `color_type`; do not silently use `{name}` alone.
-- For each row, upload four files:
+- Frame and design image uploads use canonical uploads only with no display redirects because `name` is not unique across color variants.
+- Frame and design EN square/icon redirects use a color-disambiguated schema. Derive `{Color}` from the final underscore-delimited segment of `image_key`, with the first letter capitalized, such as `fr002_white` -> `White` and `dc001_black` -> `Black`.
+- For each sticker row, upload six files:
   - EN sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
   - EN sticker canonical: `profile_room_memorial_frame_sticker_{image_key}.png`
   - EN sticker legacy redirect: `Memorial_frame_sticker_{image_key}.png`
@@ -623,6 +627,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - EN thumbnail canonical: `profile_room_memorial_frame_thumbnail_sticker_{thumbnail_key}.jpg`
   - EN thumbnail legacy redirect: `Thumbnail_sticker_{thumbnail_key}.jpg`
   - EN thumbnail redirect: `{name}_(Profile)_square.jpg`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/sticker/m/{thumbnail_key}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_sticker_m_{thumbnail_key}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_(Profile)_icon.jpg`
   - JP sticker URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/sticker/{image_key}.png`
   - JP sticker canonical: `profile_room_memorial_frame_sticker_{image_key}jp.png`
   - JP sticker legacy redirect: `Memorial_frame_sticker_{image_key}jp.png`
@@ -631,11 +639,19 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_memorial_frame_thumbnail_sticker_{thumbnail_key}jp.jpg`
   - JP thumbnail legacy redirect: `Thumbnail_sticker_{thumbnail_key}jp.jpg`
   - JP thumbnail redirect: `{name}_(Profile JP)_square.jpg`
-- For each background row, upload four files:
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/sticker/m/{thumbnail_key}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_sticker_m_{thumbnail_key}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: `{name}_(Profile JP)_icon.jpg`
+- For each background row, upload six files:
   - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/bg/{thumbnail_key}.png`
   - EN thumbnail canonical: `profile_room_profile_card_thumbnail_bg_{thumbnail_key}.png`
   - EN thumbnail legacy redirect: `thumbnail_bg_{thumbnail_key}.png`
   - EN thumbnail redirect: `{name}_(Profile)_square.png`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/bg/m/{thumbnail_key}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_bg_m_{thumbnail_key}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_(Profile)_icon.jpg`
   - EN background URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/bg/{image_key}.jpg`
   - EN background canonical: `profile_room_profile_card_bg_{image_key}.jpg`
   - EN background legacy redirect: `Profile_card_bg_{image_key}.jpg`
@@ -644,6 +660,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_profile_card_thumbnail_bg_{thumbnail_key}jp.png`
   - JP thumbnail legacy redirect: `thumbnail_bg_{thumbnail_key}jp.png`
   - JP thumbnail redirect: none
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/bg/m/{thumbnail_key}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_bg_m_{thumbnail_key}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: none
   - JP background URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/bg/{image_key}.jpg`
   - JP background canonical: `profile_room_profile_card_bg_{image_key}jp.jpg`
   - JP background legacy redirect: `Profile_card_bg_{image_key}jp.jpg`
@@ -671,7 +691,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP square canonical: `profile_room_character_thumbnail_other_s_{image_key}jp.jpg`
   - JP square legacy redirect: `character_thumbnail_other_s_{image_key}jp.jpg`
   - JP square redirect: none
-- For each favorite-art row, upload four files:
+- For each favorite-art row, upload six files:
   - EN image URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/painting/{image_key}.png`
   - EN image canonical: `profile_room_memorial_frame_painting_{image_key}.png`
   - EN image legacy redirect: `Memorial_frame_painting_{image_key}.png`
@@ -680,6 +700,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - EN thumbnail canonical: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}.png`
   - EN thumbnail legacy redirect: `Thumbnail_painting_{thumbnail_key}.png`
   - EN thumbnail redirect: `{name}_(Profile)_square.png`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_painting_m_{thumbnail_key}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_(Profile)_icon.jpg`
   - JP image URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/painting/{image_key}.png`
   - JP image canonical: `profile_room_memorial_frame_painting_{image_key}jp.png`
   - JP image legacy redirect: `Memorial_frame_painting_{image_key}jp.png`
@@ -688,11 +712,19 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}jp.png`
   - JP thumbnail legacy redirect: `Thumbnail_painting_{thumbnail_key}jp.png`
   - JP thumbnail redirect: none
-- For each trophy row, upload four files:
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_painting_m_{thumbnail_key}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: none
+- For each trophy row, upload six files:
   - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/thumbnail/trophy/{thumbnail_key}.jpg`
   - EN thumbnail canonical: `profile_room_cabinet_thumbnail_trophy_{thumbnail_key}.jpg`
   - EN thumbnail legacy redirect: `Thumbnail_trophy_{thumbnail_key}.jpg`
   - EN thumbnail redirect: `{name}_(Profile)_square.jpg`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/trophy/m/{thumbnail_key}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_trophy_m_{thumbnail_key}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_(Profile)_icon.jpg`
   - EN trophy URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/trophy/{image_key}.png`
   - EN trophy canonical: `profile_room_cabinet_trophy_{image_key}.png`
   - EN trophy legacy redirect: `Cabinet_trophy_{image_key}.png`
@@ -701,15 +733,23 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_cabinet_thumbnail_trophy_{thumbnail_key}jp.jpg`
   - JP thumbnail legacy redirect: `Thumbnail_trophy_{thumbnail_key}jp.jpg`
   - JP thumbnail redirect: none
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/trophy/m/{thumbnail_key}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_trophy_m_{thumbnail_key}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: none
   - JP trophy URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/cabinet/trophy/{image_key}.png`
   - JP trophy canonical: `profile_room_cabinet_trophy_{image_key}jp.png`
   - JP trophy legacy redirect: `Cabinet_trophy_{image_key}jp.png`
   - JP trophy redirect: none
-- For each trinket row, upload four files:
+- For each trinket row, upload six files:
   - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/thumbnail/ornament/{thumbnail_key}.jpg`
   - EN thumbnail canonical: `profile_room_cabinet_thumbnail_ornament_{thumbnail_key}.jpg`
   - EN thumbnail legacy redirect: `Thumbnail_ornament_{thumbnail_key}.jpg`
   - EN thumbnail redirect: `{name}_(Profile)_square.jpg`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/ornament/m/{thumbnail_key}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_ornament_m_{thumbnail_key}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_(Profile)_icon.jpg`
   - EN trinket URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/cabinet/ornament/{image_key}.png`
   - EN trinket canonical: `profile_room_cabinet_ornament_{image_key}.png`
   - EN trinket legacy redirect: `Cabinet_ornament_{image_key}.png`
@@ -718,15 +758,23 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_cabinet_thumbnail_ornament_{thumbnail_key}jp.jpg`
   - JP thumbnail legacy redirect: `Thumbnail_ornament_{thumbnail_key}jp.jpg`
   - JP thumbnail redirect: none
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/ornament/m/{thumbnail_key}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_ornament_m_{thumbnail_key}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: none
   - JP trinket URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/cabinet/ornament/{image_key}.png`
   - JP trinket canonical: `profile_room_cabinet_ornament_{image_key}jp.png`
   - JP trinket legacy redirect: `Cabinet_ornament_{image_key}jp.png`
   - JP trinket redirect: none
-- For each frame row, upload color-specific frame files and de-duped shared thumbnails:
+- For each frame row, upload color-specific frame/icon files and de-duped shared thumbnails:
   - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/frame/{thumbnail_key}.png`
   - EN thumbnail canonical: `profile_room_profile_card_thumbnail_frame_{thumbnail_key}.png`
   - EN thumbnail legacy redirect: `thumbnail_frame_{thumbnail_key}.png`
-  - EN thumbnail redirect: none
+  - EN thumbnail redirect: `{name}_{Color}_(Profile)_square.png`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/frame/m/{id}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_frame_m_{id}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_{Color}_(Profile)_icon.jpg`
   - EN frame URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/frame/{image_key}.png`
   - EN frame canonical: `profile_room_profile_card_frame_{image_key}.png`
   - EN frame legacy redirect: `Profile_card_frame_{image_key}.png`
@@ -735,15 +783,23 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_profile_card_thumbnail_frame_{thumbnail_key}jp.png`
   - JP thumbnail legacy redirect: `thumbnail_frame_{thumbnail_key}jp.png`
   - JP thumbnail redirect: none
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/frame/m/{id}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_frame_m_{id}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: none
   - JP frame URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/frame/{image_key}.png`
   - JP frame canonical: `profile_room_profile_card_frame_{image_key}jp.png`
   - JP frame legacy redirect: `Profile_card_frame_{image_key}jp.png`
   - JP frame redirect: none
-- For each design row, upload color-specific design files and de-duped shared thumbnails:
+- For each design row, upload color-specific design/icon files and de-duped shared thumbnails:
   - EN thumbnail URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/thumbnail/decoration/{thumbnail_key}.png`
   - EN thumbnail canonical: `profile_room_profile_card_thumbnail_decoration_{thumbnail_key}.png`
   - EN thumbnail legacy redirect: `thumbnail_decoration_{thumbnail_key}.png`
-  - EN thumbnail redirect: none
+  - EN thumbnail redirect: `{name}_{Color}_(Profile)_square.png`
+  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/decoration/m/{id}.jpg`
+  - EN icon canonical: `profile_room_item_thumbnail_decoration_m_{id}.jpg`
+  - EN icon legacy redirect: none
+  - EN icon redirect: `{name}_{Color}_(Profile)_icon.jpg`
   - EN design URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/profile_card/decoration/{image_key}.png`
   - EN design canonical: `profile_room_profile_card_decoration_{image_key}.png`
   - EN design legacy redirect: `Profile_card_decoration_{image_key}.png`
@@ -752,6 +808,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_profile_card_thumbnail_decoration_{thumbnail_key}jp.png`
   - JP thumbnail legacy redirect: `thumbnail_decoration_{thumbnail_key}jp.png`
   - JP thumbnail redirect: none
+  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/decoration/m/{id}.jpg`
+  - JP icon canonical: `profile_room_item_thumbnail_decoration_m_{id}jp.jpg`
+  - JP icon legacy redirect: none
+  - JP icon redirect: none
   - JP design URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/profile_card/decoration/{image_key}.png`
   - JP design canonical: `profile_room_profile_card_decoration_{image_key}jp.png`
   - JP design legacy redirect: `Profile_card_decoration_{image_key}jp.png`
