@@ -401,6 +401,14 @@ class WikiImages(object):
             signature_parts=('prefix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='story_location_island_l',
+            pattern=re.compile(
+                r'^File:[Ii]sland_l_(?P<id>(?P<base_id>\d+)(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('ext',),
+        ),
+        DuplicateFamilyRule(
             name='event_banner',
             pattern=re.compile(
                 r'^File:(?P<id>[A-Za-z0-9_]+)_banner_event_(?P<banner_kind>notice|start)_'
@@ -995,6 +1003,16 @@ class WikiImages(object):
             return (0, int(normalized), normalized)
         return (1, normalized)
 
+    def _duplicate_match_id_sort_key(self, match):
+        if match.rule.name == 'story_location_island_l':
+            base_id = self._normalize_duplicate_family_part(
+                match.match_obj.groupdict().get('base_id')
+            )
+            id_token = self._normalize_duplicate_family_part(match.id_token).replace(' ', '_')
+            if base_id.isdigit():
+                return (0, int(base_id), id_token)
+        return self._duplicate_id_sort_key(match.id_token)
+
     def _build_duplicate_validation_url(self, file_name):
         family_match = self._match_duplicate_family(file_name)
         if family_match and family_match.rule.name == 'weapon_sp':
@@ -1040,17 +1058,17 @@ class WikiImages(object):
 
         candidate_matches.sort(
             key=lambda entry: (
-                self._duplicate_id_sort_key(entry[0].id_token),
+                self._duplicate_match_id_sort_key(entry[0]),
                 self._duplicate_canonical_preference_key(entry[0]),
             )
         )
         best_existing_match, best_existing_page = candidate_matches[0]
         requested_key = (
-            self._duplicate_id_sort_key(requested_match.id_token),
+            self._duplicate_match_id_sort_key(requested_match),
             self._duplicate_canonical_preference_key(requested_match),
         )
         best_existing_key = (
-            self._duplicate_id_sort_key(best_existing_match.id_token),
+            self._duplicate_match_id_sort_key(best_existing_match),
             self._duplicate_canonical_preference_key(best_existing_match),
         )
         if requested_key < best_existing_key:
@@ -2093,6 +2111,16 @@ class WikiImages(object):
             "canonical": "profile_room_item_thumbnail_painting_m_{thumbnail_key}.jpg",
             "redirect": "{name}_(Profile)_icon.jpg",
             "legacy_redirects": [],
+            "max_numeric_key": 6999,
+        },
+        {
+            "label": "EN favorite art icon",
+            "url_prefix": "assets_en",
+            "path": "profile_room/memorial_frame/thumbnail/painting/{thumbnail_key}.png",
+            "canonical": "profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}.png",
+            "redirect": "{name}_(Profile)_icon.jpg",
+            "legacy_redirects": [],
+            "min_numeric_key": 7000,
         },
         {
             "label": "JP favorite art image",
@@ -2117,6 +2145,16 @@ class WikiImages(object):
             "canonical": "profile_room_item_thumbnail_painting_m_{thumbnail_key}jp.jpg",
             "redirect": None,
             "legacy_redirects": [],
+            "max_numeric_key": 6999,
+        },
+        {
+            "label": "JP favorite art icon",
+            "url_prefix": "assets",
+            "path": "profile_room/memorial_frame/thumbnail/painting/{thumbnail_key}.png",
+            "canonical": "profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}jp.png",
+            "redirect": None,
+            "legacy_redirects": [],
+            "min_numeric_key": 7000,
         },
     )
 
@@ -2446,6 +2484,24 @@ class WikiImages(object):
         color = image_key.rsplit('_', 1)[-1] if '_' in image_key else image_key
         return color[:1].upper() + color[1:] if color else ''
 
+    def _get_profile_room_numeric_key(self, row):
+        key = row.get('thumbnail_key') or row.get('id') or ''
+        match = re.search(r'\d+', key)
+        return int(match.group(0)) if match else 0
+
+    def _profile_asset_spec_matches_row(self, spec, row):
+        min_numeric_key = spec.get('min_numeric_key')
+        max_numeric_key = spec.get('max_numeric_key')
+        if min_numeric_key is None and max_numeric_key is None:
+            return True
+
+        numeric_key = self._get_profile_room_numeric_key(row)
+        if min_numeric_key is not None and numeric_key < min_numeric_key:
+            return False
+        if max_numeric_key is not None and numeric_key > max_numeric_key:
+            return False
+        return True
+
     def _build_profile_asset_tasks(
         self,
         rows,
@@ -2461,6 +2517,8 @@ class WikiImages(object):
             format_values['color'] = self._get_profile_room_color(row)
             for spec in asset_specs:
                 if icons_only and ' icon' not in spec['label']:
+                    continue
+                if not self._profile_asset_spec_matches_row(spec, row):
                     continue
                 path = spec['path'].format(**format_values)
                 canonical = spec['canonical'].format(**format_values)
@@ -2523,6 +2581,7 @@ class WikiImages(object):
             rows,
             self.PROFILE_FAVORITE_ART_ASSETS,
             [self.PROFILE_ROOM_CATEGORY, self.PROFILE_FAVORITE_ART_CATEGORY],
+            dedupe_canonicals=True,
             icons_only=icons_only,
         )
 
@@ -5640,6 +5699,146 @@ class WikiImages(object):
 
         self._process_download_tasks_sequential(download_tasks, 'NPC')
 
+    def _extract_story_location_tasks(self, page):
+        pagetext = page.text()
+        wikicode = mwparserfromhell.parse(pagetext)
+        tasks = []
+        seen_location_ids = set()
+
+        def clean_template_value(template, param_name):
+            if not template.has(param_name):
+                return ''
+            raw_value = str(template.get(param_name).value).strip()
+            return mwparserfromhell.parse(raw_value).strip_code().strip()
+
+        for template in wikicode.filter_templates():
+            template_name = template.name.strip().lower().replace(' ', '_')
+            if template_name not in ('mainquesttabs', 'eventtabs'):
+                continue
+
+            location_id = clean_template_value(template, 'location_id')
+            if not location_id:
+                print(f'Skipping {template.name.strip()} without location_id.')
+                continue
+
+            if not re.match(r'^\d+(?:_[A-Za-z0-9]+)*$', location_id):
+                print(f'Skipping {template.name.strip()} with invalid location_id "{location_id}".')
+                continue
+
+            if location_id in seen_location_ids:
+                print(f'Skipping duplicate story location id "{location_id}".')
+                continue
+
+            seen_location_ids.add(location_id)
+
+            canonical_name = f'island_l_{location_id}.jpg'
+            other_names = []
+            header_image = clean_template_value(template, 'header_image')
+            if header_image and header_image.lower() != canonical_name.lower():
+                other_names.append(header_image)
+
+            tasks.append({
+                'url': (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/archive/assets/island_l/{location_id}.jpg'
+                ),
+                'canonical': canonical_name,
+                'other_names': other_names,
+                'categories': ['Story Location Images'],
+            })
+
+        return tasks
+
+    def check_story_location(self, page):
+        print(f'Checking story location images on page "{page.name}"...')
+
+        def emit_status(stage, **kwargs):
+            if hasattr(self, '_status_callback'):
+                self._status_callback(stage, **kwargs)
+
+        tasks = self._extract_story_location_tasks(page)
+        if not tasks:
+            print('No MainQuestTabs or EventTabs location_id values found; aborting.')
+            emit_status('completed', processed=0, uploaded=0, duplicates=0, failed=0, total_urls=0)
+            return
+
+        emit_status('downloading', successful=0, failed=0, total=len(tasks))
+
+        successful_downloads = []
+        failed_downloads = 0
+        for task in tasks:
+            print(f'Downloading story location image: {task["url"]}')
+            success, sha1, size, io_obj = self.get_image(task['url'])
+            if success:
+                successful_downloads.append((task, sha1, size, io_obj))
+            else:
+                failed_downloads += 1
+            emit_status(
+                'downloading',
+                successful=len(successful_downloads),
+                failed=failed_downloads,
+                total=len(tasks),
+            )
+
+        if not successful_downloads:
+            print('All story location downloads failed; aborting.')
+            emit_status(
+                'completed',
+                processed=0,
+                uploaded=0,
+                duplicates=0,
+                failed=failed_downloads,
+                total_urls=len(tasks),
+            )
+            return
+
+        emit_status('downloaded', successful=len(successful_downloads), failed=failed_downloads, total=len(tasks))
+
+        uploaded = 0
+        duplicates = 0
+        upload_failures = 0
+        processed = 0
+
+        for task, sha1, size, io_obj in successful_downloads:
+            check_result = self.check_image(task['canonical'], sha1, size, io_obj, task['other_names'])
+            processed += 1
+
+            if check_result is False:
+                upload_failures += 1
+                emit_status('processing', processed=processed, total=len(successful_downloads), current_image=task['canonical'])
+                continue
+
+            final_name = task['canonical'] if check_result is True else check_result
+            if check_result is True:
+                uploaded += 1
+            else:
+                duplicates += 1
+
+            self.check_image_categories(final_name, task['categories'])
+            for other_name in task['other_names']:
+                self.check_file_redirect(final_name, other_name)
+
+            time.sleep(self.delay)
+            self.check_file_double_redirect(final_name)
+
+            emit_status('processing', processed=processed, total=len(successful_downloads), current_image=final_name)
+
+        total_failed = failed_downloads + upload_failures
+        print(
+            'Story location processing summary - '
+            f'uploaded: {uploaded}, duplicates: {duplicates}, '
+            f'failed: {total_failed}, total requested: {len(tasks)}.'
+        )
+
+        emit_status(
+            'completed',
+            processed=processed,
+            uploaded=uploaded,
+            duplicates=duplicates,
+            failed=total_failed,
+            total_urls=len(tasks),
+        )
+
     def check_artifact(self, page):
         paths = {
             'hdr':  ['png', '',        [''], [''], ['Artifact Images', 'Full Artifact Images' ]],
@@ -7462,6 +7661,7 @@ def main():
         'character_fs_skin',
         'npc',
         'skin',
+        'story_location',
         'characters',
         'chars',
         'class',
@@ -7585,6 +7785,11 @@ def main():
         wi.check_npc(wi.wiki.pages[sys.argv[2]])
     elif mode == 'skin':
         wi.check_skin(wi.wiki.pages[sys.argv[2]])
+    elif mode == 'story_location':
+        if len(sys.argv) < 3:
+            print('Please supply a page name containing {{MainQuestTabs}} or {{EventTabs}}.')
+            return
+        wi.check_story_location(wi.wiki.pages[sys.argv[2]])
     elif (mode == 'characters') or (mode == 'chars'):
         category = sys.argv[2]
         resume_from = sys.argv[3] if len(sys.argv) > 3 else ''

@@ -6,7 +6,7 @@ __General Rules__
 - Progress pings land every ~15s; final summaries include key counts and wiki links. If the bot runs in dry-run mode you will see a `[DRY RUN]` prefix.
 
 __Reference Lists (from `main.py`)__
-- `PAGE_TYPES`: `character`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `npc`, `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `profile_trophies`, `profile_trinkets`, `profile_frames`, `profile_designs`, `artifact`, `item`, `manatura`, `shield`, `skill_icons`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
+- `PAGE_TYPES`: `character`, `character_fs_skin`, `weapon`, `summon`, `class`, `class_skin`, `skin`, `npc`, `story_location`, `profile_stickers`, `profile_backgrounds`, `profile_other_characters`, `profile_favorite_art`, `profile_trophies`, `profile_trinkets`, `profile_frames`, `profile_designs`, `artifact`, `item`, `manatura`, `shield`, `skill_icons`, `bullet`, `advyrnture_gear`, `advyrnture_pal`.
 - `ITEM_TYPES`: `article`, `normal`, `recycling`, `skillplus`, `evolution`, `lottery`, `npcaugment`, `set`, `ticket`, `campaign`, `npcarousal`, `memorial`.
 
 **/help**
@@ -21,7 +21,7 @@ Usage: `/help command:<optional>`
   - Invalid `command`: ephemeral error with matching command suggestions when available.
 
 **/imgupload**
-Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|class_skin|skin|npc|profile_stickers|profile_backgrounds|profile_other_characters|profile_favorite_art|profile_trophies|profile_trinkets|profile_frames|profile_designs|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
+Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|class_skin|skin|npc|story_location|profile_stickers|profile_backgrounds|profile_other_characters|profile_favorite_art|profile_trophies|profile_trinkets|profile_frames|profile_designs|artifact|item|manatura|shield|skill_icons|bullet|advyrnture_gear|advyrnture_pal> page_name:<Wiki Page Title> filter:<id>`
 - Purpose: Pull every image the upload scripts expect for a wiki page and push them to the correct file titles.
 - Inputs:
   - `page_type` - pick the asset family; determines which CDN paths are scanned.
@@ -35,6 +35,7 @@ Usage: `/imgupload page_type:<character|character_fs_skin|weapon|summon|class|cl
     - `profile_trinkets` (shown in Discord as `profile (trinkets)`) - uploads Profile Room trinket images, square thumbnails, and icons from `{{ProfileRoom/Trinket/Row}}` rows, creates EN redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Trinket Images]]`.
     - `profile_frames` (shown in Discord as `profile (frames)`) - uploads Profile Room color-specific frame images and icons plus shared square thumbnails from `{{ProfileRoom/Frame/Row}}` rows, creates color-disambiguated EN square/icon redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Frame Images]]`.
     - `profile_designs` (shown in Discord as `profile (designs)`) - uploads Profile Room color-specific design images and icons plus shared square thumbnails from `{{ProfileRoom/Design/Row}}` rows, creates color-disambiguated EN square/icon redirects, and tags files with `[[Category:Profile Room Images]]` and `[[Category:Profile Room Design Images]]`.
+    - `story_location` (shown in Discord as `story location`) - searches `{{MainQuestTabs}}` and `{{EventTabs}}`, reads `location_id` and `header_image`, downloads `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/archive/assets/island_l/<location_id>.jpg`, uploads it as `island_l_<location_id>.jpg`, and redirects the template's `header_image` title when it differs. If duplicate binaries are found, the lowest base id before any underscore is the stable canonical title.
     - `class_skin` - **requires** the `filter` input (numeric `id` from the `{{ClassSkin}}` template). The bot uploads the shared skin artwork plus every configured variant (MC icon/square, gendered raid/quest/talk/etc., PM, Sky Compass, skin_name, and more) under canonical `Leader_*` / `jobs_*` filenames and redirect titles such as `{name} (Gran) raid.jpg`.
     - `bullet` - searches for every `{{Bullet}}` template, reads the `id` and `name`, downloads `https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/img/sp/assets/bullet/m/<id>.jpg` and `/s/<id>.jpg`, uploads them as `Bullet_m_<id>.jpg` / `Bullet_s_<id>.jpg`, and builds redirects `<Name>_icon.jpg` / `<Name>_square.jpg`.
     - `advyrnture_gear` - searches for every `{{Advyrnture/Cosmetic/Row}}` template, reads `id` and `name`, downloads `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/cosmetic/m/<id>.jpg` and `/s/<id>.jpg`, uploads them as `cosmetic_m_<id>.jpg` / `cosmetic_s_<id>.jpg`, creates redirects `<Name> (Advyrnture) icon.jpg` / `<Name> (Advyrnture) square.jpg` when `name` is present, and also ensures the page redirect `<Name> (Advyrnture)` -> `Let's Go, Advyrnturers!#<Name>`. If `name` is blank, the canonical uploads still run but redirect creation is skipped.
