@@ -403,7 +403,7 @@ class WikiImages(object):
         DuplicateFamilyRule(
             name='story_location_island_l',
             pattern=re.compile(
-                r'^File:[Ii]sland_l_(?P<id>(?P<base_id>\d+)(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+                r'^File:[Ii]sland[ _]l[ _](?P<id>(?P<base_id>\d+)(?:[ _][A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
             signature_parts=('ext',),
@@ -1307,6 +1307,7 @@ class WikiImages(object):
                     'profile_room_trinket',
                     'profile_room_frame',
                     'profile_room_design',
+                    'story_location_island_l',
                 )
                 and getattr(requested_page, 'exists', False)
                 and getattr(requested_page, 'redirect', False)
