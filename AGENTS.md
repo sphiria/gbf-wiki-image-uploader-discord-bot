@@ -555,6 +555,25 @@ Most changes should preserve existing command contracts, wiki filename conventio
 - If a session identifies a worthwhile refactoring opportunity, it may suggest it.
 - Do not perform refactoring just because an opportunity exists; explain the problem, the proposed direction, and the tradeoff first, then get explicit user permission before doing the refactor.
 
+## Story Location Upload Contract
+
+- `/imgupload page_type:story_location` uploads `island_l` location header images from pages using `{{MainQuestTabs}}` or `{{EventTabs}}`.
+- Pertinent parameters:
+  - `location_id`
+  - `header_image`
+- CDN pattern:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/archive/assets/island_l/{location_id}.jpg`
+- Canonical naming:
+  - `island_l_{location_id}.jpg`
+- Redirect naming:
+  - when `header_image` is present and differs from the canonical filename, create a file redirect from `header_image` to the resolved canonical
+- Duplicate handling:
+  - `island_l` images may be reused by later location ids
+  - duplicate canonicalization is only for matching `island_l` files with the same extension
+  - the lowest numeric base id before any underscore is the stable canonical winner
+  - later duplicate canonical titles should redirect to the stable canonical instead of re-uploading
+- Local CLI supports `python images.py story_location <page name>`.
+
 ## Session Checklist
 
 - If a slash command contract changed, update:
@@ -691,7 +710,8 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP square canonical: `profile_room_character_thumbnail_other_s_{image_key}jp.jpg`
   - JP square legacy redirect: `character_thumbnail_other_s_{image_key}jp.jpg`
   - JP square redirect: none
-- For each favorite-art row, upload six files:
+- For each favorite-art row, upload six logical assets, though numeric keys 7000 and above share the square thumbnail canonical for square and icon uploads:
+  - Favorite-art icon URL/canonical selection uses the first numeric token from `thumbnail_key`, falling back to `id` only if needed. Preserve `thumbnail_key` exactly in the URL and canonical name, including sub-index suffixes such as `thum_7089_1`.
   - EN image URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/painting/{image_key}.png`
   - EN image canonical: `profile_room_memorial_frame_painting_{image_key}.png`
   - EN image legacy redirect: `Memorial_frame_painting_{image_key}.png`
@@ -700,8 +720,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - EN thumbnail canonical: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}.png`
   - EN thumbnail legacy redirect: `Thumbnail_painting_{thumbnail_key}.png`
   - EN thumbnail redirect: `{name}_(Profile)_square.png`
-  - EN icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg`
-  - EN icon canonical: `profile_room_item_thumbnail_painting_m_{thumbnail_key}.jpg`
+  - EN icon URL for numeric keys below 7000: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg`
+  - EN icon canonical for numeric keys below 7000: `profile_room_item_thumbnail_painting_m_{thumbnail_key}.jpg`
+  - EN icon URL for numeric keys 7000 and above: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/profile_room/memorial_frame/thumbnail/painting/{thumbnail_key}.png`
+  - EN icon canonical for numeric keys 7000 and above: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}.png`
   - EN icon legacy redirect: none
   - EN icon redirect: `{name}_(Profile)_icon.jpg`
   - JP image URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/painting/{image_key}.png`
@@ -712,8 +734,10 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP thumbnail canonical: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}jp.png`
   - JP thumbnail legacy redirect: `Thumbnail_painting_{thumbnail_key}jp.png`
   - JP thumbnail redirect: none
-  - JP icon URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg`
-  - JP icon canonical: `profile_room_item_thumbnail_painting_m_{thumbnail_key}jp.jpg`
+  - JP icon URL for numeric keys below 7000: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/item_thumbnail/painting/m/{thumbnail_key}.jpg`
+  - JP icon canonical for numeric keys below 7000: `profile_room_item_thumbnail_painting_m_{thumbnail_key}jp.jpg`
+  - JP icon URL for numeric keys 7000 and above: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/profile_room/memorial_frame/thumbnail/painting/{thumbnail_key}.png`
+  - JP icon canonical for numeric keys 7000 and above: `profile_room_memorial_frame_thumbnail_painting_{thumbnail_key}jp.png`
   - JP icon legacy redirect: none
   - JP icon redirect: none
 - For each trophy row, upload six files:

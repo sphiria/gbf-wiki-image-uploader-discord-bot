@@ -90,10 +90,13 @@ PAGE_TYPE_CHOICES = [
     app_commands.Choice(name="character_fs_skin", value="character_fs_skin"),
     app_commands.Choice(name="weapon", value="weapon"),
     app_commands.Choice(name="summon", value="summon"),
+    app_commands.Choice(name="item", value="item"),
+    app_commands.Choice(name="skill_icons", value="skill_icons"),
     app_commands.Choice(name="class", value="class"),
     app_commands.Choice(name="class_skin", value="class_skin"),
     app_commands.Choice(name="skin", value="skin"),
     app_commands.Choice(name="npc", value="npc"),
+    app_commands.Choice(name="story location", value="story_location"),
     app_commands.Choice(name="profile (stickers)", value="profile_stickers"),
     app_commands.Choice(name="profile (backgrounds)", value="profile_backgrounds"),
     app_commands.Choice(name="profile (other characters)", value="profile_other_characters"),
@@ -102,14 +105,12 @@ PAGE_TYPE_CHOICES = [
     app_commands.Choice(name="profile (trinkets)", value="profile_trinkets"),
     app_commands.Choice(name="profile (frames)", value="profile_frames"),
     app_commands.Choice(name="profile (designs)", value="profile_designs"),
-    app_commands.Choice(name="artifact", value="artifact"),
-    app_commands.Choice(name="item", value="item"),
     app_commands.Choice(name="manatura", value="manatura"),
     app_commands.Choice(name="shield", value="shield"),
-    app_commands.Choice(name="skill_icons", value="skill_icons"),
     app_commands.Choice(name="bullet", value="bullet"),
     app_commands.Choice(name="advyrnture_gear", value="advyrnture_gear"),
     app_commands.Choice(name="advyrnture_pal", value="advyrnture_pal"),
+    app_commands.Choice(name="artifact", value="artifact"),
 ]
 PAGE_TYPES = [choice.value for choice in PAGE_TYPE_CHOICES]
 
@@ -168,6 +169,7 @@ RISING_ROTATION_CHARACTER_NAMES = [
     "Anila",
     "Avatar Belial",
     "Beatrix",
+    "Beelzebub",
     "Belial",
     "Cagliostro",
     "Charlotta",
@@ -231,7 +233,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - required for `class_skin`; optional for Profile Room types where it exact-matches a row `id`.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `story_location` uploads `MainQuestTabs` / `EventTabs` island_l location headers; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -1461,6 +1463,8 @@ async def run_wiki_upload(
                 wi.check_skin(page)
             elif page_type == 'npc':
                 wi.check_npc(page)
+            elif page_type == 'story_location':
+                wi.check_story_location(page)
             elif page_type == 'profile_stickers':
                 wi.check_profile(page, 'stickers', filter_value)
             elif page_type == 'profile_backgrounds':
