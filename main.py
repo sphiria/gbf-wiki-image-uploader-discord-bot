@@ -169,6 +169,7 @@ RISING_ROTATION_CHARACTER_NAMES = [
     "Anila",
     "Avatar Belial",
     "Beatrix",
+    "Beelzebub",
     "Belial",
     "Cagliostro",
     "Charlotta",
