@@ -233,7 +233,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - required for `class_skin`; optional for Profile Room types where it exact-matches a row `id`.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `story_location` uploads `MainQuestTabs` / `EventTabs` island_l location headers; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
+            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `item` reads `{{Item}}` `id`/`asset_type`/`name` and tags files with `[[Category:Item Images]]`; `story_location` uploads `MainQuestTabs` / `EventTabs` island_l location headers; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -3495,10 +3495,10 @@ async def itemupload(
             ]
 
             base_url = "https://gbf.wiki/File:"
-            canonical_s_file = f"Item_{item_type_value}_s_{cleaned_id}.jpg"
-            canonical_m_file = f"Item_{item_type_value}_m_{cleaned_id}.jpg"
-            redirect_square_file = f"{cleaned_name} square.jpg"
-            redirect_icon_file = f"{cleaned_name} icon.jpg"
+            canonical_s_file = f"item_{item_type_value}_s_{cleaned_id}.jpg"
+            canonical_m_file = f"item_{item_type_value}_m_{cleaned_id}.jpg"
+            redirect_square_file = f"{cleaned_name}_square.jpg"
+            redirect_icon_file = f"{cleaned_name}_icon.jpg"
 
             link_lines = [
                 "",
