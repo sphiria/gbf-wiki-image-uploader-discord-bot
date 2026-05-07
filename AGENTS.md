@@ -291,6 +291,28 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - ASCII control characters
 - `event_id` currently allows only lowercase letters, numbers, and underscores.
 
+## Item Upload Contract
+
+- `/imgupload page_type:item` scans all `{{Item}}` templates on the target page.
+- Pertinent parameters:
+  - `id`
+  - `asset_type`
+  - `name`
+- Do not use `image_s` or `image_m` as source-of-truth fields or filename references for this upload flow.
+- Remote image URLs are derived only from `id` and `asset_type`:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/{asset_type}/s/{id}.jpg`
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/{asset_type}/m/{id}.jpg`
+- Canonical naming:
+  - `item_{asset_type}_s_{id}.jpg`
+  - `item_{asset_type}_m_{id}.jpg`
+- Redirect naming when `name` is present:
+  - `{name}_square.jpg`
+  - `{name}_icon.jpg`
+- If `id` or `asset_type` is blank, skip both image downloads for that item and report it.
+- If `name` is blank, upload canonicals only and skip redirects.
+- If a remote URL is missing, skip that upload and report the missing source asset.
+- Uploaded or duplicate-resolved item files should be tagged with `[[Category:Item Images]]`.
+
 ## Advyrnture Gear Contract
 
 - `/imgupload page_type:advyrnture_gear` scans `{{Advyrnture/Cosmetic/Row}}` templates on the target page.

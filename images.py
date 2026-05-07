@@ -1867,7 +1867,17 @@ class WikiImages(object):
             banner_duplicates=banner_duplicates,
         )
 
-    def _process_item_variant(self, item_type, item_id, item_name, variant, redirect_suffix, cdn_variant=None):
+    def _process_item_variant(
+        self,
+        item_type,
+        item_id,
+        item_name,
+        variant,
+        redirect_suffix,
+        cdn_variant=None,
+        canonical_name=None,
+        path_segment=None,
+    ):
         """
         Download and upload a single item variant image for the given CDN item type.
 
@@ -1876,7 +1886,7 @@ class WikiImages(object):
             upload count increment, duplicate count increment.
         """
         item_type = item_type.lower()
-        path_segment = self.ITEM_SINGLE_TYPE_PATHS.get(item_type, item_type)
+        path_segment = path_segment or self.ITEM_SINGLE_TYPE_PATHS.get(item_type, item_type)
         if not path_segment:
             raise ValueError('Item type (CDN folder) is required for single-item uploads.')
 
@@ -1887,8 +1897,8 @@ class WikiImages(object):
             'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
             f'img/sp/assets/item/{path_segment}/{variant_path}{item_id}.jpg'
         )
-        true_name = f'item_{item_type}_{variant}_{item_id}.jpg'
-        other_names = [f'{item_name} {redirect_suffix}.jpg']
+        true_name = canonical_name or f'item_{item_type}_{variant}_{item_id}.jpg'
+        other_names = [f'{item_name}_{redirect_suffix}.jpg'] if item_name else []
 
         print(
             f'Downloading {url} for item "{item_name}" '
@@ -1896,7 +1906,7 @@ class WikiImages(object):
         )
         success, sha1, size, io_obj = self.get_image(url)
         if not success:
-            print(f'Failed to download item image for ID {item_id} variant {variant} ({item_type}).')
+            print(f'Missing source asset or failed download for item image: {url}')
             return true_name, 0, 0
 
         check_image_result = self.check_image(true_name, sha1, size, io_obj, other_names)
@@ -1912,6 +1922,8 @@ class WikiImages(object):
             final_name = check_image_result
             uploaded_increment = 0
             duplicate_increment = 1
+
+        self.check_image_categories(final_name, ['Item Images'])
 
         for other_name in other_names:
             self.check_file_redirect(final_name, other_name)
@@ -2819,16 +2831,14 @@ class WikiImages(object):
         templates = wikicode.filter_templates()
 
         items = []
-        seen_ids = set()
-
         for template in templates:
             template_name = template.name.strip()
             if template_name.lower() != 'item':
                 continue
 
-            item_id = None
-            item_name = None
-            item_type = 'article'
+            item_id = ''
+            item_name = ''
+            asset_type = ''
 
             for param in template.params:
                 param_name = param.name.strip()
@@ -2838,38 +2848,35 @@ class WikiImages(object):
                     match = re.match(r'^{{{id\|([^}]+)}}}$', value)
                     if match:
                         value = match.group(1)
-                    item_id = value
+                    item_id = mwparserfromhell.parse(value).strip_code().strip()
                 elif param_name == 'name' and value:
                     item_name = mwparserfromhell.parse(value).strip_code().strip()
-                elif param_name == 'item_type' and value:
-                    item_type = mwparserfromhell.parse(value).strip_code().strip().lower()
+                elif param_name == 'asset_type' and value:
+                    asset_type = mwparserfromhell.parse(value).strip_code().strip().lower()
 
-            if not item_id:
-                print('Skipping template without id parameter.')
-                continue
-
-            if item_id in seen_ids:
-                print(f'Skipping duplicate item id "{item_id}".')
+            if not item_id or not asset_type:
+                item_label = item_name or item_id or '(unnamed item)'
+                print(
+                    f'Skipping both item image downloads for {item_label}: '
+                    f'id="{item_id}", asset_type="{asset_type}".'
+                )
                 continue
 
             if not item_name:
-                print(f'Skipping item id "{item_id}" without name parameter.')
-                continue
+                print(f'Item id "{item_id}" has no name parameter; redirects will be skipped.')
 
-            item_type = (item_type or 'article').lower()
-            if item_type not in self.ITEM_SINGLE_TYPE_PATHS:
-                print(f'Skipping item id "{item_id}" with unsupported type "{item_type}".')
-                continue
-
-            seen_ids.add(item_id)
-            items.append({'id': item_id, 'name': item_name, 'type': item_type})
+            items.append({
+                'id': item_id,
+                'name': item_name,
+                'asset_type': asset_type,
+            })
 
         if not items:
             print('No valid {{Item}} templates found.')
             return
 
         total_variants = sum(
-            len(self._item_variant_specs(item["type"]))
+            2
             for item in items
         )
         processed_variants = 0
@@ -2879,13 +2886,22 @@ class WikiImages(object):
         for item in items:
             item_id = item['id']
             item_name = item['name']
-            item_type = item['type']
+            asset_type = item['asset_type']
 
-            variant_specs = self._item_variant_specs(item_type)
+            variant_specs = [
+                ("s", "square"),
+                ("m", "icon"),
+            ]
 
-            for variant, redirect_suffix, cdn_variant in variant_specs:
+            for variant, redirect_suffix in variant_specs:
                 current_image, uploaded_increment, duplicate_increment = self._process_item_variant(
-                    item_type, item_id, item_name, variant, redirect_suffix, cdn_variant
+                    asset_type,
+                    item_id,
+                    item_name,
+                    variant,
+                    redirect_suffix,
+                    variant,
+                    path_segment=asset_type,
                 )
 
                 processed_variants += 1
@@ -2898,7 +2914,7 @@ class WikiImages(object):
                         processed=processed_variants,
                         total=total_variants,
                         current_image=current_image,
-                        item_type=item_type,
+                        item_type=asset_type,
                     )
 
         if hasattr(self, '_status_callback'):
