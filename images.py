@@ -446,7 +446,10 @@ class WikiImages(object):
             name='event_quest_assets',
             pattern=re.compile(
                 r'^File:quest_assets_(?P<id>[A-Za-z0-9_]+)_'
-                r'(?P<variant>free_proud|free_proud_1|free_proud_2)\.(?P<ext>[A-Za-z0-9]+)$'
+                r'(?P<variant>free_proud|free_proud_1|free_proud_2|'
+                r'maniac_1|maniac_2|ex_1|ex_2|vhard|hell|hell_1|hell_2|hell_3|'
+                r'group_multi|group_1|vhard_multi|ex_multi_1|ex_multi_2)'
+                r'\.(?P<ext>[A-Za-z0-9]+)$'
             ),
             id_parts=('id',),
             signature_parts=('variant', 'ext'),
@@ -4204,6 +4207,7 @@ class WikiImages(object):
         - voice_banner: event trailer banners
         - top: event teaser top image
         - raid_thumb: event raid thumbnails
+        - raid_thumb_collab: event collab raid thumbnails
         """
         event_id = str(event_id).strip().lower()
         if not event_id:
@@ -4212,7 +4216,7 @@ class WikiImages(object):
         asset_type_key = (asset_type or "").strip().lower()
         if not asset_type_key:
             raise ValueError("Asset type is required for event uploads.")
-        if asset_type_key not in {"notice", "start", "guide", "trailer_mp3", "voice_banner", "top", "raid_thumb"}:
+        if asset_type_key not in {"notice", "start", "guide", "trailer_mp3", "voice_banner", "top", "raid_thumb", "raid_thumb_collab"}:
             raise ValueError(f'Unsupported asset type "{asset_type}" for event uploads.')
 
         event_name = mwparserfromhell.parse(event_name).strip_code().strip()
@@ -4224,6 +4228,8 @@ class WikiImages(object):
                 max_index = 1
             elif asset_type_key == "raid_thumb":
                 max_index = 13
+            elif asset_type_key == "raid_thumb_collab":
+                max_index = 14
             else:
                 max_index = self.EVENT_TEASER_MAX_INDEX
         try:
@@ -4281,6 +4287,84 @@ class WikiImages(object):
             )
             canonical_template = "{event_id}_top.jpg"
             redirect_template = "{event_name}_top.jpg"
+        elif asset_type_key == "raid_thumb_collab":
+            asset_label = "collab raid thumb"
+            not_found_message = f'No collab raid thumbnails found for event id "{event_id}".'
+            raid_thumb_collab_variants = [
+                {
+                    "difficulty": "maniac_1",
+                    "canonical": "quest_assets_{event_id}_maniac_1.png",
+                    "redirect": "BattleRaid_{event_name}_Maniac.png",
+                },
+                {
+                    "difficulty": "maniac_2",
+                    "canonical": "quest_assets_{event_id}_maniac_2.png",
+                    "redirects": [
+                        "BattleRaid_{event_name}_Maniac2.png",
+                        "BattleRaid_{event_name}_Maniac_2.png",
+                    ],
+                },
+                {
+                    "difficulty": "ex_1",
+                    "canonical": "quest_assets_{event_id}_ex_1.png",
+                    "redirect": "BattleRaid_{event_name}_Solo_Extreme.png",
+                },
+                {
+                    "difficulty": "ex_2",
+                    "canonical": "quest_assets_{event_id}_ex_2.png",
+                    "redirect": "BattleRaid_{event_name}_Solo_ExtremePlus.png",
+                },
+                {
+                    "difficulty": "vhard",
+                    "canonical": "quest_assets_{event_id}_vhard.png",
+                    "redirect": "BattleRaid {event_name} Solo Very Hard.png",
+                },
+                {
+                    "difficulty": "hell",
+                    "canonical": "quest_assets_{event_id}_hell.png",
+                    "redirect": "BattleRaid {event_name} Nightmare.png",
+                },
+                {
+                    "difficulty": "hell_1",
+                    "canonical": "quest_assets_{event_id}_hell_1.png",
+                    "redirect": "BattleRaid {event_name} Nightmare60.png",
+                },
+                {
+                    "difficulty": "hell_2",
+                    "canonical": "quest_assets_{event_id}_hell_2.png",
+                    "redirect": "BattleRaid {event_name} Nightmare100.png",
+                },
+                {
+                    "difficulty": "hell_3",
+                    "canonical": "quest_assets_{event_id}_hell_3.png",
+                    "redirect": "BattleRaid {event_name} Nightmare120.png",
+                },
+                {
+                    "difficulty": "group_multi",
+                    "canonical": "quest_assets_{event_id}_group_multi.png",
+                    "redirect": "BattleRaid_{event_name}_Raid_Thumb.png",
+                },
+                {
+                    "difficulty": "group_1",
+                    "canonical": "quest_assets_{event_id}_group_1.png",
+                    "redirect": "BattleRaid_{event_name}_Solo_Thumb.png",
+                },
+                {
+                    "difficulty": "vhard_multi",
+                    "canonical": "quest_assets_{event_id}_vhard_multi.png",
+                    "redirect": "BattleRaid {event_name} Raid Very Hard.png",
+                },
+                {
+                    "difficulty": "ex_multi_1",
+                    "canonical": "quest_assets_{event_id}_ex_multi_1.png",
+                    "redirect": "BattleRaid {event_name} Raid Extreme.png",
+                },
+                {
+                    "difficulty": "ex_multi_2",
+                    "canonical": "quest_assets_{event_id}_ex_multi_2.png",
+                    "redirect": "BattleRaid {event_name} Raid ExtremePlus.png",
+                },
+            ]
         else:
             asset_label = "raid thumb"
             not_found_message = f'No raid thumbnails found for event id "{event_id}".'
@@ -4378,6 +4462,8 @@ class WikiImages(object):
 
         if asset_type_key == "raid_thumb":
             loop_total = len(raid_thumb_variants)
+        elif asset_type_key == "raid_thumb_collab":
+            loop_total = len(raid_thumb_collab_variants)
         elif asset_type_key in {"top", "trailer_mp3"}:
             loop_total = 1
         else:
@@ -4434,28 +4520,38 @@ class WikiImages(object):
                 asset_type=asset_type_key,
             )
         for index in range(1, loop_total + 1):
-            if asset_type_key == "raid_thumb":
-                variant = raid_thumb_variants[index - 1]
-                difficulty = variant["difficulty"]
-                url = (
-                    "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                    f"img/sp/assets/summon/qm/{event_id}_{difficulty}.png"
+            if asset_type_key in {"raid_thumb", "raid_thumb_collab"}:
+                variant = (
+                    raid_thumb_variants[index - 1]
+                    if asset_type_key == "raid_thumb"
+                    else raid_thumb_collab_variants[index - 1]
                 )
-                if difficulty == "free_proud":
+                difficulty = variant["difficulty"]
+                if asset_type_key == "raid_thumb_collab":
                     url = (
                         "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                        f"img/sp/quest/assets/free/{event_id}_free_proud.png"
+                        f"img/sp/quest/assets/{event_id}_{difficulty}.png"
                     )
-                elif difficulty == "free_proud_1":
+                else:
                     url = (
                         "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                        f"img/sp/quest/assets/{event_id}_free_proud_1.png"
+                        f"img/sp/assets/summon/qm/{event_id}_{difficulty}.png"
                     )
-                elif difficulty == "free_proud_2":
-                    url = (
-                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
-                        f"img/sp/quest/assets/{event_id}_free_proud_2.png"
-                    )
+                    if difficulty == "free_proud":
+                        url = (
+                            "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                            f"img/sp/quest/assets/free/{event_id}_free_proud.png"
+                        )
+                    elif difficulty == "free_proud_1":
+                        url = (
+                            "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                            f"img/sp/quest/assets/{event_id}_free_proud_1.png"
+                        )
+                    elif difficulty == "free_proud_2":
+                        url = (
+                            "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                            f"img/sp/quest/assets/{event_id}_free_proud_2.png"
+                        )
                 canonical_name = variant["canonical"].format(event_id=event_id)
                 redirect_names = [
                     redirect_template.format(event_name=event_name)
@@ -4587,9 +4683,14 @@ class WikiImages(object):
             if asset_type_key not in {"guide", "voice_banner"}:
                 success, sha1, size, io_obj = self.get_image(url)
             if not success:
-                if asset_type_key == "raid_thumb":
+                if asset_type_key in {"raid_thumb", "raid_thumb_collab"}:
+                    missing_label = (
+                        "Collab raid thumbnail"
+                        if asset_type_key == "raid_thumb_collab"
+                        else "Raid thumbnail"
+                    )
                     print(
-                        f'Raid thumbnail not found for variant "{difficulty}" '
+                        f'{missing_label} not found for variant "{difficulty}" '
                         f'(event id: {event_id}); skipping.'
                     )
                     continue
