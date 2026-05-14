@@ -125,6 +125,7 @@ EVENT_TEASER_ASSET_TYPE_CHOICES = [
     app_commands.Choice(name="voice banner", value="voice_banner"),
     app_commands.Choice(name="top", value="top"),
     app_commands.Choice(name="raid_thumb", value="raid_thumb"),
+    app_commands.Choice(name="raid_thumb_collab", value="raid_thumb_collab"),
 ]
 EVENT_TEASER_ASSET_TYPE_SET = {choice.value for choice in EVENT_TEASER_ASSET_TYPE_CHOICES}
 
@@ -352,7 +353,7 @@ HELP_COMMAND_DETAILS = {
             "- Inputs:",
             "  - `event_id` - lowercase folder slug.",
             "  - `event_name` - display name used for redirects where applicable.",
-            "  - `asset_type` - strict dropdown covering `notice`, `start`, `guide`, `trailer_mp3`, `voice_banner`, `top`, and `raid_thumb`.",
+            "  - `asset_type` - strict dropdown covering `notice`, `start`, `guide`, `trailer_mp3`, `voice_banner`, `top`, `raid_thumb`, and `raid_thumb_collab`.",
             "  - `max_index` - defaults vary by asset family; fixed-file assets use 1.",
             "- Notes: indexed families stop on the first missing base index; guide skips missing subindices; `trailer_mp3` creates no redirect.",
             "- Output: processed/uploaded/duplicate/failed counts, canonical links, and asset-specific copy blocks where applicable.",
@@ -3539,7 +3540,7 @@ async def itemupload(
     event_id="Event folder identifier (e.g. treasureraid169 or biography042)",
     event_name="Event display name (used for redirects)",
     asset_type="Select which event asset type to upload.",
-    max_index="Max guide/banner index to attempt (default 20; raid_thumb defaults to 13; top/trailer mp3 use 1).",
+    max_index="Max guide/banner index to attempt (default 20; raid_thumb defaults to 13; raid_thumb_collab defaults to 14; top/trailer mp3 use 1).",
 )
 @app_commands.choices(asset_type=EVENT_TEASER_ASSET_TYPE_CHOICES)
 async def eventupload(
@@ -3578,6 +3579,8 @@ async def eventupload(
     if max_index is None:
         if asset_type_value == "raid_thumb":
             max_index = 13
+        elif asset_type_value == "raid_thumb_collab":
+            max_index = 14
         elif asset_type_value in {"top", "trailer_mp3"}:
             max_index = 1
         else:
