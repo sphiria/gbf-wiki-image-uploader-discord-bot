@@ -166,13 +166,15 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `top`
   - `raid_thumb`
   - `raid_thumb_collab`
+  - `raid_thumb_records`
 - Default `max_index` is `20` for `notice`, `start`, and `guide`.
 - `trailer mp3` uses the fixed single audio file and defaults to `1`.
 - `voice banner` also defaults to `20`.
 - `top` uses the fixed single teaser file and defaults to `1`.
 - `raid_thumb` currently processes the fixed `vhard`, `vhard_1`, `vhard_2`, `ex`, `ex_1`, `ex_2`, `high`, `high_1`, `high_2`, `hell`, `free_proud`, `free_proud_1`, and `free_proud_2` files and defaults to `13`.
 - `raid_thumb_collab` currently processes the fixed `maniac_1`, `maniac_2`, `ex_1`, `ex_2`, `vhard`, `hell`, `hell_1`, `hell_2`, `hell_3`, `group_multi`, `group_1`, `vhard_multi`, `ex_multi_1`, and `ex_multi_2` files and defaults to `14`.
-- `raid_thumb` and `raid_thumb_collab` should attempt every configured fixed variant even when some URLs are missing.
+- `raid_thumb_records` currently processes the fixed `vhard`, `ex`, `high`, `hell100`, and `hell150` files and defaults to `5`.
+- `raid_thumb`, `raid_thumb_collab`, and `raid_thumb_records` should attempt every configured fixed variant even when some URLs are missing.
 - `notice`, `start`, and `voice banner` stop on the first missing base index.
 - `guide` stops on the first missing base index.
 - `guide` probes the base suffix plus `_0` and `_1` for each base index.
@@ -303,6 +305,22 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/{event_id}_ex_multi_2.png`
   - Canonical: `quest_assets_{event_id}_ex_multi_2.png`
   - Redirect: `BattleRaid {event_name} Raid ExtremePlus.png`
+- `raid_thumb_records`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_vhard.png`
+  - Canonical: `quest_assets_free_{event_id}_vhard.png`
+  - Redirect: `BattleRaid {event_name} Very Hard.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_ex.png`
+  - Canonical: `quest_assets_free_{event_id}_ex.png`
+  - Redirect: `BattleRaid {event_name} Extreme.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_high.png`
+  - Canonical: `quest_assets_free_{event_id}_high.png`
+  - Redirect: `BattleRaid {event_name} Impossible.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_hell100.png`
+  - Canonical: `quest_assets_free_{event_id}_hell100.png`
+  - Redirect: `BattleRaid {event_name} Nightmare 100.png`
+  - URL: `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/quest/assets/free/{event_id}_hell150.png`
+  - Canonical: `quest_assets_free_{event_id}_hell150.png`
+  - Redirect: `BattleRaid {event_name} Nightmare 150.png`
 
 ### Event Upload Summary Output
 
@@ -315,7 +333,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `banner_PS_the_Astrals_1.png;banner_PS_the_Astrals_2.png`
 - This block should still appear on reruns that resolve to duplicates, as long as files were processed.
 - The `guide` gallery block should list redirect filenames in probe order.
-- `trailer mp3`, `voice banner`, `top`, `raid_thumb`, and `raid_thumb_collab` should not include the EventHistory copy box.
+- `trailer mp3`, `voice banner`, `top`, `raid_thumb`, `raid_thumb_collab`, and `raid_thumb_records` should not include the EventHistory copy box.
 
 ### Event Upload UI Notes
 
@@ -328,6 +346,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `top`
   - `raid_thumb`
   - `raid_thumb_collab`
+  - `raid_thumb_records`
 - The slash-command help text for `event_id` should describe it as a folder identifier, not a numeric-only id.
 
 ## Validation Rules Worth Preserving
