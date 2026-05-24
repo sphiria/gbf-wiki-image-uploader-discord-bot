@@ -443,6 +443,15 @@ class WikiImages(object):
             signature_parts=('variant', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='event_quest_assets_free',
+            pattern=re.compile(
+                r'^File:quest_assets_free_(?P<id>[A-Za-z0-9_]+)_'
+                r'(?P<variant>vhard|ex|high|hell100|hell150)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('variant', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='event_quest_assets',
             pattern=re.compile(
                 r'^File:quest_assets_(?P<id>[A-Za-z0-9_]+)_'
@@ -4208,6 +4217,7 @@ class WikiImages(object):
         - top: event teaser top image
         - raid_thumb: event raid thumbnails
         - raid_thumb_collab: event collab raid thumbnails
+        - raid_thumb_records: event Records raid thumbnails
         """
         event_id = str(event_id).strip().lower()
         if not event_id:
@@ -4216,7 +4226,7 @@ class WikiImages(object):
         asset_type_key = (asset_type or "").strip().lower()
         if not asset_type_key:
             raise ValueError("Asset type is required for event uploads.")
-        if asset_type_key not in {"notice", "start", "guide", "trailer_mp3", "voice_banner", "top", "raid_thumb", "raid_thumb_collab"}:
+        if asset_type_key not in {"notice", "start", "guide", "trailer_mp3", "voice_banner", "top", "raid_thumb", "raid_thumb_collab", "raid_thumb_records"}:
             raise ValueError(f'Unsupported asset type "{asset_type}" for event uploads.')
 
         event_name = mwparserfromhell.parse(event_name).strip_code().strip()
@@ -4230,6 +4240,8 @@ class WikiImages(object):
                 max_index = 13
             elif asset_type_key == "raid_thumb_collab":
                 max_index = 14
+            elif asset_type_key == "raid_thumb_records":
+                max_index = 5
             else:
                 max_index = self.EVENT_TEASER_MAX_INDEX
         try:
@@ -4365,6 +4377,36 @@ class WikiImages(object):
                     "redirect": "BattleRaid {event_name} Raid ExtremePlus.png",
                 },
             ]
+        elif asset_type_key == "raid_thumb_records":
+            asset_label = "Records raid thumb"
+            not_found_message = f'No Records raid thumbnails found for event id "{event_id}".'
+            raid_thumb_records_variants = [
+                {
+                    "difficulty": "vhard",
+                    "canonical": "quest_assets_free_{event_id}_vhard.png",
+                    "redirect": "BattleRaid {event_name} Very Hard.png",
+                },
+                {
+                    "difficulty": "ex",
+                    "canonical": "quest_assets_free_{event_id}_ex.png",
+                    "redirect": "BattleRaid {event_name} Extreme.png",
+                },
+                {
+                    "difficulty": "high",
+                    "canonical": "quest_assets_free_{event_id}_high.png",
+                    "redirect": "BattleRaid {event_name} Impossible.png",
+                },
+                {
+                    "difficulty": "hell100",
+                    "canonical": "quest_assets_free_{event_id}_hell100.png",
+                    "redirect": "BattleRaid {event_name} Nightmare 100.png",
+                },
+                {
+                    "difficulty": "hell150",
+                    "canonical": "quest_assets_free_{event_id}_hell150.png",
+                    "redirect": "BattleRaid {event_name} Nightmare 150.png",
+                },
+            ]
         else:
             asset_label = "raid thumb"
             not_found_message = f'No raid thumbnails found for event id "{event_id}".'
@@ -4464,6 +4506,8 @@ class WikiImages(object):
             loop_total = len(raid_thumb_variants)
         elif asset_type_key == "raid_thumb_collab":
             loop_total = len(raid_thumb_collab_variants)
+        elif asset_type_key == "raid_thumb_records":
+            loop_total = len(raid_thumb_records_variants)
         elif asset_type_key in {"top", "trailer_mp3"}:
             loop_total = 1
         else:
@@ -4520,14 +4564,20 @@ class WikiImages(object):
                 asset_type=asset_type_key,
             )
         for index in range(1, loop_total + 1):
-            if asset_type_key in {"raid_thumb", "raid_thumb_collab"}:
-                variant = (
-                    raid_thumb_variants[index - 1]
-                    if asset_type_key == "raid_thumb"
-                    else raid_thumb_collab_variants[index - 1]
-                )
+            if asset_type_key in {"raid_thumb", "raid_thumb_collab", "raid_thumb_records"}:
+                if asset_type_key == "raid_thumb":
+                    variant = raid_thumb_variants[index - 1]
+                elif asset_type_key == "raid_thumb_collab":
+                    variant = raid_thumb_collab_variants[index - 1]
+                else:
+                    variant = raid_thumb_records_variants[index - 1]
                 difficulty = variant["difficulty"]
-                if asset_type_key == "raid_thumb_collab":
+                if asset_type_key == "raid_thumb_records":
+                    url = (
+                        "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
+                        f"img/sp/quest/assets/free/{event_id}_{difficulty}.png"
+                    )
+                elif asset_type_key == "raid_thumb_collab":
                     url = (
                         "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/"
                         f"img/sp/quest/assets/{event_id}_{difficulty}.png"
@@ -4683,12 +4733,13 @@ class WikiImages(object):
             if asset_type_key not in {"guide", "voice_banner"}:
                 success, sha1, size, io_obj = self.get_image(url)
             if not success:
-                if asset_type_key in {"raid_thumb", "raid_thumb_collab"}:
-                    missing_label = (
-                        "Collab raid thumbnail"
-                        if asset_type_key == "raid_thumb_collab"
-                        else "Raid thumbnail"
-                    )
+                if asset_type_key in {"raid_thumb", "raid_thumb_collab", "raid_thumb_records"}:
+                    if asset_type_key == "raid_thumb_collab":
+                        missing_label = "Collab raid thumbnail"
+                    elif asset_type_key == "raid_thumb_records":
+                        missing_label = "Records raid thumbnail"
+                    else:
+                        missing_label = "Raid thumbnail"
                     print(
                         f'{missing_label} not found for variant "{difficulty}" '
                         f'(event id: {event_id}); skipping.'
