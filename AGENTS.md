@@ -488,6 +488,23 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `{name}_HD.png`
   - variant-suffixed forms such as `{name}_HDA2.png`
 
+## Character Profile Image Contract
+
+- `/imgupload page_type:character` also checks `npc/profile` assets from the target `{{Character}}` id.
+- CDN pattern:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/profile/{id}{index}.png`
+- Canonical naming:
+  - `npc_profile_{id}{index}.png`
+- Redirect naming follows the existing character zoom variant mapping style, but uses `_profile`:
+  - `{name}_profile.png`
+  - variant-suffixed forms such as `{name}_profileA2.png`
+- Category:
+  - `Profile Room Character Images`
+- Duplicate handling should keep `npc_profile_*` separate from standard `Npc zoom ...`, `Npc_my_*`, `Npc_result_lvup_*`, and skin canonical families.
+- Temporary local CLI helper:
+  - `python images.py character_profile "<Character Page>"` uploads only `npc/profile` assets for one page
+  - `python images.py character_profiles "<Category>" ["Resume Page"]` iterates a category but only uploads `npc/profile` assets
+
 ## Upload Comment Contract
 
 - Upload comments shown in MediaWiki file history for the affected `/imgupload` and `/statusupload` flows should be:
