@@ -236,6 +236,15 @@ class WikiImages(object):
             signature_parts=('kind', 'section', 'suffix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='npc_profile',
+            pattern=re.compile(
+                r'^File:(?P<prefix>[Nn]pc_profile)_(?P<id>[A-Za-z0-9]+)'
+                r'(?P<suffix>(?:_[A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='npc_f_skin',
             pattern=re.compile(
                 r'^File:(?P<prefix>npc_f_skin)_(?P<id>[A-Za-z0-9]+)'
@@ -4929,7 +4938,7 @@ class WikiImages(object):
             ['Character Images', 'Square Skin Character Images' ]],
         }
 
-    def check_character(self, page):
+    def check_character(self, page, asset_sections=None):
         paths = {
             'zoom':          ['png', '', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04', 
             '_81', '_82', '_88', '_91', '_91_0', '_91_1', 
@@ -4944,6 +4953,20 @@ class WikiImages(object):
             # 'C01', 'C02', 'C03', 'C04', 'C05', 'C06'
             ], 
             ['Character Images', 'Full Character Images'  ]],
+
+            'profile':      ['png', '_profile', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04',
+            '_81', '_82', '_88', '_91', '_91_0', '_91_1',
+            # '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
+            # '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
+            # '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'
+            ],
+
+            ['A', 'A2', 'A101', 'A102', 'A103', 'A104', 'A105', 'B', 'B2',  'B101', 'B102', 'B103', 'B104', 'B105', 'C', 'C2',  'C101', 'C102', 'C103', 'C104', 'C105', 'D', 'ST', 'ST2', 'ST8', 'EX', 'EX1', 'EX2',
+            # 'A01', 'A02', 'A03', 'A04', 'A05', 'A06',
+            # 'B01', 'B02', 'B03', 'B04', 'B05', 'B06',
+            # 'C01', 'C02', 'C03', 'C04', 'C05', 'C06'
+            ],
+            ['Profile Room Character Images']],
 
             'skycompass_zoom': ['png', '_HD',
             ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04',
@@ -5069,7 +5092,17 @@ class WikiImages(object):
             #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/m/1010200300.jpg
             #http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/s/1010200300.jpg
         }
+        if asset_sections is not None:
+            requested_sections = set(asset_sections)
+            paths = {
+                section: params
+                for section, params in paths.items()
+                if section in requested_sections
+            }
         self.check_sp_asset(page, 'npc', 'Character', paths, False)
+
+    def check_character_profile(self, page):
+        self.check_character(page, asset_sections=('profile',))
 
     def check_character_full(self, page):
         self.check_character(page)
@@ -6255,6 +6288,18 @@ class WikiImages(object):
                                 params[0]
                             )
                             section_label = section
+                        elif section == 'profile':
+                            url = (
+                                'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                                'img/sp/assets/{0}/{1}/{2}{3}.{4}'
+                            ).format(
+                                asset_type,
+                                section,
+                                asset_id,
+                                variant_suffix,
+                                params[0]
+                            )
+                            section_label = section
                         else:
                             url = (
                                 'http://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
@@ -6292,6 +6337,12 @@ class WikiImages(object):
                             true_name = "{0}_{1}_{2}{3}.{4}".format(
                                 asset_type.capitalize(),
                                 section,
+                                asset_id,
+                                variant_suffix,
+                                params[0]
+                            )
+                        elif asset_type == 'npc' and section == 'profile':
+                            true_name = "npc_profile_{0}{1}.{2}".format(
                                 asset_id,
                                 variant_suffix,
                                 params[0]
@@ -6884,6 +6935,26 @@ class WikiImages(object):
                 print(
                     f'BATCH_PAGE_ERROR mode=characters category="{category}" '
                     f'page="{page.name}" rerun="python images.py character_full ""{page.name}""" '
+                    f'error="{exc}"'
+                )
+                traceback.print_exc()
+                continue
+
+    def check_character_profiles(self, category, resume_from=''):
+        resume = len(resume_from) > 0
+        pages = self.wiki.categories[category]
+        for page in pages:
+            if resume:
+                if page.name == resume_from:
+                    resume = False
+                else:
+                    continue
+            try:
+                self.check_character_profile(page)
+            except Exception as exc:
+                print(
+                    f'BATCH_PAGE_ERROR mode=character_profiles category="{category}" '
+                    f'page="{page.name}" rerun="python images.py character_profile ""{page.name}""" '
                     f'error="{exc}"'
                 )
                 traceback.print_exc()
@@ -7826,6 +7897,8 @@ def main():
     proxy_required_modes = {
         'character',
         'char',
+        'character_profile',
+        'character_profiles',
         'character_full',
         'character_fs_skin',
         'npc',
@@ -7946,6 +8019,12 @@ def main():
 
     if (mode == 'character') or (mode == 'char'):
         wi.check_character(wi.wiki.pages[sys.argv[2]])
+    elif mode == 'character_profile':
+        if len(sys.argv) < 3:
+            print('Usage: python images.py character_profile <page name>')
+            return
+        page_name = ' '.join(sys.argv[2:]).strip()
+        wi.check_character_profile(wi.wiki.pages[page_name])
     elif mode == 'character_full':
         wi.check_character_full(wi.wiki.pages[sys.argv[2]])
     elif mode == 'character_fs_skin':
@@ -7964,6 +8043,14 @@ def main():
         resume_from = sys.argv[3] if len(sys.argv) > 3 else ''
         wi.delay = 50
         wi.check_characters(category, resume_from)
+    elif mode == 'character_profiles':
+        if len(sys.argv) < 3:
+            print('Usage: python images.py character_profiles <category> [resume_from]')
+            return
+        category = sys.argv[2]
+        resume_from = sys.argv[3] if len(sys.argv) > 3 else ''
+        wi.delay = 50
+        wi.check_character_profiles(category, resume_from)
     elif mode == 'class':
         wi.check_class(wi.wiki.pages[sys.argv[2]])
         pass
