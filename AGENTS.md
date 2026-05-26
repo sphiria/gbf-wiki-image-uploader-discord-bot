@@ -499,6 +499,7 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `{name}_profile.png`
   - variant-suffixed forms such as `{name}_profileA2.png`
 - Category:
+  - `Character Images`
   - `Profile Room Character Images`
 - Duplicate handling should keep `npc_profile_*` separate from standard `Npc zoom ...`, `Npc_my_*`, `Npc_result_lvup_*`, and skin canonical families.
 - Temporary local CLI helper:
