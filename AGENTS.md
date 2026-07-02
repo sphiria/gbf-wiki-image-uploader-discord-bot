@@ -497,14 +497,39 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `npc_profile_{id}{index}.png`
 - Redirect naming follows the existing character zoom variant mapping style, but uses `_profile`:
   - `{name}_profile.png`
-  - variant-suffixed forms such as `{name}_profileA2.png`
+  - `_0` forms such as `{id}_01_0` use variant-suffixed redirects such as `{name}_profileA0.png`
+  - `_1` forms such as `{id}_01_1` use variant-suffixed redirects such as `{name}_profileA1.png`
+  - `_91_0` and `_91_1` use `{name}_profileEX0.png` and `{name}_profileEX1.png`
+  - higher-numbered variants keep their numeric labels, such as `{name}_profileA101.png`
 - Category:
   - `Character Images`
   - `Profile Room Character Images`
 - Duplicate handling should keep `npc_profile_*` separate from standard `Npc zoom ...`, `Npc_my_*`, `Npc_result_lvup_*`, and skin canonical families.
+- Legacy space-title profile files like `Npc profile {id} 01.png` are duplicate-family aliases for `npc_profile_{id}_01.png`.
+- For `npc_profile_*` duplicate resolution, `_01`, `_01_0`, and `_01_1` share a duplicate signature only when MediaWiki reports matching binary hash/size; the same applies to `_02*` and `_03*`.
 - Temporary local CLI helper:
   - `python images.py character_profile "<Character Page>"` uploads only `npc/profile` assets for one page
-  - `python images.py character_profiles "<Category>" ["Resume Page"]` iterates a category but only uploads `npc/profile` assets
+  - `python images.py character_profiles "<Category>" --resume "<Resume Page>"` iterates a category but only uploads `npc/profile` assets
+
+## Skin Profile Image Contract
+
+- `/imgupload page_type:skin` also checks `npc/profile` assets from the target `{{CharSkin}}` id.
+- CDN pattern:
+  - `http://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/npc/profile/{id}{index}.png`
+- Suffixes and labels match skin `zoom`:
+  - `_01 -> A`
+  - `_01_0 -> A0`
+  - `_01_1 -> A1`
+  - `_81 -> ST`
+  - `_82 -> ST2`
+- Canonical naming follows the existing skin asset convention:
+  - `Npc profile {id}{index}.png`
+- Redirect naming follows the existing skin asset convention, but uses `_profile`:
+  - `{skin_desc}_({base_character})_profile.png`
+  - variant-suffixed forms such as `{skin_desc}_({base_character})_profileA0.png`
+- Category:
+  - `Outfit Images`
+  - `Profile Room Outfit Images`
 
 ## Upload Comment Contract
 
