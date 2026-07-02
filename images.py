@@ -5176,9 +5176,7 @@ class WikiImages(object):
 
     def check_skill_icons(self, page):
         """
-        Extract skill icon parameters from Character template and upload the icons.
-        Looks for a1_icon, a2_icon, a3_icon, a4_icon, a1a_icon, a2a_icon, a3a_icon, a4a_icon,
-        a1b_icon, a2b_icon, a3b_icon, a4b_icon parameters.
+        Extract skill icon parameters from Character or Class template and upload the icons.
         Icons can be comma-separated (e.g., "Ability_m_2232_3.png,Ability_m_2233_3.png").
         """
         print(f'Checking skill icons for page {page.name}...')
@@ -5188,27 +5186,41 @@ class WikiImages(object):
         wikicode = mwparserfromhell.parse(pagetext)
         templates = wikicode.filter_templates()
         
-        # Find Character template
-        character_template = None
+        # Find Character or Class template
+        target_template = None
+        icon_params = []
+        template_label = ''
         for template in templates:
             if template.name.strip() == 'Character':
-                character_template = template
+                target_template = template
+                template_label = 'Character'
+                icon_params = [
+                    'a1_icon', 'a2_icon', 'a3_icon', 'a4_icon',
+                    'a1a_icon', 'a2a_icon', 'a3a_icon', 'a4a_icon',
+                    'a1b_icon', 'a2b_icon', 'a3b_icon', 'a4b_icon'
+                ]
                 break
-        
-        if not character_template:
-            print('No Character template found; aborting.')
+            if template.name.strip() == 'Class':
+                target_template = template
+                template_label = 'Class'
+                icon_params = [
+                    's1_icon', 's1_master_icon', 's1_icon2', 's2_icon', 's3_icon',
+                    'ex1_icon', 'ex2_icon', 'ex3_icon', 'ex4_icon', 'ex5_icon',
+                    'ex1a_icon', 'ex2a_icon', 'ex3a_icon', 'ex4a_icon',
+                    'umex1_icon', 'umex2_icon', 'umex3_icon',
+                    'umex1a_icon', 'umex2a_icon', 'umex3a_icon',
+                    'sup1_icon', 'sup2_icon', 'sup3_icon', 'sup4_icon',
+                    'master_sup1_icon', 'master_sup2_icon',
+                ]
+                break
+
+        if not target_template:
+            print('No Character or Class template found; aborting.')
             return
-        
-        # Icon parameter names to check
-        icon_params = [
-            'a1_icon', 'a2_icon', 'a3_icon', 'a4_icon',
-            'a1a_icon', 'a2a_icon', 'a3a_icon', 'a4a_icon',
-            'a1b_icon', 'a2b_icon', 'a3b_icon', 'a4b_icon'
-        ]
-        
+
         # Extract all icon filenames from template parameters
         icon_filenames = []
-        for param in character_template.params:
+        for param in target_template.params:
             param_name = param.name.strip()
             if param_name in icon_params:
                 value = str(param.value).strip()
@@ -5218,7 +5230,7 @@ class WikiImages(object):
                     icon_filenames.extend(icons)
         
         if not icon_filenames:
-            print('No skill icons found in icon parameters; skipping.')
+            print(f'No skill icons found in {template_label} icon parameters; skipping.')
             return
         
         # Extract indices from icon filenames
@@ -5237,7 +5249,7 @@ class WikiImages(object):
             print('No valid icon indices found; skipping.')
             return
         
-        print(f'Found {len(icon_indices)} skill icon(s) to upload.')
+        print(f'Found {len(icon_indices)} skill icon(s) to upload from {template_label} template.')
         
         # Status callback for progress updates
         def emit_status(stage, **kwargs):
@@ -8145,7 +8157,7 @@ def main():
         pass
     elif mode == 'skill_icons':
         if len(sys.argv) < 3:
-            print('Please supply a page name containing {{Character}} template.')
+            print('Please supply a page name containing {{Character}} or {{Class}} template.')
             return
         page_name = sys.argv[2]
         wi.check_skill_icons(wi.wiki.pages[page_name])
