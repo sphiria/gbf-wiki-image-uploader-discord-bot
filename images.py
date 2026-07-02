@@ -245,6 +245,15 @@ class WikiImages(object):
             signature_parts=('prefix', 'suffix', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='npc_profile',
+            pattern=re.compile(
+                r'^File:(?P<prefix>Npc profile) (?P<id>[A-Za-z0-9]+) '
+                r'(?P<suffix>[A-Za-z0-9]+(?: [A-Za-z0-9]+)*)\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('prefix', 'suffix', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='npc_f_skin',
             pattern=re.compile(
                 r'^File:(?P<prefix>npc_f_skin)_(?P<id>[A-Za-z0-9]+)'
@@ -915,6 +924,34 @@ class WikiImages(object):
             and self._normalize_duplicate_family_part(match.groupdict().get('kind')) == 'npc'
         )
 
+    def _is_npc_profile_duplicate_family(self, rule_name):
+        return rule_name == 'npc_profile'
+
+    def _normalize_npc_profile_duplicate_part(self, value):
+        normalized = self._normalize_duplicate_family_part(value).replace(' ', '_')
+        if normalized == 'npc_profile':
+            return normalized
+        if normalized and not normalized.startswith('_'):
+            normalized = '_' + normalized
+        return normalized
+
+    def _normalize_npc_profile_duplicate_suffix(self, suffix):
+        normalized = self._normalize_npc_profile_duplicate_part(suffix)
+        matched = re.match(r'^(?P<base>_0[123])(?:_[01])$', normalized)
+        if matched:
+            return matched.group('base')
+        return normalized
+
+    def _npc_profile_suffix_preference_rank(self, suffix):
+        normalized = self._normalize_npc_profile_duplicate_part(suffix)
+        if re.match(r'^_0[123]$', normalized):
+            return 0
+        if re.match(r'^_0[123]_0$', normalized):
+            return 1
+        if re.match(r'^_0[123]_1$', normalized):
+            return 2
+        return 3
+
     def _normalize_npc_duplicate_suffix(self, suffix):
         normalized = self._normalize_duplicate_family_part(suffix)
         if not normalized:
@@ -963,6 +1000,12 @@ class WikiImages(object):
 
     def _normalize_duplicate_signature_value(self, rule, match, part):
         value = self._normalize_duplicate_family_part(match.group(part))
+        if self._is_npc_profile_duplicate_family(rule.name):
+            if part == 'prefix':
+                return value.replace(' ', '_')
+            if part == 'suffix':
+                return self._normalize_npc_profile_duplicate_suffix(match.group(part))
+            return value
         if self._is_profile_room_duplicate_family(rule.name):
             return self._normalize_profile_room_duplicate_part(value)
         if part == 'suffix' and self._is_npc_duplicate_family(rule, match):
@@ -977,6 +1020,15 @@ class WikiImages(object):
             page_name = self._normalize_profile_room_duplicate_part(match.page_name)
             legacy_penalty = 0 if raw_page_name.startswith('profile_room_') else 1
             return (locale_penalty, legacy_penalty, page_name)
+
+        if self._is_npc_profile_duplicate_family(match.rule.name):
+            raw_suffix = match.match_obj.groupdict().get('suffix')
+            canonical_penalty = 0 if '_' in match.page_name else 1
+            return (
+                self._npc_profile_suffix_preference_rank(raw_suffix),
+                canonical_penalty,
+                self._normalize_duplicate_family_part(match.page_name).replace(' ', '_'),
+            )
 
         if not self._is_npc_duplicate_family(match.rule, match.match_obj):
             return (0, self._normalize_duplicate_family_part(match.page_name))
@@ -4938,7 +4990,7 @@ class WikiImages(object):
             ['Character Images', 'Square Skin Character Images' ]],
         }
 
-    def check_character(self, page, asset_sections=None):
+    def check_character(self, page, asset_sections=None, include_character_extras=True):
         paths = {
             'zoom':          ['png', '', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04', 
             '_81', '_82', '_88', '_91', '_91_0', '_91_1', 
@@ -4954,14 +5006,14 @@ class WikiImages(object):
             ], 
             ['Character Images', 'Full Character Images'  ]],
 
-            'profile':      ['png', '_profile', ['_01', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04',
+            'profile':      ['png', '_profile', ['_01', '_01_0', '_01_1', '_01_101', '_01_102', '_01_103', '_01_104', '_01_105', '_02', '_02_0', '_02_1', '_02_101', '_02_102', '_02_103', '_02_104', '_02_105', '_03', '_03_0', '_03_1', '_03_101', '_03_102', '_03_103', '_03_104', '_03_105', '_04',
             '_81', '_82', '_88', '_91', '_91_0', '_91_1',
             # '_01_01', '_01_02', '_01_03', '_01_04', '_01_05', '_01_06',
             # '_02_01', '_02_02', '_02_03', '_02_04', '_02_05', '_02_06',
             # '_03_01', '_03_02', '_03_03', '_03_04', '_03_05', '_03_06'
             ],
 
-            ['A', 'A2', 'A101', 'A102', 'A103', 'A104', 'A105', 'B', 'B2',  'B101', 'B102', 'B103', 'B104', 'B105', 'C', 'C2',  'C101', 'C102', 'C103', 'C104', 'C105', 'D', 'ST', 'ST2', 'ST8', 'EX', 'EX1', 'EX2',
+            ['A', 'A0', 'A1', 'A101', 'A102', 'A103', 'A104', 'A105', 'B', 'B0', 'B1',  'B101', 'B102', 'B103', 'B104', 'B105', 'C', 'C0', 'C1',  'C101', 'C102', 'C103', 'C104', 'C105', 'D', 'ST', 'ST2', 'ST8', 'EX', 'EX0', 'EX1',
             # 'A01', 'A02', 'A03', 'A04', 'A05', 'A06',
             # 'B01', 'B02', 'B03', 'B04', 'B05', 'B06',
             # 'C01', 'C02', 'C03', 'C04', 'C05', 'C06'
@@ -5099,10 +5151,21 @@ class WikiImages(object):
                 for section, params in paths.items()
                 if section in requested_sections
             }
-        self.check_sp_asset(page, 'npc', 'Character', paths, False)
+        self.check_sp_asset(
+            page,
+            'npc',
+            'Character',
+            paths,
+            False,
+            include_character_extras=include_character_extras,
+        )
 
     def check_character_profile(self, page):
-        self.check_character(page, asset_sections=('profile',))
+        self.check_character(
+            page,
+            asset_sections=('profile',),
+            include_character_extras=False,
+        )
 
     def check_character_full(self, page):
         self.check_character(page)
@@ -6075,6 +6138,7 @@ class WikiImages(object):
 
 
             'zoom':          ['png', '',        ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Full Outfit Images'  ]],
+            'profile':       ['png', '_profile',['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Profile Room Outfit Images']],
             'sd':            ['png', '_SD',     ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Sprite Outfit Images'  ]],
             'f':             ['jpg', '_tall',   ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Tall Outfit Images'  ]],
             'm':             ['jpg', '_icon',   ['_01', '_01_0', '_01_1', '_81', '_82'], ['A', 'A0', 'A1', 'ST', 'ST2'], ['Outfit Images', 'Icon Outfit Images'  ]],
@@ -6142,7 +6206,15 @@ class WikiImages(object):
         }
         self.check_sp_skin_asset(page, 'npc', 'CharSkin', paths, False)
 
-    def check_sp_asset(self, page, asset_type, asset_template, paths, check_inherit=False):
+    def check_sp_asset(
+        self,
+        page,
+        asset_type,
+        asset_template,
+        paths,
+        check_inherit=False,
+        include_character_extras=True,
+    ):
         print('Checking page {0}...'.format(page.name))
         asset_id = ''
         asset_name = page.name
@@ -6387,7 +6459,12 @@ class WikiImages(object):
                         })
                         total_urls_generated += 1
 
-            if asset_template == 'Character' and asset_type == 'npc' and asset_ids:
+            if (
+                include_character_extras
+                and asset_template == 'Character'
+                and asset_type == 'npc'
+                and asset_ids
+            ):
                 balloon_tasks = self._build_asset_download_tasks(
                     asset_type,
                     asset_name,
@@ -8045,10 +8122,19 @@ def main():
         wi.check_characters(category, resume_from)
     elif mode == 'character_profiles':
         if len(sys.argv) < 3:
-            print('Usage: python images.py character_profiles <category> [resume_from]')
+            print('Usage: python images.py character_profiles <category> [--resume <page name>]')
             return
-        category = sys.argv[2]
-        resume_from = sys.argv[3] if len(sys.argv) > 3 else ''
+        args = sys.argv[2:]
+        resume_from = ''
+        if '--resume' in args:
+            resume_index = args.index('--resume')
+            category = ' '.join(args[:resume_index]).strip()
+            resume_from = ' '.join(args[resume_index + 1:]).strip()
+        else:
+            category = ' '.join(args).strip()
+        if not category:
+            print('Please supply a category name.')
+            return
         wi.delay = 50
         wi.check_character_profiles(category, resume_from)
     elif mode == 'class':
