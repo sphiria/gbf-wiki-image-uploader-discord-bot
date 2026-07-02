@@ -5174,10 +5174,50 @@ class WikiImages(object):
     def check_character_fs_skin(self, page):
         self.check_sp_asset(page, 'npc', 'Character', self._character_fs_skin_paths(), False)
 
+    @staticmethod
+    def _parse_skill_icon_asset(icon_filename):
+        """
+        Resolve CDN URL and canonical wiki filename for an ability icon reference.
+        Supports Ability_m_* PNG, Ability m * PNG, and Ability s * JPG naming styles.
+        Returns (cdn_url, canonical_name) or None when unrecognized.
+        """
+        icon_filename = icon_filename.strip()
+        cdn_base = (
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+            'img/sp/ui/icon/ability'
+        )
+
+        match = re.match(r'Ability_m_([0-9_]+)\.png$', icon_filename, re.IGNORECASE)
+        if match:
+            index = match.group(1)
+            return (
+                f'{cdn_base}/m/{index}.png',
+                icon_filename,
+            )
+
+        match = re.match(r'Ability\s+m\s+([0-9_]+)\.png$', icon_filename, re.IGNORECASE)
+        if match:
+            index = match.group(1)
+            return (
+                f'{cdn_base}/m/{index}.png',
+                icon_filename,
+            )
+
+        match = re.match(r'Ability\s+s\s+([0-9]+(?:\s+[0-9]+)*)\.jpg$', icon_filename, re.IGNORECASE)
+        if match:
+            index = match.group(1).replace(' ', '_')
+            return (
+                f'{cdn_base}/s/{index}.jpg',
+                icon_filename,
+            )
+
+        return None
+
     def check_skill_icons(self, page):
         """
         Extract skill icon parameters from Character or Class template and upload the icons.
         Icons can be comma-separated (e.g., "Ability_m_2232_3.png,Ability_m_2233_3.png").
+        Class pages may also use spaced filenames such as "Ability m 2149_1.png" or "Ability s 9 1.jpg".
         """
         print(f'Checking skill icons for page {page.name}...')
         
@@ -5233,48 +5273,35 @@ class WikiImages(object):
             print(f'No skill icons found in {template_label} icon parameters; skipping.')
             return
         
-        # Extract indices from icon filenames
-        # Pattern: Ability_m_{index}.png -> extract {index}
-        icon_indices = []
+        # Resolve CDN URLs from icon filenames
+        icon_assets = []
         for icon_filename in icon_filenames:
-            # Match pattern like "Ability_m_2731_3.png" or "Ability_m_2232_3.png"
-            match = re.match(r'Ability_m_([0-9_]+)\.png', icon_filename)
-            if match:
-                index = match.group(1)
-                icon_indices.append((index, icon_filename))  # Store both index and original filename
+            parsed = self._parse_skill_icon_asset(icon_filename)
+            if parsed:
+                icon_assets.append(parsed)
             else:
-                print(f'Warning: Could not extract index from icon filename: {icon_filename}')
+                print(f'Warning: Could not parse icon filename: {icon_filename}')
         
-        if not icon_indices:
-            print('No valid icon indices found; skipping.')
+        if not icon_assets:
+            print('No valid skill icon assets found; skipping.')
             return
         
-        print(f'Found {len(icon_indices)} skill icon(s) to upload from {template_label} template.')
+        print(f'Found {len(icon_assets)} skill icon(s) to upload from {template_label} template.')
         
         # Status callback for progress updates
         def emit_status(stage, **kwargs):
             if hasattr(self, '_status_callback'):
                 self._status_callback(stage, **kwargs)
         
-        emit_status("downloading", total_urls=len(icon_indices), successful=0, failed=0)
+        emit_status("downloading", total_urls=len(icon_assets), successful=0, failed=0)
         
-        # Download and upload each icon
-        url_template = (
-            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
-            'img/sp/ui/icon/ability/m/{0}.png'
-        )
-        
-        category_text = '[[Category:Ability Icons]]'
         successful = 0
         failed = 0
         uploaded = 0
         duplicates = 0
         
-        for index, original_filename in icon_indices:
-            url = url_template.format(index)
-            canonical_name = original_filename  # Use the exact filename from the param
-            
-            print(f'Processing icon: {canonical_name} (index: {index})')
+        for url, canonical_name in icon_assets:
+            print(f'Processing icon: {canonical_name} ({url})')
             
             # Always try to download from CDN first to get SHA1 for verification
             success, sha1, size, io = self.get_image(url)
