@@ -7311,12 +7311,34 @@ class WikiImages(object):
 
             return variants
 
+        PRIMARY_CLASS_CDN_HOST = 'prd-game-a-granbluefantasy.akamaized.net'
+
+        def class_cdn_urls(path, fallback_host):
+            hosts = [PRIMARY_CLASS_CDN_HOST, fallback_host]
+            return [
+                f'https://{host}/assets_en/{path}'
+                for index, host in enumerate(hosts)
+                if host and host not in hosts[:index]
+            ]
+
         def process_asset(label_text, url, canonical_name, other_names, extra_categories=None):
             nonlocal uploads_success, uploads_duplicates
 
-            print(f'Downloading {label_text}: {url}')
-            success, sha1, size, io_obj = self.get_image(url)
-            if not success:
+            urls = list(url) if isinstance(url, (list, tuple)) else [url]
+            success = False
+            sha1 = ''
+            size = 0
+            io_obj = None
+            for index, candidate_url in enumerate(urls):
+                print(f'Downloading {label_text}: {candidate_url}')
+                success, sha1, size, io_obj = self.get_image(candidate_url)
+                if success:
+                    if index > 0:
+                        print(f'Downloaded {label_text} from fallback URL: {candidate_url}')
+                    break
+                if index + 1 < len(urls):
+                    print(f'Failed to download {label_text} from {candidate_url}; trying fallback URL.')
+            else:
                 print(f'Failed to download {label_text}.')
                 return False
 
@@ -7577,9 +7599,9 @@ class WikiImages(object):
             result_variants = build_variants('result image', include_lvl50=True, lvl50_label='result (Lv50) image')
             process_gendered_assets(
                 result_variants,
-                lambda variant, gender: (
-                    'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/result/{variant["id"]}_{gender}_01.jpg'
+                lambda variant, gender: class_cdn_urls(
+                    f'img/sp/assets/leader/result/{variant["id"]}_{gender}_01.jpg',
+                    'prd-game-a5-granbluefantasy.akamaized.net',
                 ),
                 lambda variant, gender: (
                     f'leader_result_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
@@ -7595,9 +7617,9 @@ class WikiImages(object):
             profile_variants = build_variants('profile image', include_lvl50=True, lvl50_label='profile (Lv50) image')
             process_gendered_assets(
                 profile_variants,
-                lambda variant, gender: (
-                    'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/pm/{variant["id"]}_{gender}_01.png'
+                lambda variant, gender: class_cdn_urls(
+                    f'img/sp/assets/leader/pm/{variant["id"]}_{gender}_01.png',
+                    'prd-game-a5-granbluefantasy.akamaized.net',
                 ),
                 lambda variant, gender: (
                     f'leader_pm_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
@@ -7613,9 +7635,9 @@ class WikiImages(object):
             raid_log_variants = build_variants('raid log image', include_lvl50=True, lvl50_label='raid log (Lv50) image')
             process_gendered_assets(
                 raid_log_variants,
-                lambda variant, gender: (
-                    'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/raid_log/{variant["id"]}_{gender}_01.png'
+                lambda variant, gender: class_cdn_urls(
+                    f'img/sp/assets/leader/raid_log/{variant["id"]}_{gender}_01.png',
+                    'prd-game-a1-granbluefantasy.akamaized.net',
                 ),
                 lambda variant, gender: (
                     f'leader_raid_log_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.png'
@@ -7635,9 +7657,9 @@ class WikiImages(object):
             )
             process_gendered_assets(
                 raid_normal_variants,
-                lambda variant, gender: (
-                    'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/assets/leader/raid_normal/{variant["id"]}_{gender}_01.jpg'
+                lambda variant, gender: class_cdn_urls(
+                    f'img/sp/assets/leader/raid_normal/{variant["id"]}_{gender}_01.jpg',
+                    'prd-game-a1-granbluefantasy.akamaized.net',
                 ),
                 lambda variant, gender: (
                     f'leader_raid_normal_{variant["id_num"]}_{variant["abbr"]}_{gender}_01.jpg'
@@ -7888,9 +7910,9 @@ class WikiImages(object):
         if has_class_fields('id_num'):
             process_single_asset(
                 'job name tree image',
-                url=(
-                    'https://prd-game-a5-granbluefantasy.akamaized.net/assets_en/'
-                    f'img/sp/ui/job_name_tree_l/{class_data["id_num"]}.png'
+                url=class_cdn_urls(
+                    f'img/sp/ui/job_name_tree_l/{class_data["id_num"]}.png',
+                    'prd-game-a5-granbluefantasy.akamaized.net',
                 ),
                 canonical_name=f'job_name_tree_l_{class_data["id_num"]}.png',
                 other_names=[],
@@ -7910,9 +7932,9 @@ class WikiImages(object):
                 )
                 process_single_asset(
                     'job list image',
-                    url=(
-                        'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
-                        f'img/sp/ui/job_name/job_list/{class_data["id_num"]}.png'
+                    url=class_cdn_urls(
+                        f'img/sp/ui/job_name/job_list/{class_data["id_num"]}.png',
+                        'prd-game-a1-granbluefantasy.akamaized.net',
                     ),
                     canonical_name=f'job_list_{class_data["id_num"]}.png',
                     other_names=[
