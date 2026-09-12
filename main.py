@@ -235,7 +235,7 @@ HELP_COMMAND_DETAILS = {
             "  - `page_type` - chooses the asset family and CDN scan rules.",
             "  - `page_name` - target wiki page title.",
             "  - `filter` - required for `class_skin`; optional for Profile Room types where it exact-matches a row `id`.",
-            "- Notes: `character` supports explicit `style_id >= 2`; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `item` reads `{{Item}}` `id`/`asset_type`/`name` and tags files with `[[Category:Item Images]]`; `story_location` uploads `MainQuestTabs` / `EventTabs` island_l location headers; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
+            "- Notes: `character` supports explicit `style_id >= 2` and uploads animation sheets to the wiki plus scripts/manifests to R2; `character_fs_skin` handles only the heavy `f_skin` / `s_skin` families; `item` reads `{{Item}}` `id`/`asset_type`/`name` and tags files with `[[Category:Item Images]]`; `story_location` uploads `MainQuestTabs` / `EventTabs` island_l location headers; Profile Room types upload sticker, background, other-character, favorite-art, trophy, trinket, frame, or design rows.",
             "- Output: progress plus downloaded/uploaded/duplicate/failed counts and wiki links.",
         ]),
     },
@@ -1985,7 +1985,13 @@ async def upload(
                 await asyncio.sleep(15)
                 elapsed = int(time.time() - start_time)
                 
-                if status["stage"] == "downloading":
+                if status["stage"] == "animation_downloading":
+                    content = f"{dry_run_prefix}Preparing animation assets for `{display_target}`... ({elapsed}s elapsed)"
+                elif status["stage"] == "animation_uploading":
+                    done = status.get("animation_processed", 0)
+                    total = status.get("animation_total", 0)
+                    content = f"{dry_run_prefix}Publishing animation assets {done}/{total} for `{display_target}`... ({elapsed}s elapsed)"
+                elif status["stage"] == "downloading":
                     content = f"{dry_run_prefix}Downloading images for `{display_target}` ({page_type.value})... ({elapsed}s elapsed)"
                 elif status["stage"] == "processing":
                     processed = status.get("processed", 0)
@@ -2031,6 +2037,14 @@ async def upload(
             summary += f"• Images processed: {processed}\n" 
             summary += f"• Download failures: {failed}\n"
             summary += f"• Total URLs checked: {total_checked}"
+            animation = status.get("animation")
+            if animation:
+                summary += (
+                    "\n**Animations:**\n"
+                    f"• Sheets: {animation['sheets_uploaded']} uploaded, {animation['sheets_existing']} existing, {animation['sheets_planned']} planned\n"
+                    f"• Scripts: {animation['scripts_uploaded']} uploaded, {animation['scripts_existing']} existing, {animation['scripts_planned']} planned\n"
+                    f"• Manifest: {animation.get('manifest', 'not published')}"
+                )
             
             msg = await edit_public_message(msg, summary)
         else:

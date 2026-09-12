@@ -14,7 +14,7 @@ Bot frontend for the image uploader script
    export GUILD_ID="your_discord_guild_id"
    export WIKI_USERNAME="your_gbf_wiki_username"
    export WIKI_PASSWORD="your_gbf_wiki_password"
-   export USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+   export USER_AGENT="your_whitelisted_wiki_user_agent"
    ```
 
 3. Optional environment variables:
@@ -75,3 +75,54 @@ Quick overview of the available slash commands:
   - `raid_thumb_collab`: uploads `img/sp/quest/assets/<event_id>_maniac_1.png` as `quest_assets_<event_id>_maniac_1.png` + `BattleRaid_<EventName>_Maniac.png`, `img/sp/quest/assets/<event_id>_maniac_2.png` as `quest_assets_<event_id>_maniac_2.png` + `BattleRaid_<EventName>_Maniac2.png` (also `BattleRaid_<EventName>_Maniac_2.png`), `img/sp/quest/assets/<event_id>_ex_1.png` as `quest_assets_<event_id>_ex_1.png` + `BattleRaid_<EventName>_Solo_Extreme.png`, `img/sp/quest/assets/<event_id>_ex_2.png` as `quest_assets_<event_id>_ex_2.png` + `BattleRaid_<EventName>_Solo_ExtremePlus.png`, `img/sp/quest/assets/<event_id>_vhard.png` as `quest_assets_<event_id>_vhard.png` + `BattleRaid <EventName> Solo Very Hard.png`, `img/sp/quest/assets/<event_id>_hell.png` as `quest_assets_<event_id>_hell.png` + `BattleRaid <EventName> Nightmare.png`, `img/sp/quest/assets/<event_id>_hell_1.png` as `quest_assets_<event_id>_hell_1.png` + `BattleRaid <EventName> Nightmare60.png`, `img/sp/quest/assets/<event_id>_hell_2.png` as `quest_assets_<event_id>_hell_2.png` + `BattleRaid <EventName> Nightmare100.png`, `img/sp/quest/assets/<event_id>_hell_3.png` as `quest_assets_<event_id>_hell_3.png` + `BattleRaid <EventName> Nightmare120.png`, `img/sp/quest/assets/<event_id>_group_multi.png` as `quest_assets_<event_id>_group_multi.png` + `BattleRaid_<EventName>_Raid_Thumb.png`, `img/sp/quest/assets/<event_id>_group_1.png` as `quest_assets_<event_id>_group_1.png` + `BattleRaid_<EventName>_Solo_Thumb.png`, `img/sp/quest/assets/<event_id>_vhard_multi.png` as `quest_assets_<event_id>_vhard_multi.png` + `BattleRaid <EventName> Raid Very Hard.png`, `img/sp/quest/assets/<event_id>_ex_multi_1.png` as `quest_assets_<event_id>_ex_multi_1.png` + `BattleRaid <EventName> Raid Extreme.png`, and `img/sp/quest/assets/<event_id>_ex_multi_2.png` as `quest_assets_<event_id>_ex_multi_2.png` + `BattleRaid <EventName> Raid ExtremePlus.png`
   - `raid_thumb_records`: uploads `img/sp/quest/assets/free/<event_id>_vhard.png` as `quest_assets_free_<event_id>_vhard.png` + `BattleRaid <EventName> Very Hard.png`, `img/sp/quest/assets/free/<event_id>_ex.png` as `quest_assets_free_<event_id>_ex.png` + `BattleRaid <EventName> Extreme.png`, `img/sp/quest/assets/free/<event_id>_high.png` as `quest_assets_free_<event_id>_high.png` + `BattleRaid <EventName> Impossible.png`, `img/sp/quest/assets/free/<event_id>_hell100.png` as `quest_assets_free_<event_id>_hell100.png` + `BattleRaid <EventName> Nightmare 100.png`, and `img/sp/quest/assets/free/<event_id>_hell150.png` as `quest_assets_free_<event_id>_hell150.png` + `BattleRaid <EventName> Nightmare 150.png`
 - `/synccommands` — admin-only utility to force a guild/global slash-command sync if Discord stops showing new commands.
+
+
+## Character animation uploads
+
+`/imgupload page_type:character page_name:<Character page>` now also publishes the
+character's animations discovered from the game CDN and effects after the regular image scan. The
+`character_full` CLI flow inherits this behavior; profile-only and FS-skin-only
+scans do not run it. Existing roles, cooldown, lock, and Discord pacing are unchanged.
+
+- Reads the NPC `id` and `style_id` from `{{Character}}` and probes the game CDN for
+  animation manifests, then follows their spritesheet filenames. No third-party
+  animation index or viewer is queried.
+- Downloads game JS, asset manifests and PNGs through `PROXY_URL` only.
+- Uploads exact canonical spritesheet files through the existing wiki login/API.
+  Matching existing PNG dimensions/type are skipped (compatible with optimized
+  images). No animation redirects, moves, overwrites, or deletions are performed.
+- Publishes registered JS to `anim/<npc-id>/<asset>.js` on R2 and `manifest.json`
+  last. Byte-identical R2 objects are skipped; differing objects stop the animation
+  upload instead of being overwritten. Earlier successful uploads remain for reruns.
+- `DRY_RUN=true` prepares and reports the animation package without wiki/R2 writes
+  and does not require R2 credentials. Game downloads still require the proxy.
+- Missing required game assets are reported as failures;
+  no incomplete new manifest is published. The ordinary image scan may already
+  have completed before an animation failure.
+
+Configure `R2_ENDPOINT_URL`, `R2_BUCKET`, and `R2_API_TOKEN` in the deployment
+secrets/environment, or a local `.env.r2` file (`R2_ENV_FILE` overrides its path).
+Environment variables take priority. The R2 endpoint is the account S3 endpoint,
+for example `https://<account-id>.r2.cloudflarestorage.com`, not the public CDN URL.
+Wiki credentials remain `WIKI_USERNAME`, `WIKI_PASSWORD`, and `USER_AGENT`.
+External asset downloads and proxy checks use `BROWSER_USER_AGENT` from
+`http_settings.py`. Changing `USER_AGENT` affects wiki/R2 requests only; it does
+not change the browser identity used for game downloads.
+R2/Cloudflare requests do not use the game proxy. Do not commit credential files.
+
+Discovery uses bounded standard game filename patterns: appearances 01–04,
+common form suffixes, the page's explicit style, charge-attack effect suffixes,
+and skill effect slots 01–20. Gaps do not terminate the scan. HTTP 404 means a
+candidate is absent; proxy/authentication/network failures abort rather than being
+mistaken for absence. Existing downloaded manifests/scripts are reused during
+preparation. Explicit `.js` references are followed with a dependency limit.
+
+The public game CDN has no complete NPC-to-effect listing. Unreferenced shared
+weapon hit effects and nonstandard names cannot be inferred reliably; unresolved
+hit effects are reported and left unset. New naming patterns require extending
+the probes. Existing differing R2 manifests still stop rather than being overwritten.
+The upload summary includes sheets/scripts uploaded, existing, and planned counts
+and the final manifest status.
+
+Install the updated requirements and restart/redeploy the bot. No slash-command
+parameters changed, so no manual `/synccommands` is needed.

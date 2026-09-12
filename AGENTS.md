@@ -971,3 +971,28 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - JP design canonical: `profile_room_profile_card_decoration_{image_key}jp.png`
   - JP design legacy redirect: `Profile_card_decoration_{image_key}jp.png`
   - JP design redirect: none
+
+
+## Character Animation Upload Contract
+
+- `check_character` owns animation publication for the full character scan, after
+  regular images. Profile-only and FS-skin-only scans do not publish animations.
+- `animations.py`, `animation_assets.py`, `animation_download.py`, and
+  `animation_r2.py` implement the same manifest format and canonical names as the
+  bulk uploader. Discovery probes standard game CDN paths from the NPC ID/style and follows explicit game references; no third-party index dependency is allowed.
+- Canonicals: `Npc cjs <suffix>.png` for `npc_` sheets; `Npc nsp`, `Npc phit`, and
+  `Npc ab` for effect sheets. Underscores normalize through MediaWiki as usual.
+- Animation sheets are physical canonical files. Do NOT use the general
+  redirect/move duplicate-family registry: the player computes hashed image URLs
+  and cannot resolve file-page redirects. User explicitly requested no redirects.
+- Existing sheet dimensions/type are checked, preserving optimized files. Existing
+  conflicting names abort. Never overwrite/delete/move existing animation files.
+- R2 writes are conditional create-only within `anim/<10-digit NPC ID>/`; exact
+  content matches skip, differing content fails, manifest publishes last.
+- Game discovery and downloads use PROXY_URL; wiki and R2 do not. Reuse wiki session and its API
+  retry helper. Preserve 5s bot pacing. DRY_RUN prohibits both wiki and R2 writes.
+- R2 environment settings: R2_ENDPOINT_URL, R2_BUCKET, R2_API_TOKEN, optional
+  R2_ENV_FILE. Never print or commit secrets. Probe only bounded standard paths and explicit game references. Treat only HTTP 404 as absence; abort on other download failures. Report unresolvable shared hit effects rather than guessing them.
+
+- External asset requests share `http_settings.BROWSER_USER_AGENT`; do not copy
+  browser strings into individual downloaders. Keep wiki/R2 identities separate.

@@ -215,3 +215,51 @@ Usage: `/synccommands`
 - Purpose: Force-register all slash commands when Discord falls out of sync.
 - Requirements: Must be run in a server by an administrator (the bot rejects DMs and non-admin roles). No cooldown/lock applies.
 - Output: replies ephemerally with whether the sync happened at the guild or global scope, total commands now registered, and the previous error if it had to fall back to a global sync.
+
+
+## Character animation uploads
+
+`/imgupload page_type:character page_name:<Character page>` now also publishes the
+character's animations discovered from the game CDN and effects after the regular image scan. The
+`character_full` CLI flow inherits this behavior; profile-only and FS-skin-only
+scans do not run it. Existing roles, cooldown, lock, and Discord pacing are unchanged.
+
+- Reads the NPC `id` and `style_id` from `{{Character}}` and probes the game CDN for
+  animation manifests, then follows their spritesheet filenames. No third-party
+  animation index or viewer is queried.
+- Downloads game JS, asset manifests and PNGs through `PROXY_URL` only.
+- Uploads exact canonical spritesheet files through the existing wiki login/API.
+  Matching existing PNG dimensions/type are skipped (compatible with optimized
+  images). No animation redirects, moves, overwrites, or deletions are performed.
+- Publishes registered JS to `anim/<npc-id>/<asset>.js` on R2 and `manifest.json`
+  last. Byte-identical R2 objects are skipped; differing objects stop the animation
+  upload instead of being overwritten. Earlier successful uploads remain for reruns.
+- `DRY_RUN=true` prepares and reports the animation package without wiki/R2 writes
+  and does not require R2 credentials. Game downloads still require the proxy.
+- Missing required game assets are reported as failures;
+  no incomplete new manifest is published. The ordinary image scan may already
+  have completed before an animation failure.
+
+Configure `R2_ENDPOINT_URL`, `R2_BUCKET`, and `R2_API_TOKEN` in the deployment
+secrets/environment, or a local `.env.r2` file (`R2_ENV_FILE` overrides its path).
+Environment variables take priority. The R2 endpoint is the account S3 endpoint,
+for example `https://<account-id>.r2.cloudflarestorage.com`, not the public CDN URL.
+Wiki credentials remain `WIKI_USERNAME`, `WIKI_PASSWORD`, and `USER_AGENT`.
+R2/Cloudflare requests do not use the game proxy. Do not commit credential files.
+
+Discovery uses bounded standard game filename patterns: appearances 01–04,
+common form suffixes, the page's explicit style, charge-attack effect suffixes,
+and skill effect slots 01–20. Gaps do not terminate the scan. HTTP 404 means a
+candidate is absent; proxy/authentication/network failures abort rather than being
+mistaken for absence. Existing downloaded manifests/scripts are reused during
+preparation. Explicit `.js` references are followed with a dependency limit.
+
+The public game CDN has no complete NPC-to-effect listing. Unreferenced shared
+weapon hit effects and nonstandard names cannot be inferred reliably; unresolved
+hit effects are reported and left unset. New naming patterns require extending
+the probes. Existing differing R2 manifests still stop rather than being overwritten.
+The upload summary includes sheets/scripts uploaded, existing, and planned counts
+and the final manifest status.
+
+Install the updated requirements and restart/redeploy the bot. No slash-command
+parameters changed, so no manual `/synccommands` is needed.

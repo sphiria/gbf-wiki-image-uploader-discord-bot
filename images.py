@@ -14,6 +14,7 @@ import asyncio
 import aiohttp
 from io import BytesIO
 from gbfwiki import GBFWiki, GBFDB
+from http_settings import BROWSER_USER_AGENT
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
@@ -573,10 +574,7 @@ class WikiImages(object):
         if self._proxy_health_checked:
             return
 
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                          '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
-        }
+        headers = {'User-Agent': BROWSER_USER_AGENT}
         proxies = {"http": self._proxy_url, "https": self._proxy_url}
 
         print(f'Verifying proxy-backed CDN access via {self.PROXY_TEST_URL}...')
@@ -1151,9 +1149,7 @@ class WikiImages(object):
 
     def get_image(self, url, max_retries=3):
         print('Downloading {0}...'.format(url))
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
-        }
+        headers = {'User-Agent': BROWSER_USER_AGENT}
         proxies = {}
         if self._proxy_url:
             proxies = {"http": self._proxy_url, "https": self._proxy_url}
@@ -1163,20 +1159,9 @@ class WikiImages(object):
                 req = requests.get(url, headers=headers, proxies=proxies, stream=True, timeout=30)
                 
                 if req.status_code == 200:
-                    io = BytesIO(req.content)
-                    io.seek(0)
-
-                    sha1 = hashlib.sha1()
-                    while True:
-                        data = io.read(1024)
-                        if not data:
-                            break
-                        sha1.update(data)
-                    sha1 = sha1.hexdigest()
-                    size = len(req.content)
-
-                    io.seek(0)
-                    return True, sha1, size, io
+                    content = req.content
+                    sha1 = hashlib.sha1(content).hexdigest()
+                    return True, sha1, len(content), BytesIO(content)
                     
                 elif req.status_code == 404:
                     print(f'Download failed (404 Not Found): {url}')
@@ -1213,9 +1198,7 @@ class WikiImages(object):
 
     async def get_images_concurrent(self, urls, timeout_seconds=None, progress_interval=25):
         """Download multiple images concurrently from GBF CDN using proxy with optional timeout handling."""
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
-        }
+        headers = {'User-Agent': BROWSER_USER_AGENT}
         
         async def download_single(session, url, max_retries=3):
             for attempt in range(max_retries + 1):
@@ -1228,16 +1211,8 @@ class WikiImages(object):
                     async with session.get(url, **kwargs) as response:
                         if response.status == 200:
                             content = await response.read()
-                            io_obj = BytesIO(content)
-                            io_obj.seek(0)
-                            
-                            sha1 = hashlib.sha1()
-                            sha1.update(content)
-                            sha1_hex = sha1.hexdigest()
-                            size = len(content)
-                            
-                            io_obj.seek(0)
-                            return url, True, sha1_hex, size, io_obj
+                            sha1 = hashlib.sha1(content).hexdigest()
+                            return url, True, sha1, len(content), BytesIO(content)
                             
                         elif response.status == 404:
                             # Don't retry 404s - file genuinely doesn't exist
@@ -5159,6 +5134,23 @@ class WikiImages(object):
             False,
             include_character_extras=include_character_extras,
         )
+
+        if asset_sections is None and include_character_extras:
+            self.check_character_animations(page)
+
+    def check_character_animations(self, page):
+        from animations import upload_character_animations
+
+        template = GBFWiki.get_template(page.text(), 'Character')
+        if template is None or not template.has('id'):
+            raise ValueError('Character template with an NPC id is required for animations.')
+        npc = str(template.get('id').value).strip()
+        style = 1
+        if template.has('style_id'):
+            style = int(str(template.get('style_id').value).strip() or '1')
+        if not 1 <= style <= 99:
+            raise ValueError("Invalid character style_id for animations.")
+        return upload_character_animations(self, npc, style)
 
     def check_character_profile(self, page):
         self.check_character(
