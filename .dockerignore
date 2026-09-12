@@ -29,3 +29,5 @@ login and pass.txt
 *.db
 *.log
 README.md
+.env
+.env.r2
