@@ -22,6 +22,30 @@ def r2_user_agent():
     )
 
 
+def _verification_failure(route, status, response):
+    """Report only status and numeric codes; API messages may contain secrets."""
+    detail = f"{route}: HTTP {status}"
+    if not isinstance(response, dict):
+        return detail
+    errors = response.get("errors")
+    if isinstance(errors, list):
+        codes = [
+            str(error["code"])
+            for error in errors
+            if isinstance(error, dict) and type(error.get("code")) is int
+        ]
+        if codes:
+            detail += ", Cloudflare code " + ", ".join(codes)
+    result = response.get("result")
+    if isinstance(result, dict) and result.get("status") in (
+        "active",
+        "disabled",
+        "expired",
+    ):
+        detail += ", token status " + result["status"]
+    return detail
+
+
 def credentials(path):
     from dotenv import dotenv_values
 
@@ -46,7 +70,11 @@ def credentials(path):
     if values.get("R2_API_TOKEN"):
         account = values["R2_ENDPOINT_URL"].split("//")[1].split(".")[0]
         token = values["R2_API_TOKEN"]
-        for route in ["user/tokens/verify", "accounts/" + account + "/tokens/verify"]:
+        failures = []
+        for kind, route in (
+            ("user", "user/tokens/verify"),
+            ("account", "accounts/" + account + "/tokens/verify"),
+        ):
             request = urllib.request.Request(
                 "https://api.cloudflare.com/client/v4/" + route,
                 headers={
@@ -58,6 +86,7 @@ def credentials(path):
                 with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
                     request, timeout=30
                 ) as response:
+                    status = response.status
                     result = json.load(response)
                 if (
                     result.get("success")
@@ -69,11 +98,26 @@ def credentials(path):
                     ).hexdigest()
                     print("Using R2_API_TOKEN (verified).", flush=True)
                     break
+                failures.append(_verification_failure(kind, status, result))
             except urllib.error.HTTPError as error:
                 if error.code not in (400, 401, 403):
                     raise
+                with error:
+                    try:
+                        result = json.load(error)
+                    except (ValueError, UnicodeError):
+                        result = None
+                failures.append(_verification_failure(kind, error.code, result))
         else:
-            raise ValueError("R2_API_TOKEN verification failed")
+            source = (
+                "environment"
+                if os.environ.get("R2_API_TOKEN")
+                else "R2 credential file"
+            )
+            raise ValueError(
+                f"R2_API_TOKEN verification failed ({'; '.join(failures)}; "
+                f"token source: {source}). R2 storage was not contacted."
+            )
     elif not all(
         values.get(name) for name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
     ):
