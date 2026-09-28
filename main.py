@@ -1816,9 +1816,7 @@ async def run_banner_upload(banner_identifier: str, max_index: int, status: dict
 # --- BOT SETUP ---
 class WikiBot(discord.Client):
     def __init__(self):
-        intents = discord.Intents.default()
-        intents.guilds = True
-        intents.members = True
+        intents = discord.Intents(guilds=True)
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self._sync_lock: asyncio.Lock | None = None
@@ -1909,8 +1907,8 @@ async def upload(
     page_name: str,
     page_filter: str | None = None,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -2073,8 +2071,8 @@ async def statusupload(
     status_id: str,
     max_index: app_commands.Range[int, 1, 100] = 10,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -2223,8 +2221,8 @@ async def bannerupload(
     banner_id: str,
     max_index: app_commands.Range[int, 1, 50] = 12,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -2412,8 +2410,8 @@ async def drawupdate(
     link_target: str = "Draw",
     element_start: app_commands.Choice[str] | None = None,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -2677,8 +2675,8 @@ async def promoupdate(
     end_time: str,
     link_target: str = "Surprise Ticket",
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -2862,8 +2860,8 @@ async def rateup(
     rateups: str,
     sparkable: str,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -3056,8 +3054,8 @@ async def risingrotation(
     end_date_override: str = "",
     end_time_override: str = "",
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -3353,9 +3351,9 @@ async def synccommands(interaction: discord.Interaction):
         )
         return
 
-    member = guild.get_member(interaction.user.id)
+    member = interaction.user
     is_admin = False
-    if member:
+    if isinstance(member, discord.Member):
         perms = member.guild_permissions
         is_admin = perms.administrator or member.id == guild.owner_id
 
@@ -3402,8 +3400,8 @@ async def itemupload(
     item_id: str,
     item_name: str
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -3565,8 +3563,8 @@ async def eventupload(
     asset_type: app_commands.Choice[str],
     max_index: int | None = None,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
@@ -3791,8 +3789,8 @@ async def enemyupload(
     interaction: discord.Interaction,
     enemy_id: str,
 ):
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member or not (
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (
         any(role.name in ALLOWED_ROLES for role in member.roles)
         or member.guild.owner_id == interaction.user.id
     ):
