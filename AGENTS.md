@@ -531,6 +531,29 @@ Most changes should preserve existing command contracts, wiki filename conventio
   - `Outfit Images`
   - `Profile Room Outfit Images`
 
+## Class Skin Profile Image Contract
+
+- `/imgupload page_type:class_skin` checks gendered `leader/profile` assets when the matched `{{ClassSkin}}` has `id_weapon`.
+- CDN pattern:
+  - `https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/leader/profile/{id}_{id_weapon}_{gender}_01.png`
+- Gender mapping:
+  - `0 -> Gran`
+  - `1 -> Djeeta`
+- Canonical naming:
+  - `Leader_profile_{id}_{id_weapon}_{gender}_01.png`
+- Redirect naming:
+  - `Leader_profile_{id}_{gender}_01.png`
+  - `{skin_desc} (Gran) profile.png`
+  - `{skin_desc} (Djeeta) profile.png`
+- Categories:
+  - `Outfit Images`
+  - `Profile Room Images`
+  - `Profile Room Outfit Images`
+- Duplicate handling keeps weapon IDs and genders as distinct signatures and prefers the lowest numeric skin ID for matching binaries.
+- If `id_weapon` is blank, skip these profile assets with the other gendered class-skin assets.
+- Gendered class-skin canonical files should also create canonical-style redirects with `id_weapon` omitted for template compatibility.
+- This weaponless redirect convention applies to `profile`, `raid_normal`, `p`, `t`, `talk`, `btn`, `result_ml`, `result`, `jobon_z`, `quest`, `sd`, and `pm`; preserve the existing square handling separately.
+
 ## Upload Comment Contract
 
 - Upload comments shown in MediaWiki file history for the affected `/imgupload` and `/statusupload` flows should be:

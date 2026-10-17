@@ -483,6 +483,15 @@ class WikiImages(object):
             signature_parts=('variant', 'ext'),
         ),
         DuplicateFamilyRule(
+            name='class_skin_profile',
+            pattern=re.compile(
+                r'^File:[Ll]eader_profile_(?P<id>[A-Za-z0-9]+)_(?P<weapon_id>[A-Za-z0-9]+)_'
+                r'(?P<gender>[01])_01\.(?P<ext>[A-Za-z0-9]+)$'
+            ),
+            id_parts=('id',),
+            signature_parts=('weapon_id', 'gender', 'ext'),
+        ),
+        DuplicateFamilyRule(
             name='class_gendered_asset',
             pattern=re.compile(
                 r'^File:(?P<prefix>leader_sd|leader_s|leader_job_change|leader_jobm|leader_p|leader_jobon_z|'
@@ -5658,7 +5667,8 @@ class WikiImages(object):
         quest_categories = ['Outfit Images', 'Quest Outfit Images']
         sd_categories = ['Outfit Images', 'Sprite Outfit Images']
         pm_categories = ['Outfit Images', 'PM Outfit Images']
-        sky_compass_categories = ['Outfit Images''Sky Compass Images', 'Sky Compass Outfit Images']
+        profile_categories = ['Outfit Images', 'Profile Room Images', 'Profile Room Outfit Images']
+        sky_compass_categories = ['Outfit Images', 'Sky Compass Images', 'Sky Compass Outfit Images']
         skin_name_categories = ['Outfit Images', 'Skin Name Outfit Images']
 
         download_tasks = []
@@ -5716,6 +5726,21 @@ class WikiImages(object):
                 gender_value = spec['value']
                 alias = spec['display']
 
+                profile_url = (
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
+                    f'img/sp/assets/leader/profile/{filter_id}_{weapon_id}_{gender_value}_01.png'
+                )
+                profile_other = [f'Leader_profile_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    profile_other.append(f'{skin_name} ({alias}) profile.png')
+                add_task(
+                    f'profile asset ({alias})',
+                    profile_url,
+                    f'Leader_profile_{filter_id}_{weapon_id}_{gender_value}_01.png',
+                    profile_other,
+                    profile_categories,
+                )
+
                 raid_url = (
                     'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
                     f'img/sp/assets/leader/raid_normal/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
@@ -5754,7 +5779,9 @@ class WikiImages(object):
                 p_url = (
                     f'https://{p_host}/assets_en/img/sp/assets/leader/p/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                p_other = [f'{skin_name} ({alias}) p.png'] if skin_name else []
+                p_other = [f'Leader_p_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    p_other.append(f'{skin_name} ({alias}) p.png')
                 add_task(
                     f'p asset ({alias})',
                     p_url,
@@ -5767,7 +5794,9 @@ class WikiImages(object):
                 t_url = (
                     f'https://{t_host}/assets_en/img/sp/assets/leader/t/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                t_other = [f'{skin_name} ({alias}) t.png'] if skin_name else []
+                t_other = [f'Leader_t_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    t_other.append(f'{skin_name} ({alias}) t.png')
                 add_task(
                     f't asset ({alias})',
                     t_url,
@@ -5780,7 +5809,9 @@ class WikiImages(object):
                 talk_url = (
                     f'https://{talk_host}/assets_en/img/sp/assets/leader/talk/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                talk_other = [f'{skin_name} ({alias}) talk.png'] if skin_name else []
+                talk_other = [f'Leader_talk_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    talk_other.append(f'{skin_name} ({alias}) talk.png')
                 add_task(
                     f'talk asset ({alias})',
                     talk_url,
@@ -5793,7 +5824,9 @@ class WikiImages(object):
                 btn_url = (
                     f'https://{btn_host}/assets_en/img/sp/assets/leader/btn/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                btn_other = [f'{skin_name} ({alias}) btn.png'] if skin_name else []
+                btn_other = [f'Leader_btn_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    btn_other.append(f'{skin_name} ({alias}) btn.png')
                 add_task(
                     f'btn asset ({alias})',
                     btn_url,
@@ -5806,7 +5839,9 @@ class WikiImages(object):
                 result_ml_url = (
                     f'https://{result_ml_host}/assets_en/img/sp/assets/leader/result_ml/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
-                result_ml_other = [f'{skin_name} ({alias}) result ml.jpg'] if skin_name else []
+                result_ml_other = [f'Leader_result_ml_{filter_id}_{gender_value}_01.jpg']
+                if skin_name:
+                    result_ml_other.append(f'{skin_name} ({alias}) result ml.jpg')
                 add_task(
                     f'result_ml asset ({alias})',
                     result_ml_url,
@@ -5819,7 +5854,9 @@ class WikiImages(object):
                 result_url = (
                     f'https://{result_host}/assets_en/img/sp/assets/leader/result/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
-                result_other = [f'{skin_name} ({alias}) result.jpg'] if skin_name else []
+                result_other = [f'Leader_result_{filter_id}_{gender_value}_01.jpg']
+                if skin_name:
+                    result_other.append(f'{skin_name} ({alias}) result.jpg')
                 add_task(
                     f'result asset ({alias})',
                     result_url,
@@ -5832,7 +5869,9 @@ class WikiImages(object):
                 jobon_url = (
                     f'https://{jobon_host}/assets_en/img/sp/assets/leader/jobon_z/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                jobon_other = [f'{skin_name} ({alias}) jobon z.png'] if skin_name else []
+                jobon_other = [f'Leader_jobon_z_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    jobon_other.append(f'{skin_name} ({alias}) jobon z.png')
                 add_task(
                     f'jobon_z asset ({alias})',
                     jobon_url,
@@ -5845,7 +5884,9 @@ class WikiImages(object):
                 quest_url = (
                     f'https://{quest_host}/assets_en/img/sp/assets/leader/quest/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
-                quest_other = [f'{skin_name} ({alias}) quest.jpg'] if skin_name else []
+                quest_other = [f'Leader_quest_{filter_id}_{gender_value}_01.jpg']
+                if skin_name:
+                    quest_other.append(f'{skin_name} ({alias}) quest.jpg')
                 add_task(
                     f'quest asset ({alias})',
                     quest_url,
@@ -5858,7 +5899,9 @@ class WikiImages(object):
                 sd_url = (
                     f'https://{sd_host}/assets_en/img/sp/assets/leader/sd/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                sd_other = [f'{skin_name} ({alias}) SD.png'] if skin_name else []
+                sd_other = [f'Leader_sd_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    sd_other.append(f'{skin_name} ({alias}) SD.png')
                 add_task(
                     f'sd asset ({alias})',
                     sd_url,
@@ -5887,7 +5930,9 @@ class WikiImages(object):
                 pm_url = (
                     f'https://{pm_host}/assets_en/img/sp/assets/leader/pm/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
-                pm_other = [f'{skin_name} ({alias}) pm.png'] if skin_name else []
+                pm_other = [f'Leader_pm_{filter_id}_{gender_value}_01.png']
+                if skin_name:
+                    pm_other.append(f'{skin_name} ({alias}) pm.png')
                 add_task(
                     f'pm asset ({alias})',
                     pm_url,
