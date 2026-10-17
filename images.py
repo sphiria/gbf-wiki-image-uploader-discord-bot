@@ -5681,21 +5681,21 @@ class WikiImages(object):
             })
 
         base_url = (
-            'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
             f'img/sp/assets/leader/skin/{filter_id}_01.png'
         )
         base_redirects = [f'{skin_name} skin.png'] if skin_name else []
         add_task('skin artwork', base_url, f'Leader_skin_{filter_id}_01.png', base_redirects, base_categories)
 
         icon_url = (
-            'https://prd-game-a3-granbluefantasy.akamaized.net/assets_en/'
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
             f'img/sp/assets/leader/m/{filter_id}_01.jpg'
         )
         icon_redirects = [f'{skin_name} (MC) icon.jpg'] if skin_name else []
         add_task('mc icon', icon_url, f'Leader_m_{filter_id}_01.jpg', icon_redirects, icon_categories)
 
         square_url = (
-            'https://prd-game-a4-granbluefantasy.akamaized.net/assets_en/'
+            'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
             f'img/sp/assets/leader/s/{filter_id}_01.jpg'
         )
         square_redirects = [f'{skin_name} (MC) square.jpg'] if skin_name else []
@@ -5706,18 +5706,18 @@ class WikiImages(object):
             {'value': 1, 'display': 'Djeeta'},
         ]
 
-        square_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a5-granbluefantasy.akamaized.net'}
-        p_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
-        t_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
+        square_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        p_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        t_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
         talk_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
-        btn_hosts = {0: 'prd-game-a2-granbluefantasy.akamaized.net', 1: 'prd-game-a2-granbluefantasy.akamaized.net'}
-        result_ml_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
-        result_hosts = {0: 'prd-game-a4-granbluefantasy.akamaized.net', 1: 'prd-game-a4-granbluefantasy.akamaized.net'}
+        btn_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        result_ml_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        result_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
         jobon_z_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
-        quest_hosts = {0: 'prd-game-a2-granbluefantasy.akamaized.net', 1: 'prd-game-a2-granbluefantasy.akamaized.net'}
-        sd_hosts = {0: 'prd-game-a2-granbluefantasy.akamaized.net', 1: 'prd-game-a2-granbluefantasy.akamaized.net'}
+        quest_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
+        sd_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
         sky_hosts = {0: 'media.skycompass.io', 1: 'media.skycompass.io'}
-        pm_hosts = {0: 'prd-game-a1-granbluefantasy.akamaized.net', 1: 'prd-game-a1-granbluefantasy.akamaized.net'}
+        pm_hosts = {0: 'prd-game-a-granbluefantasy.akamaized.net', 1: 'prd-game-a-granbluefantasy.akamaized.net'}
 
         if weapon_id:
             for spec in gender_specs:
@@ -5725,7 +5725,7 @@ class WikiImages(object):
                 alias = spec['display']
 
                 raid_url = (
-                    'https://prd-game-a1-granbluefantasy.akamaized.net/assets_en/'
+                    'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/'
                     f'img/sp/assets/leader/raid_normal/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
                 gender_redirect = 'gran' if gender_value == 0 else 'djeeta'
@@ -5743,7 +5743,7 @@ class WikiImages(object):
                     raid_categories,
                 )
 
-                square_host = square_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                square_host = square_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 square_variant_url = (
                     f'https://{square_host}/assets_en/img/sp/assets/leader/s/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
@@ -5758,7 +5758,7 @@ class WikiImages(object):
                     square_categories,
                 )
 
-                p_host = p_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                p_host = p_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 p_url = (
                     f'https://{p_host}/assets_en/img/sp/assets/leader/p/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
@@ -5771,7 +5771,7 @@ class WikiImages(object):
                     p_categories,
                 )
 
-                t_host = t_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                t_host = t_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 t_url = (
                     f'https://{t_host}/assets_en/img/sp/assets/leader/t/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
@@ -5797,7 +5797,7 @@ class WikiImages(object):
                     talk_categories,
                 )
 
-                btn_host = btn_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                btn_host = btn_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 btn_url = (
                     f'https://{btn_host}/assets_en/img/sp/assets/leader/btn/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
@@ -5810,7 +5810,7 @@ class WikiImages(object):
                     btn_categories,
                 )
 
-                result_ml_host = result_ml_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                result_ml_host = result_ml_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 result_ml_url = (
                     f'https://{result_ml_host}/assets_en/img/sp/assets/leader/result_ml/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
@@ -5823,7 +5823,7 @@ class WikiImages(object):
                     result_ml_categories,
                 )
 
-                result_host = result_hosts.get(gender_value, 'prd-game-a4-granbluefantasy.akamaized.net')
+                result_host = result_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 result_url = (
                     f'https://{result_host}/assets_en/img/sp/assets/leader/result/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
@@ -5849,7 +5849,7 @@ class WikiImages(object):
                     jobon_z_categories,
                 )
 
-                quest_host = quest_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                quest_host = quest_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 quest_url = (
                     f'https://{quest_host}/assets_en/img/sp/assets/leader/quest/{filter_id}_{weapon_id}_{gender_value}_01.jpg'
                 )
@@ -5862,7 +5862,7 @@ class WikiImages(object):
                     quest_categories,
                 )
 
-                sd_host = sd_hosts.get(gender_value, 'prd-game-a2-granbluefantasy.akamaized.net')
+                sd_host = sd_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 sd_url = (
                     f'https://{sd_host}/assets_en/img/sp/assets/leader/sd/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
@@ -5891,7 +5891,7 @@ class WikiImages(object):
                     sky_compass_categories,
                 )
 
-                pm_host = pm_hosts.get(gender_value, 'prd-game-a1-granbluefantasy.akamaized.net')
+                pm_host = pm_hosts.get(gender_value, 'prd-game-a-granbluefantasy.akamaized.net')
                 pm_url = (
                     f'https://{pm_host}/assets_en/img/sp/assets/leader/pm/{filter_id}_{weapon_id}_{gender_value}_01.png'
                 )
